@@ -2,9 +2,7 @@
   <div>
     <div v-if="loading">Загрузка...</div>
     <div v-else-if="song">
-      <h2>Песня №{{ song.number }}</h2>
-      <pre class="song-text">{{ song.text }}</pre>
-      <pre class="song-text">{{ song.tags }}</pre>
+      <SongDisplay :song="song" />
 
       <div class="collections-section">
         <h3>Добавить в подборку</h3>
@@ -52,10 +50,18 @@
 
 <script setup>
 const route = useRoute();
-const { getSong, createCollection, getCollectionsForSong, addSongToCollection, getAvailableCollections, removeSongFromCollection } = useIndexDB();
+const {
+  getSong,
+  createCollection,
+  getCollectionsForSong,
+  addSongToCollection,
+  getAvailableCollections,
+  removeSongFromCollection
+} = useIndexDB();
 
 const song = ref(null);
 const loading = ref(true);
+const isShowChords = ref(false);
 const collections = ref([]);
 const songCollections = ref([]);
 const selectedCollection = ref('');
@@ -116,16 +122,25 @@ const removeFromCollection = async (collectionId) => {
     alert('Не удалось удалить песню')
   }
 }
+
+const hasChords = computed((str) => {
+  return isShowChords.value && /\{/.test(str);
+});
+
+const nl2br = computed((str) => {
+  if (isShowChords.value) {
+    str = str.replace(/\{_/g, "<span class='chord'>");
+    str = str.replace(/\{/g, "<span class='chord chord-up'>");
+    str = str.replace(/\}/g, "</span>");
+  } else {
+    str = str.replace(/\{[^\}]+\}/g, '');
+  }
+  str = str.replace(/([^>])\n/g, '$1<br/>');
+  return str;
+});
 </script>
 
 <style scoped>
-.song-text {
-  white-space: pre-wrap;
-  font-family: inherit;
-  background: var(--bg-secondary);
-  padding: 1rem;
-  border-radius: 4px;
-}
 
 .collections-section {
   margin-top: 2rem;

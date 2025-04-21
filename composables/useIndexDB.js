@@ -12,9 +12,14 @@ export const useIndexDB = () => {
             // Добавляем только нужные данные
             songs.forEach(song => {
                 store.add({
-                    number: Number(song.number),
-                    text: String(song.text),
-                    tags: song.tags.map(tag=> String(tag))
+                    number: Number(song.n),
+                    title: String(song.title),
+                    body: song.body.map(item => ({
+                        id: item.id ? Number(item.id) : null,
+                        type: String(item.type),
+                        content: item.content ? String(item.content) : null,
+                        repeatId: item.repeatId ? String(item.repeatId) : null
+                    })),
                 })
             })
 

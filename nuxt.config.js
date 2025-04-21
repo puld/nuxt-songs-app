@@ -59,7 +59,9 @@ export default {
 
     modules: [
         '@nuxtjs/color-mode',
-        'nuxt-icons'
+        'nuxt-icons',
+        '@pinia/nuxt',
+        '@pinia-plugin-persistedstate/nuxt'
     ],
 
     colorMode: {

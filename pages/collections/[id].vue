@@ -56,7 +56,7 @@ onMounted(async () => {
         <div v-for="song in songs" :key="song.number" class="song-item">
           <NuxtLink :to="`/song/${song.number}`">
             <h3>Песня №{{ song.number }}</h3>
-            <p>{{ song.text.substring(0, 100) }}...</p>
+            <p>{{ song.title }}</p>
           </NuxtLink>
           <button @click="removeSong(song.number)" class="remove-btn">
             Удалить из подборки

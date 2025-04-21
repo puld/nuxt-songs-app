@@ -1,8 +1,8 @@
 <template>
   <div class="song-card" @click="$emit('click', song)">
-    <div class="song-number">№{{ song.number }}</div>
+    <div class="song-number">№{{ song.n }}</div>
     <div class="song-preview">
-      {{ truncatedText }}
+      {{ song.title }}
     </div>
   </div>
 </template>
@@ -18,13 +18,6 @@ const props = defineProps({
 });
 
 defineEmits(['click']);
-
-const truncatedText = computed(() => {
-  if (!props.song.text) return '';
-  return props.song.text.length > 50
-      ? props.song.text.substring(0, 50) + '...'
-      : props.song.text;
-});
 </script>
 
 <style scoped>
