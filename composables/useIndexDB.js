@@ -11,7 +11,8 @@ export const useIndexDB = () => {
 
             // Добавляем только нужные данные
             songs.forEach(song => {
-                store.add({
+                store.put({
+                    id: Number(song.n),
                     number: Number(song.n),
                     title: String(song.title),
                     body: song.body.map(item => ({
@@ -32,7 +33,7 @@ export const useIndexDB = () => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['songs'], 'readonly');
             const store = transaction.objectStore('songs');
-            const request = store.get(number);
+            const request = store.get(Number(number));
 
             request.onsuccess = () => resolve(request.result);
             request.onerror = (event) => reject(event.target.error);
@@ -259,6 +260,29 @@ export const useIndexDB = () => {
         })
     }
 
+    const getSongsCount = async () => {
+        return new Promise((resolve) => {
+            const transaction = $indexedDB.transaction(['songs'], 'readonly')
+            const store = transaction.objectStore('songs')
+            const request = store.count()
+
+            request.onsuccess = () => resolve(request.result)
+            request.onerror = () => resolve(0) // Возвращаем 0 при ошибке
+        })
+    }
+
+    // Добавляем метод для получения списка всех номеров песен
+    const getSongNumbers = async () => {
+        return new Promise((resolve) => {
+            const transaction = $indexedDB.transaction(['songs'], 'readonly')
+            const store = transaction.objectStore('songs')
+            const request = store.getAllKeys()
+
+            request.onsuccess = () => resolve(request.result || [])
+            request.onerror = () => resolve([])
+        })
+    }
+
     return {
         addSongs,
         getSong,
@@ -270,6 +294,8 @@ export const useIndexDB = () => {
         getCollectionsForSong,
         getCollection,
         getAvailableCollections,
-        deleteCollection
+        deleteCollection,
+        getSongsCount,
+        getSongNumbers
     };
 };

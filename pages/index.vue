@@ -1,16 +1,16 @@
 <template>
   <div class="welcome-screen">
     <h1>Сборник текстов песен</h1>
-    <p>Выберите номер песни для просмотра текста</p>
+    <p>Выберите номер песни (доступно {{ songNumbers.length }} песен)</p>
 
     <form @submit.prevent="goToSong">
       <input
           ref="songInput"
           v-model.number="songNumber"
           type="number"
-          min="1"
-          max="2000"
-          placeholder="Номер песни (1-2000)"
+          :min="1"
+          :max="songsCount"
+          :placeholder="`Номер песни (${Math.min(...songNumbers)}-${Math.max(...songNumbers)})`"
           required
           inputmode="numeric"
           pattern="[0-9]*"
@@ -24,23 +24,29 @@
 <script setup>
 const songNumber = ref(null)
 const songInput = ref(null)
+const songsCount = ref(0)
 const router = useRouter()
+const { getSongNumbers } = useIndexDB() // Ваш метод из composable
 
-onMounted(() => {
-  // Устанавливаем фокус при загрузке
+onMounted(async () => {
+
+  // Устанавливаем фокус
   songInput.value.focus()
 
-  // Для мобильных устройств дополнительно активируем числовую клавиатуру
-  if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-    songInput.value.removeAttribute('readonly') // На случай если readonly мешает
-    songInput.value.click() // Дополнительный триггер для iOS
+  // Активация числовой клавиатуры для мобильных
+  if (/Mobi|Android|iPhone/i.test(navigator.userAgent)) {
+    songInput.value.click()
   }
 })
 
+
 const goToSong = () => {
-  if (songNumber.value >= 1 && songNumber.value <= 2000) {
-    router.push(`/song/${songNumber.value}`)
+  const num = Number(songNumber.value)
+  if (!songNumbers.value.includes(num)) {
+    alert(`Песни с номером ${num} не существует. Доступные номера: ${songNumbers.value.join(', ')}`)
+    return
   }
+  router.push(`/song/${num}`)
 }
 </script>
 
@@ -96,6 +102,23 @@ button {
   button {
     width: 80%;
     padding: 0.8rem;
+  }
+}
+
+.song-input {
+  /* Улучшаем отображение числового поля */
+  -moz-appearance: textfield;
+}
+
+.song-input::-webkit-outer-spin-button,
+.song-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .song-input {
+    font-size: 16px; /* Фикс для iOS чтобы не увеличивался шрифт */
   }
 }
 </style>

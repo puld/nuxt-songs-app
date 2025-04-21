@@ -2,6 +2,24 @@
   <div>
     <div v-if="loading">Загрузка...</div>
     <div v-else-if="song">
+      <div class="navigation">
+        <button
+            v-if="hasPrev"
+            @click="goToSong(prevSongNumber)"
+            class="nav-button"
+        >
+          ← Предыдущая ({{ prevSongNumber }})
+        </button>
+
+        <button
+            v-if="hasNext"
+            @click="goToSong(nextSongNumber)"
+            class="nav-button"
+        >
+          Следующая ({{ nextSongNumber }}) →
+        </button>
+      </div>
+
       <SongDisplay :song="song" />
 
       <div class="collections-section">
@@ -50,8 +68,10 @@
 
 <script setup>
 const route = useRoute();
+const router = useRouter()
 const {
   getSong,
+  getSongNumbers,
   createCollection,
   getCollectionsForSong,
   addSongToCollection,
@@ -66,10 +86,15 @@ const collections = ref([]);
 const songCollections = ref([]);
 const selectedCollection = ref('');
 const newCollectionName = ref('');
+const songNumbers = ref([]);
+const currentIndex = ref(-1);
 
 onMounted(async () => {
   const songNumber = parseInt(route.params.number);
+
+  songNumbers.value = await getSongNumbers()
   song.value = await getSong(songNumber);
+  currentIndex.value = songNumbers.value.indexOf(songNumber)
 
   if (!song.value) {
     loading.value = false;
@@ -84,6 +109,15 @@ onMounted(async () => {
 
   loading.value = false;
 });
+
+const hasPrev = computed(() => currentIndex.value > 0)
+const hasNext = computed(() => currentIndex.value < songNumbers.value.length - 1)
+const prevSongNumber = computed(() => hasPrev.value ? songNumbers.value[currentIndex.value - 1] : null)
+const nextSongNumber = computed(() => hasNext.value ? songNumbers.value[currentIndex.value + 1] : null)
+
+const goToSong = (number) => {
+  router.push(`/song/${number}`)
+}
 
 const addToCollection = async () => {
   if (selectedCollection.value === '') {
