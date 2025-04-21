@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ['main']
+    branches: [main]
 
 jobs:
   deploy:
@@ -10,13 +10,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
+          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Clean install dependencies
+        run: |
+          # Удаляем возможные проблемные файлы
+          rm -rf node_modules package-lock.json
+          # Чистая установка
+          npm ci
 
       - name: Build
         run: npm run generate
