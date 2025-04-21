@@ -16,12 +16,12 @@ jobs:
           node-version: 18
           cache: 'npm'
 
-      - name: Clean install dependencies
+      - name: Install dependencies
         run: |
-          # Удаляем возможные проблемные файлы
-          rm -rf node_modules package-lock.json
-          # Чистая установка
-          npm ci
+          # Удаляем только node_modules
+          rm -rf node_modules
+          # Стандартная установка с созданием package-lock.json
+          npm install
 
       - name: Build
         run: npm run generate
