@@ -58,7 +58,8 @@ export default {
     ],
 
     modules: [
-        '@nuxtjs/color-mode'
+        '@nuxtjs/color-mode',
+        'nuxt-icons'
     ],
 
     colorMode: {
