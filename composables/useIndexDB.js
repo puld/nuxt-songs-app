@@ -283,6 +283,18 @@ export const useIndexDB = () => {
         })
     }
 
+    const getSongsCountInCollection = async (collectionId) => {
+        return new Promise((resolve) => {
+            const transaction = $indexedDB.transaction(['songCollections'], 'readonly')
+            const store = transaction.objectStore('songCollections')
+            const index = store.index('collectionId')
+            const request = index.count(Number(collectionId))
+
+            request.onsuccess = () => resolve(request.result || 0)
+            request.onerror = () => resolve(0)
+        })
+    }
+
     return {
         addSongs,
         getSong,
@@ -296,6 +308,7 @@ export const useIndexDB = () => {
         getAvailableCollections,
         deleteCollection,
         getSongsCount,
-        getSongNumbers
+        getSongNumbers,
+        getSongsCountInCollection
     };
 };

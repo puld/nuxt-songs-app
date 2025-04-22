@@ -9,7 +9,7 @@
           v-model.number="songNumber"
           type="number"
           :min="1"
-          :max="songsCount"
+          :max="Math.max(...songNumbers)"
           :placeholder="`Номер песни (${Math.min(...songNumbers)}-${Math.max(...songNumbers)})`"
           required
           inputmode="numeric"
@@ -22,14 +22,17 @@
 </template>
 
 <script setup>
+const { getSongNumbers } = useIndexDB()
+
 const songNumber = ref(null)
 const songInput = ref(null)
 const songsCount = ref(0)
+const songNumbers = ref([]);
 const router = useRouter()
-const { getSongNumbers } = useIndexDB() // Ваш метод из composable
 
 onMounted(async () => {
 
+  songNumbers.value = await getSongNumbers()
   // Устанавливаем фокус
   songInput.value.focus()
 

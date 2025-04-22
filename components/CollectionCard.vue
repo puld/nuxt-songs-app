@@ -2,7 +2,7 @@
   <div class="collection-card">
     <div class="collection-info">
       <h3>{{ collection.name }}</h3>
-      <p>{{ collection.songCount || 0 }} песен</p>
+      <p>{{ songsCount }} {{ pluralize(songsCount, 'песня', 'песни', 'песен') }}</p>
     </div>
 
     <div class="collection-actions">
@@ -23,7 +23,11 @@
 </template>
 
 <script setup>
-defineProps({
+import { ref, onMounted } from 'vue'
+import { useIndexDB } from '~/composables/useIndexDB'
+import { useUtils } from '~/composables/utils'
+
+const props = defineProps({
   collection: {
     type: Object,
     required: true
@@ -31,6 +35,15 @@ defineProps({
 });
 
 defineEmits(['delete']);
+
+const { getSongsCountInCollection } = useIndexDB()
+const { pluralize } = useUtils();
+
+const songsCount = ref(0)
+
+onMounted(async () => {
+  songsCount.value = await getSongsCountInCollection(props.collection.id)
+})
 </script>
 
 <style scoped>
