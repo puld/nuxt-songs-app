@@ -8,8 +8,9 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "start": "nuxt start",
-    "postinstall": "nuxt prepare"
-  },
+    "postinstall": "nuxt prepare",
+    "parse-txt": "node scripts/parseTxt.js"
+    },
   "dependencies": {
     "@nuxtjs/color-mode": "^3.5.2",
     "@nuxtjs/pwa": "^3.1.2",
