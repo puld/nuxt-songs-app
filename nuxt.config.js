@@ -75,6 +75,13 @@ export default {
         mode: 'hash'
     },
 
+
+
+    app: {
+        baseURL: process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/',
+        buildAssetsDir: '/_nuxt/'
+    },
+
     compatibilityDate: '2025-04-23',
 
     nitro: {
