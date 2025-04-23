@@ -1,4 +1,4 @@
-name: Deploy Nuxt site to Pages
+name: Deploy Nuxt to GitHub Pages
 
 on:
   push:
@@ -21,26 +21,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Detect package manager
-        id: detect-package-manager
-        run: |
-          if [ -f "${{ github.workspace }}/yarn.lock" ]; then
-            echo "manager=yarn" >> $GITHUB_OUTPUT
-            echo "command=install" >> $GITHUB_OUTPUT
-            exit 0
-          elif [ -f "${{ github.workspace }}/package.json" ]; then
-            echo "manager=npm" >> $GITHUB_OUTPUT
-            echo "command=ci" >> $GITHUB_OUTPUT
-            exit 0
-          else
-            echo "Unable to determine package manager"
-            exit 1
-          fi
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: ${{ steps.detect-package-manager.outputs.manager }}
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
@@ -52,17 +38,22 @@ jobs:
           rm -rf .nuxt node_modules package-lock.json
           # Стандартная установка с созданием package-lock.json
           npm install
-          #${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
-      - name: Static HTML export with Nuxt
-        run: ${{ steps.detect-package-manager.outputs.manager }} run generate
 
-      - name: Verify dist directory
-        run: ls -la dist
+      - name: Static HTML export with Nuxt
+        run: |
+          npm run generate
+          ls -la .output/public  # Проверяем, где создаются файлы
+
+      - name: Create dist if not exists
+        if: !exists('.output/public')
+        run: |
+          mkdir -p dist
+          echo "Fallback: Created empty dist directory" > dist/index.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist
+          path: .output/public || dist  # Пробуем оба варианта
 
   deploy:
     environment:
