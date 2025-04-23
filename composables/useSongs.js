@@ -4,7 +4,7 @@ export const useSongs = () => {
     const fetchSongs = async (number) => {
         try {
             // Правильный путь к файлу
-            const response = await fetch('/assets/songs.json')
+            const response = await fetch('assets/songs.json')
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`)
