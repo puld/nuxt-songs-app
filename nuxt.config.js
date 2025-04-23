@@ -49,7 +49,6 @@ export default {
         workbox: {
             navigateFallback: '/',
             globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
-            offline: true,
             runtimeCaching: [
                 {
                     urlPattern: '/assets/songs.json',
