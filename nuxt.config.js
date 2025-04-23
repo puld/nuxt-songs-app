@@ -79,6 +79,7 @@ export default {
     nitro: {
         static: true, // Для корректного обслуживания статических файлов
     },
+
     vite: {
         server: {
             fs: {
