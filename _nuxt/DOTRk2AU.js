@@ -1,1 +1,0 @@
-import{B as s}from"./DlicuE9j.js";const o=s("settings",{state:()=>({fontSize:"medium",showChords:!0}),actions:{setFontSize(t){this.fontSize=t},setShowChords(t){this.showChords=t}},persist:!0});export{o as u};
