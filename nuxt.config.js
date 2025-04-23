@@ -1,6 +1,6 @@
 export default {
     target: 'static',
-    ssr: false,
+    ssr: true,
 
     head: {
         title: 'Сборник текстов песен',
