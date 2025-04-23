@@ -14,8 +14,8 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
-env:
-  GITHUB_REPOSITORY: ${{ github.repository }}
+#env:
+#  GITHUB_REPOSITORY: ${{ github.repository }}
 
 jobs:
   build:

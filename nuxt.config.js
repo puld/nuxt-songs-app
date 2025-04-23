@@ -71,7 +71,7 @@ export default {
     },
 
     router: {
-        base: '/nuxt-songs-app/',
+        base: process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/',
         mode: 'hash'
     },
 
