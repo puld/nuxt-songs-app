@@ -17,21 +17,38 @@ export default {
     },
 
     pwa: {
+        registerType: 'autoUpdate',
         manifest: {
             name: 'Сборник текстов песен',
             short_name: 'Песни',
             description: 'Оффлайн сборник текстов песен',
             theme_color: '#ffffff',
+            background_color: '#ffffff',
+            display: 'standalone',
+            orientation: 'portrait',
+            scope: '/',
+            start_url: '/',
             icons: [
                 {
-                    src: '/icons/icon-72x72.png',
-                    sizes: '72x72',
+                    src: 'favicon-96x96.png',
+                    sizes: '96x96',
                     type: 'image/png'
                 },
-                // другие размеры иконок
+                {
+                    src: 'web-app-manifest-192x192.png',
+                    sizes: '192x192',
+                    type: 'image/png'
+                },
+                {
+                    src: 'web-app-manifest-512x512.png',
+                    sizes: '512x512',
+                    type: 'image/png'
+                }
             ]
         },
         workbox: {
+            navigateFallback: '/',
+            globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
             offline: true,
             runtimeCaching: [
                 {
@@ -46,6 +63,10 @@ export default {
                     }
                 }
             ]
+        },
+        client: {
+            installPrompt: true,
+            periodicSyncForUpdates: 20
         }
     },
 
@@ -61,7 +82,8 @@ export default {
     modules: [
         '@nuxtjs/color-mode',
         '@nuxt/icon',
-        '@pinia/nuxt'
+        '@pinia/nuxt',
+        '@vite-pwa/nuxt'
     ],
 
     colorMode: {
@@ -79,7 +101,19 @@ export default {
 
     app: {
         baseURL: process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/',
-        buildAssetsDir: '/_nuxt/'
+        buildAssetsDir: '/_nuxt/',
+        head: {
+            link: [
+                { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+                { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-96x96.png' },
+                { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+                { rel: 'mask-icon', href: '/icon.svg', color: '#ffffff' }
+            ],
+            meta: [
+                { name: 'msapplication-TileColor', content: '#ffffff' },
+                { name: 'theme-color', content: '#ffffff' }
+            ]
+        }
     },
 
     compatibilityDate: '2025-04-23',
