@@ -44,7 +44,7 @@ onMounted(async () => {
       <NuxtLink to="/collections">Назад к списку</NuxtLink>
     </div>
     <div v-else>
-      <h2>{{ collection.name }}</h2>
+      <h2>Подборка: {{ collection.name }}</h2>
       <p>Количество песен: {{ songs.length }}</p>
 
       <div v-if="songs.length === 0" class="empty">
@@ -54,10 +54,7 @@ onMounted(async () => {
 
       <div v-else class="songs-list">
         <div v-for="song in songs" :key="song.number" class="song-item">
-          <NuxtLink :to="`/song/${song.number}`">
-            <h3>Песня №{{ song.number }}</h3>
-            <p>{{ song.title }}</p>
-          </NuxtLink>
+          {{ song.number }}. <NuxtLink :to="`/song/${song.number}`">{{ song.title }}</NuxtLink>
           <button @click="removeSong(song.number)" class="remove-btn">
             Удалить из подборки
           </button>
