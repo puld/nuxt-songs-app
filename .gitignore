@@ -2,4 +2,4 @@
 /.nuxt
 /node_modules
 /tmp
-/.output
+/.output/*
