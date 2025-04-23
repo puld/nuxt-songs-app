@@ -42,29 +42,11 @@ jobs:
       - name: Static HTML export with Nuxt
         run: |
           npm run generate
-          echo "Build output:"
-          ls -la .output/public || echo "No .output/public"
-          ls -la dist || echo "No dist"
-
-      - name: Try upload Nuxt 3 artifact
-        continue-on-error: true
-        run: |
-          if [ -d ".output/public" ]; then
-            echo "Uploading Nuxt 3 artifact from .output/public"
-            cp -r .output/public dist
-          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
-
-      - name: Verify artifact
-        run: |
-          if [ ! -d "dist" ]; then
-            echo "::error::No build output found in either .output/public or dist"
-            exit 1
-          fi
+          path: .output/public
 
   deploy:
     environment:
