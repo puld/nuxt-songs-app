@@ -71,6 +71,10 @@ jobs:
             ${{ runner.os }}-nuxt-build-
       - name: Install dependencies
         run:  |
+          # Удаляем только .nuxt node_modules package-lock.json
+          rm -rf .nuxt node_modules package-lock.json
+          # Стандартная установка с созданием package-lock.json
+          # npm install
           ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
       - name: Static HTML export with Nuxt
         run: ${{ steps.detect-package-manager.outputs.manager }} run generate
