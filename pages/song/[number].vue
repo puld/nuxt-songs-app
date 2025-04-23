@@ -2,61 +2,60 @@
   <div>
     <div v-if="loading">Загрузка...</div>
     <div v-else-if="song">
-      <div class="navigation">
-        <button
+      <div class="nav">
+        <NuxtLink
             v-if="hasPrev"
             @click="goToSong(prevSongNumber)"
             class="nav-button"
         >
           ← Предыдущая ({{ prevSongNumber }})
-        </button>
+        </NuxtLink>
 
-        <button
+        <NuxtLink
             v-if="hasNext"
             @click="goToSong(nextSongNumber)"
             class="nav-button"
         >
           Следующая ({{ nextSongNumber }}) →
-        </button>
+        </NuxtLink>
       </div>
 
-      <SongDisplay :song="song" />
+      <SongDisplay :song="song"/>
 
       <div class="collections-section">
-        <h3>Добавить в подборку</h3>
-        <select v-model="selectedCollection">
-          <option value="">Новая подборка</option>
-          <option
-              v-for="collection in collections"
-              :key="collection.id"
-              :value="collection.id"
-          >
-            {{ collection.name }}
-          </option>
-        </select>
-
-        <input
-            v-if="selectedCollection === ''"
-            v-model="newCollectionName"
-            placeholder="Название подборки"
-        >
-
-        <button @click="addToCollection">Добавить</button>
-
         <div v-if="songCollections.length > 0" class="current-collections">
           <h3>Входит в подборки:</h3>
           <ul>
-            <li v-for="col in songCollections" :key="col.id">
+            <li v-for="col in songCollections" :key="col.id" class="nav">
+
               <NuxtLink :to="`/collections/${col.id}`">{{ col.name }}</NuxtLink>
-              <button
-                  @click="removeFromCollection(col.id)"
-                  class="remove-btn"
-              >
-                Удалить
-              </button>
+              <NuxtLink @click="removeFromCollection(col.id)" class="remove-btn">Х</NuxtLink>
             </li>
           </ul>
         </div>
+        <h3>Добавить в подборку</h3>
+        <nav class="nav">
+          <select v-model="selectedCollection">
+            <option value="">Новая подборка</option>
+            <option
+                v-for="collection in collections"
+                :key="collection.id"
+                :value="collection.id"
+            >
+              {{ collection.name }}
+            </option>
+          </select>
+
+          <input
+              v-if="selectedCollection === ''"
+              v-model="newCollectionName"
+              placeholder="Название подборки"
+          >
+
+          <NuxtLink @click="addToCollection">
+            <Icon name="mingcute:add-fill" color="black"/>
+          </NuxtLink>
+        </nav>
       </div>
     </div>
     <div v-else>
