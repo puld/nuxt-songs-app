@@ -41,7 +41,9 @@ onMounted(async () => {
 
   songNumbers.value = await getSongNumbers()
   // Устанавливаем фокус
-  songInput.value.focus()
+  if (songNumbers.length) {
+    songInput.value.focus()
+  }
 
   // Активация числовой клавиатуры для мобильных
   if (/Mobi|Android|iPhone/i.test(navigator.userAgent)) {

@@ -127,5 +127,9 @@ export default {
                 strict: false // Разрешаем доступ к файлам
             }
         }
-    }
+    },
+    server: {
+        host: '0',
+        port: 3000
+    },
 };
