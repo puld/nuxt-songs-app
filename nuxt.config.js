@@ -70,13 +70,9 @@ export default {
         classSuffix: ''
     },
 
-    router: {
-        base: '/nuxt-songs-app/' // замените на имя вашего репозитория
-    },
-    app: {
-        // baseURL: process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/',
-        // buildAssetsDir: process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/_nuxt/' : '/_nuxt/'
-    },
+    // router: {
+    //     base: '/nuxt-songs-app/' // замените на имя вашего репозитория
+    // },
 
     compatibilityDate: '2025-04-23',
 
