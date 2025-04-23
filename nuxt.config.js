@@ -20,7 +20,7 @@ export default {
         manifest: {
             name: 'Сборник текстов песен',
             short_name: 'Песни',
-            description: 'Оффлайн сборник 2000 текстов песен',
+            description: 'Оффлайн сборник текстов песен',
             theme_color: '#ffffff',
             icons: [
                 {
@@ -71,7 +71,7 @@ export default {
     },
 
     router: {
-        base: '/<repository-name>/' // замените на имя вашего репозитория
+        base: '/nuxt-songs-app/' // замените на имя вашего репозитория
     },
 
     compatibilityDate: '2025-04-20',
