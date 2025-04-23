@@ -1,8 +1,6 @@
 <template>
   <div class="welcome-screen">
     <h1>Сборник текстов песен</h1>
-
-
     <div v-if="!songNumbers.length">
       <p>Необходимо перейти в настройки и принудительно обновить базу данных текстов песен.</p>
       <NuxtLink to="/settings">Перейти в настройки для обновления</NuxtLink>
