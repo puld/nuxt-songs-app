@@ -71,7 +71,8 @@ export default {
     },
 
     router: {
-        base: '/nuxt-songs-app/' // замените на имя вашего репозитория
+        base: '/nuxt-songs-app/',
+        mode: 'hash'
     },
 
     compatibilityDate: '2025-04-23',
