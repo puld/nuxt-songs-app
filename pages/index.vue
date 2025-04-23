@@ -1,28 +1,35 @@
 <template>
   <div class="welcome-screen">
     <h1>Сборник текстов песен</h1>
-    <p>Выберите номер песни (доступно {{ songNumbers.length }} песен)</p>
 
-    <form @submit.prevent="goToSong">
-      <input
-          ref="songInput"
-          v-model.number="songNumber"
-          type="number"
-          :min="1"
-          :max="Math.max(...songNumbers)"
-          :placeholder="`Номер песни (${Math.min(...songNumbers)}-${Math.max(...songNumbers)})`"
-          required
-          inputmode="numeric"
-          pattern="[0-9]*"
-          class="song-input"
-      >
-      <button type="submit">Перейти</button>
-    </form>
+
+    <div v-if="!songNumbers.length">
+      <p>Необходимо перейти в настройки и принудительно обновить базу данных текстов песен.</p>
+      <NuxtLink to="/settings">Перейти в настройки для обновления</NuxtLink>
+    </div>
+    <div v-else>
+      <p>Выберите номер песни (доступно {{ songNumbers.length }} песен)</p>
+      <form @submit.prevent="goToSong">
+        <input
+            ref="songInput"
+            v-model.number="songNumber"
+            type="number"
+            :min="1"
+            :max="Math.max(...songNumbers)"
+            :placeholder="`Номер песни (${Math.min(...songNumbers)}-${Math.max(...songNumbers)})`"
+            required
+            inputmode="numeric"
+            pattern="[0-9]*"
+            class="song-input"
+        >
+        <button type="submit">Перейти</button>
+      </form>
+    </div>
   </div>
 </template>
 
 <script setup>
-const { getSongNumbers } = useIndexDB()
+const {getSongNumbers} = useIndexDB()
 
 const songNumber = ref(null)
 const songInput = ref(null)
