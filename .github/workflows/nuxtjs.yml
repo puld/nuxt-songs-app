@@ -42,18 +42,28 @@ jobs:
       - name: Static HTML export with Nuxt
         run: |
           npm run generate
-          ls -la .output/public  # Проверяем, где создаются файлы
+          echo "Checking build output..."
+          ls -la .output || true
+          ls -la dist || true
+          ls -la .output/public || true
 
-      - name: Create dist if not exists
-        if: !exists('.output/public')
-        run: |
-          mkdir -p dist
-          echo "Fallback: Created empty dist directory" > dist/index.html
-
-      - name: Upload artifact
+      - name: Upload Nuxt 3 artifact (.output/public)
+        if: runner.os == 'Linux' && exists('.output/public')
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .output/public || dist  # Пробуем оба варианта
+          path: .output/public
+
+      - name: Upload Nuxt 2 artifact (dist)
+        if: runner.os == 'Linux' && !exists('.output/public') && exists('dist')
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Fail if no artifacts found
+        if: runner.os == 'Linux' && !exists('.output/public') && !exists('dist')
+        run: |
+          echo "::error::No build output found (checked .output/public and dist)"
+          exit 1
 
   deploy:
     environment:
