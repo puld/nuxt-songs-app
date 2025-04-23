@@ -74,7 +74,7 @@ export default {
         base: '/nuxt-songs-app/' // замените на имя вашего репозитория
     },
     app: {
-        baseURL: process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/',
+        // baseURL: process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/',
         // buildAssetsDir: process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/_nuxt/' : '/_nuxt/'
     },
 
