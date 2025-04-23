@@ -70,9 +70,9 @@ export default {
         classSuffix: ''
     },
 
-    // router: {
-    //     base: '/nuxt-songs-app/' // замените на имя вашего репозитория
-    // },
+    router: {
+        base: '/nuxt-songs-app/' // замените на имя вашего репозитория
+    },
 
     compatibilityDate: '2025-04-23',
 
