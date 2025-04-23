@@ -2,5 +2,3 @@
 /.nuxt
 /node_modules
 /tmp
-/.output
-/dist

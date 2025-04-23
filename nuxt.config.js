@@ -71,7 +71,7 @@ export default {
     },
 
     router: {
-        base: 'puld.github.io/nuxt-songs-app/' // замените на имя вашего репозитория
+        base: '/nuxt-songs-app/' // замените на имя вашего репозитория
     },
 
     compatibilityDate: '2025-04-20',
