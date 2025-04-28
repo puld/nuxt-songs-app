@@ -1,8 +1,20 @@
 <script setup>
 const colorMode = useColorMode()
+
+useHead({
+  link: [
+    {rel: 'manifest', href: '/manifest.webmanifest'},
+    {rel: 'apple-touch-icon', href: '/apple-touch-icon.png'} // 180×180
+  ],
+});
 </script>
 
 <template>
+  <Head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="manifest" href="/manifest.webmanifest">
+  </Head>
   <div class="layout" :class="colorMode.value">
     <header class="header">
       <NuxtLink to="/" class="logo">Сборник песен</NuxtLink>
@@ -13,7 +25,7 @@ const colorMode = useColorMode()
     </header>
 
     <main class="main">
-      <slot />
+      <slot/>
     </main>
 
     <footer class="footer">
