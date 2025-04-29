@@ -1,3 +1,5 @@
+const pathHost = process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/'
+
 export default {
     target: 'static',
     ssr: true,
@@ -11,8 +13,8 @@ export default {
             { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no' }
         ],
         link: [
-            {rel: 'icon', type: 'image/x-icon', href: '/favicon.ico'},
-            {rel: 'manifest', href: '/manifest.json'}
+            {rel: 'icon', type: 'image/x-icon', href: pathHost + 'favicon.ico'},
+            {rel: 'manifest', href: pathHost + 'manifest.json'}
         ]
     },
 
@@ -27,8 +29,8 @@ export default {
             background_color: '#ffffff',
             display: 'standalone',
             orientation: 'portrait',
-            scope: '/',
-            start_url: '/',
+            scope: pathHost,
+            start_url: pathHost,
             icons: [
                 {
                     src: 'favicon.ico',
@@ -48,7 +50,7 @@ export default {
             ]
         },
         workbox: {
-            navigateFallback: '/',
+            navigateFallback: pathHost,
             globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
             runtimeCaching: [
                 {
@@ -104,14 +106,14 @@ export default {
 
 
     app: {
-        baseURL: process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/',
+        baseURL: pathHost,
         buildAssetsDir: '/_nuxt/',
         head: {
             link: [
-                { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-                { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-96x96.png' },
-                { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
-                { rel: 'mask-icon', href: '/icon.svg', color: '#ffffff' }
+                { rel: 'icon', type: 'image/x-icon', href: pathHost + 'favicon.ico' },
+                { rel: 'icon', type: 'image/png', sizes: '16x16', href: pathHost + 'favicon-96x96.png' },
+                { rel: 'apple-touch-icon', sizes: '180x180', href: pathHost + 'apple-touch-icon.png' },
+                { rel: 'mask-icon', href: pathHost + 'icon.svg', color: '#ffffff' }
             ],
             meta: [
                 { name: 'msapplication-TileColor', content: '#ffffff' },
