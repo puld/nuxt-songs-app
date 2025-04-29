@@ -19,6 +19,7 @@ export default {
     pwa: {
         registerType: 'autoUpdate',
         manifest: {
+            id: "/",
             name: 'Сборник текстов песен',
             short_name: 'Песни',
             description: 'Оффлайн сборник текстов песен',
@@ -30,8 +31,8 @@ export default {
             start_url: '/',
             icons: [
                 {
-                    src: 'favicon.png',
-                    sizes: '96x96',
+                    src: 'favicon.ico',
+                    sizes: '48x48',
                     type: 'image/png'
                 },
                 {
