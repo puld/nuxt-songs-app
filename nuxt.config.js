@@ -28,6 +28,7 @@ export default {
             theme_color: '#ffffff',
             background_color: '#ffffff',
             display: 'standalone',
+            display_override: ['fullscreen', 'minimal-ui'],
             orientation: 'portrait',
             scope: pathHost,
             start_url: pathHost,
