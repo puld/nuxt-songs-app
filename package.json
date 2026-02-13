@@ -9,12 +9,17 @@
     "previyew": "nuxt preview",
     "start": "nuxt start",
     "postinstall": "nuxt prepare",
-    "parse-txt": "node scripts/parseTxt.js"
+    "parse-txt": "node scripts/parseTxt.js",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
   },
   "dependencies": {
     "@nuxtjs/color-mode": "^3.5.2",
     "@nuxtjs/pwa": "^3.1.2",
     "@pinia/nuxt": "^0.11.0",
+    "@types/lunr": "^2.3.7",
+    "lunr": "^2.3.9",
     "nuxt": "^3.9.0",
     "pinia": "^3.0.2",
     "vue": "^3.3.8",
@@ -25,8 +30,13 @@
     "@nuxt/icon": "^1.12.0",
     "@nuxtjs/tailwindcss": "^6.11.3",
     "@vite-pwa/nuxt": "^1.0.0",
+    "@vitest/ui": "^4.0.18",
+    "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.21",
+    "happy-dom": "^20.6.1",
+    "lunr-languages": "^1.14.0",
     "postcss": "^8.5.3",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "vitest": "^4.0.18"
   }
 }
