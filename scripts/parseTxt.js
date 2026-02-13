@@ -27,32 +27,39 @@ function parseTxt(text) {
         // Остальной текст раздела (без заголовка)
         const songsText = lines.slice(1).join('\n').trim();
 
-        // Разделяем на песни (песни начинаются с "X. Y. ")
-        const songRegex = /^(\d+)\.\s+(\d+\.|Припев:|Припев.)\s*([^\n]+)/gmi;
-        const songMatches = [...songsText.matchAll(songRegex)];
+        // Находим все начала песен (строки, начинающиеся с номера песни)
+        // Фильтруем, чтобы не находить строки вида "4. (текст)", где 4 - номер куплета
+        const songStartRegex = /^(\d+)\.\s*(?:\([^)]*\))?\s+(\d+\.|Припев[:.]?)\s*([^\n]+)/gmi;
+        const allMatches = [...songsText.matchAll(songStartRegex)];
+
+        // Фильтруем совпадения: только те, где первый элемент - это номер куплета 1 или припев
+        const songMatches = allMatches.filter(match => {
+            const verseOrChorus = match[2];
+            return verseOrChorus === '1.' || verseOrChorus === '1' || verseOrChorus.match(/^Припев/i);
+        });
 
         const songs = [];
         for (let i = 0; i < songMatches.length; i++) {
             const songMatch = songMatches[i];
             const songNumber = parseInt(songMatch[1]);
-            const verseNumber = parseInt(songMatch[2]);
-            const chorusMatch = songMatch[2].match(/^Припев/i);
+            const verseOrChorus = songMatch[2];
+            const verseNumber = parseInt(verseOrChorus);
+            const chorusMatch = verseOrChorus.match(/^Припев/i);
             const firstLine = songMatch[3];
 
-            // Если это начало новой песни (verseNumber === 1)
-            if (verseNumber === 1 || chorusMatch) {
-                const nextMatchIndex = i < songMatches.length - 1 ? songMatches[i+1].index : songsText.length;
-                let songContent = songsText.substring(songMatch.index, nextMatchIndex).trim();
+            // Определяем границу песни (от текущего совпадения до следующего)
+            const currentMatchIndex = songMatch.index;
+            const nextMatchIndex = i < songMatches.length - 1 ? songMatches[i+1].index : songsText.length;
+            let songContent = songsText.substring(currentMatchIndex, nextMatchIndex).trim();
 
-                // Удаляем номер песни из первой строки
-                songContent = songContent.replace(/^\d+\.\s+/, '');
+            // Удаляем номер песни из первой строки (включая текст в скобках)
+            songContent = songContent.replace(/^\d+\.\s*(?:\([^)]*\))?\s+/, '');
 
-                songs.push({
-                    n: songNumber,
-                    firstLine: firstLine,
-                    content: songContent
-                });
-            }
+            songs.push({
+                n: songNumber,
+                firstLine: firstLine,
+                content: songContent
+            });
         }
 
         // Парсим каждую песню
@@ -75,7 +82,7 @@ function parseTxt(text) {
                 if (!trimmedLine) continue;
 
                 // Проверяем начало нового куплета
-                const verseMatch = trimmedLine.match(/^(\d+)\.\s*(.*)/);
+                const verseMatch = trimmedLine.match(/^(\d+)\.\s*/);
                 // Проверяем начало припева
                 const chorusMatch = trimmedLine.match(/^Припев(:|.)\s*(.*)/i);
 
@@ -90,7 +97,7 @@ function parseTxt(text) {
                         type: 'verse',
                         id: song.body.length,
                         n: parseInt(verseMatch[1]),
-                        content: verseMatch[2].trim()
+                        content: verseMatch[2] || ''
                     };
                 } else if (chorusMatch) {
                     // Сохраняем предыдущую часть, если есть
