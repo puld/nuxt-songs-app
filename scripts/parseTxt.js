@@ -7,145 +7,153 @@ function parseTxt(text) {
         sections: []
     };
 
-    // Разделяем текст на разделы по строке с подчеркиваниями
-    const sections = text.split(/\n_{10,}\n/);
+    // Разбиваем текст на строки
+    const lines = text.split('\n');
 
-    sections.forEach((sectionText, sectionIndex) => {
-        // Извлекаем заголовок раздела (первая строка)
-        const lines = sectionText.trim().split('\n');
-        if (lines.length === 0) return;
+    // Находим заголовки разделов
+    const sectionHeaders = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
 
-        const sectionTitle = lines[0].trim();
-        if (!sectionTitle) return;
+        // Проверяем критерии заголовка раздела
+        const isSongNumbered = /^\d+\.\s*\d+\./.test(line);
+        const isVerseNumber = /^\d+\.\s/.test(line);
+        const isChorus = /^Припев/i.test(line);
+        const hasBrackets = /[()]/.test(line);
+        const startsWithUppercase = /^[А-ЯA-Z]/.test(line);
 
+        if (!isSongNumbered && !isVerseNumber && !isChorus && !hasBrackets && startsWithUppercase) {
+            // Проверяем, что следующая строка начинается с номера песни
+            if (i + 1 < lines.length && /^\d+\./.test(lines[i + 1].trim())) {
+                sectionHeaders.push({
+                    index: i,
+                    title: line
+                });
+            }
+        }
+    }
+
+    // Разбиваем текст на разделы
+    for (let s = 0; s < sectionHeaders.length; s++) {
+        const header = sectionHeaders[s];
+        const nextHeader = sectionHeaders[s + 1];
+
+        // Определяем границы раздела
+        const startIndex = header.index + 1;
+        const endIndex = nextHeader ? nextHeader.index : lines.length;
+
+        // Извлекаем текст раздела
+        const sectionLines = lines.slice(startIndex, endIndex);
+        const sectionText = sectionLines.join('\n').trim();
+
+        // Создаём объект раздела
         const section = {
-            id: sectionIndex,
-            title: sectionTitle,
+            id: s,
+            title: header.title,
             song_ns: []
         };
 
-        // Остальной текст раздела (без заголовка)
-        const songsText = lines.slice(1).join('\n').trim();
-
-        // Находим все начала песен (строки, начинающиеся с номера песни)
-        // Фильтруем, чтобы не находить строки вида "4. (текст)", где 4 - номер куплета
+        // Находим и парсим песни в разделе
         const songStartRegex = /^(\d+)\.\s*(?:\([^)]*\))?\s+(\d+\.|Припев[:.]?)\s*([^\n]+)/gmi;
-        const allMatches = [...songsText.matchAll(songStartRegex)];
+        const allMatches = [...sectionText.matchAll(songStartRegex)];
 
-        // Фильтруем совпадения: только те, где первый элемент - это номер куплета 1 или припев
+        // Фильтруем: только те, где первый элемент - номер куплета 1 или припев
         const songMatches = allMatches.filter(match => {
             const verseOrChorus = match[2];
             return verseOrChorus === '1.' || verseOrChorus === '1' || verseOrChorus.match(/^Припев/i);
         });
 
-        const songs = [];
         for (let i = 0; i < songMatches.length; i++) {
             const songMatch = songMatches[i];
             const songNumber = parseInt(songMatch[1]);
             const verseOrChorus = songMatch[2];
-            const verseNumber = parseInt(verseOrChorus);
-            const chorusMatch = verseOrChorus.match(/^Припев/i);
             const firstLine = songMatch[3];
 
-            // Определяем границу песни (от текущего совпадения до следующего)
+            // Определяем границу песни
             const currentMatchIndex = songMatch.index;
-            const nextMatchIndex = i < songMatches.length - 1 ? songMatches[i+1].index : songsText.length;
-            let songContent = songsText.substring(currentMatchIndex, nextMatchIndex).trim();
+            const nextMatchIndex = i < songMatches.length - 1 ? songMatches[i+1].index : sectionText.length;
+            let songContent = sectionText.substring(currentMatchIndex, nextMatchIndex).trim();
 
-            // Удаляем номер песни из первой строки (включая текст в скобках)
-            songContent = songContent.replace(/^\d+\.\s*(?:\([^)]*\))?\s+/, '');
+            // Удаляем номер песни из первой строки
+            songContent = songContent.replace(/^\d+\.\s*/, '');
 
-            songs.push({
-                n: songNumber,
-                firstLine: firstLine,
-                content: songContent
-            });
+            // Парсим песню
+            const song = parseSong(songContent, songNumber, firstLine, result.songs.length);
+
+            result.songs.push(song);
+            section.song_ns.push(songNumber);
         }
 
-        // Парсим каждую песню
-        songs.forEach((songData) => {
-            const song = {
-                id: result.songs.length,
-                n: songData.n,
-                title: songData.firstLine.length > 50
-                    ? songData.firstLine.substring(0, 50) + '...'
-                    : songData.firstLine,
-                body: []
-            };
+        result.sections.push(section);
+    }
 
-            // Разделяем на строки и обрабатываем
-            const lines = songData.content.split('\n');
-            let currentPart = null;
+    return result;
+}
 
-            for (const line of lines) {
-                const trimmedLine = line.trim();
-                if (!trimmedLine) continue;
+// Функция парсинга отдельной песни
+function parseSong(songContent, songNumber, firstLine, songId) {
+    const song = {
+        id: songId,
+        n: songNumber,
+        title: firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine,
+        body: []
+    };
 
-                // Проверяем начало нового куплета
-                const verseMatch = trimmedLine.match(/^(\d+)\.\s*/);
-                // Проверяем начало припева
-                const chorusMatch = trimmedLine.match(/^Припев(:|.)\s*(.*)/i);
+    const lines = songContent.split('\n');
+    let currentPart = null;
 
-                if (verseMatch) {
-                    // Сохраняем предыдущую часть, если есть
-                    if (currentPart) {
-                        song.body.push(currentPart);
-                    }
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
 
-                    // Начинаем новый куплет
-                    currentPart = {
-                        type: 'verse',
-                        id: song.body.length,
-                        n: parseInt(verseMatch[1]),
-                        content: verseMatch[2] || ''
-                    };
-                } else if (chorusMatch) {
-                    // Сохраняем предыдущую часть, если есть
-                    if (currentPart) {
-                        song.body.push(currentPart);
-                    }
+        const verseMatch = trimmedLine.match(/^(\d+)\.\s*(.*)/);
+        const chorusMatch = trimmedLine.match(/^Припев(:|.)\s*(.*)/i);
 
-                    // Начинаем новый припев
-                    const chorusNumber = song.body.filter(p => p.type === 'chorus').length + 1;
-                    currentPart = {
-                        type: 'chorus',
-                        id: song.body.length,
-                        n: chorusNumber,
-                        content: chorusMatch[2].trim()
-                    };
-                } else {
-                    // Продолжаем текущую часть
-                    if (currentPart) {
-                        if (currentPart.content) {
-                            currentPart.content += '\n' + trimmedLine;
-                        } else {
-                            currentPart.content = trimmedLine;
-                        }
-                    } else {
-                        // Если нет текущей части (может быть в начале песни)
-                        currentPart = {
-                            type: 'verse',
-                            id: 0,
-                            n: 1,
-                            content: trimmedLine
-                        };
-                    }
-                }
-            }
-
-            // Добавляем последнюю часть
+        if (verseMatch) {
             if (currentPart) {
                 song.body.push(currentPart);
             }
+            currentPart = {
+                type: 'verse',
+                id: song.body.length,
+                n: parseInt(verseMatch[1]),
+                content: verseMatch[2] || ''
+            };
+        } else if (chorusMatch) {
+            if (currentPart) {
+                song.body.push(currentPart);
+            }
+            const chorusNumber = song.body.filter(p => p.type === 'chorus').length + 1;
+            currentPart = {
+                type: 'chorus',
+                id: song.body.length,
+                n: chorusNumber,
+                content: chorusMatch[2].trim()
+            };
+        } else {
+            if (currentPart) {
+                if (currentPart.content) {
+                    currentPart.content += '\n' + trimmedLine;
+                } else {
+                    currentPart.content = trimmedLine;
+                }
+            } else {
+                currentPart = {
+                    type: 'verse',
+                    id: 0,
+                    n: 1,
+                    content: trimmedLine
+                };
+            }
+        }
+    }
 
-            result.songs.push(song);
-            section.song_ns.push(song.n);
-        });
+    if (currentPart) {
+        song.body.push(currentPart);
+    }
 
-        result.sections.push(section);
-    });
-
-    return result;
+    return song;
 }
 
 // Функция для чтения файла и записи результата
