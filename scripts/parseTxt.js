@@ -52,8 +52,8 @@ function parseTxt(text) {
             const nextMatchIndex = i < songMatches.length - 1 ? songMatches[i+1].index : songsText.length;
             let songContent = songsText.substring(currentMatchIndex, nextMatchIndex).trim();
 
-            // Удаляем номер песни из первой строки (включая текст в скобках)
-            songContent = songContent.replace(/^\d+\.\s*(?:\([^)]*\))?\s+/, '');
+            // Удаляем номер песни из первой строки
+            songContent = songContent.replace(/^\d+\.\s*/, '');
 
             songs.push({
                 n: songNumber,
@@ -82,7 +82,7 @@ function parseTxt(text) {
                 if (!trimmedLine) continue;
 
                 // Проверяем начало нового куплета
-                const verseMatch = trimmedLine.match(/^(\d+)\.\s*/);
+                const verseMatch = trimmedLine.match(/^(\d+)\.\s*(.*)/);
                 // Проверяем начало припева
                 const chorusMatch = trimmedLine.match(/^Припев(:|.)\s*(.*)/i);
 
