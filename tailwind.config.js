@@ -22,7 +22,11 @@ module.exports = {
                 'bg-secondary': 'var(--bg-secondary)',
                 'text': 'var(--text)',
                 'text-secondary': 'var(--text-secondary)',
-                'border-color': 'var(--border-color)'
+                'border-color': 'var(--border-color)',
+                'chord': 'var(--chord-color)'
+            },
+            spacing: {
+                'app-bar': '56px'
             }
         }
     },

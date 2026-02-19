@@ -1,6 +1,11 @@
 <template>
+  <ClientOnly>
+    <Teleport to="#navbar-center">
+      <span class="nav-title">Сборник песен</span>
+    </Teleport>
+  </ClientOnly>
+
   <div class="welcome-screen">
-    <h1>Сборник текстов песен</h1>
     <div v-if="!allSongs.length">
       <p>Необходимо перейти в настройки и принудительно обновить базу данных текстов песен.</p>
       <NuxtLink to="/settings">Перейти в настройки для обновления</NuxtLink>
@@ -30,8 +35,6 @@
       </div>
 
       <div class="song-selector">
-        <p>Или введите номер (доступно {{ songsCount }} песен)</p>
-
         <form @submit.prevent="goToSelectedSong">
           <input
               ref="songInput"
@@ -39,7 +42,7 @@
               type="number"
               :min="1"
               :max="maxSongNumber"
-              :placeholder="`Номер (1-${maxSongNumber})`"
+              :placeholder="`Поиск по номеру (1-${maxSongNumber})`"
               required
               inputmode="numeric"
               class="song-input"
@@ -47,32 +50,11 @@
           <button type="submit">Перейти</button>
         </form>
       </div>
-
-
-      <!--      <p>Выберите номер песни (доступно {{ songNumbers.length }} песен)</p>-->
-      <!--      <form @submit.prevent="goToSong">-->
-      <!--        <input-->
-      <!--            ref="songInput"-->
-      <!--            v-model.number="songNumber"-->
-      <!--            type="number"-->
-      <!--            :min="1"-->
-      <!--            :max="Math.max(...songNumbers)"-->
-      <!--            :placeholder="`Номер песни (${Math.min(...songNumbers)}-${Math.max(...songNumbers)})`"-->
-      <!--            required-->
-      <!--            inputmode="numeric"-->
-      <!--            pattern="[0-9]*"-->
-      <!--            class="song-input"-->
-      <!--        >-->
-      <!--        <button type="submit">Перейти</button>-->
-      <!--      </form>-->
     </div>
   </div>
 </template>
 
 <script setup>
-// import { ref, onMounted } from 'vue'
-// import { useSongSearch } from '~/composables/useSongSearch'
-// import { useIndexDB } from '~/composables/useIndexDB'
 
 const {getSongsCount, getAllSongs, getSongNumbers} = useIndexDB()
 const {searchIndex, searchResults, searchQuery, buildIndex, search} = useSongSearch()
@@ -133,17 +115,39 @@ const goToSelectedSong = () => {
   padding: 2rem;
 }
 
-.search-container {
+.search-container, .song-selector {
+  margin-top: 2rem;
   margin-bottom: 2rem;
+  max-width: 100%;
 }
 
-.search-input {
+/* Форма song-selector должна быть такой же ширины, как контейнер */
+.song-selector form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+}
+
+.search-input, .song-input {
   width: 100%;
   padding: 0.8rem;
   font-size: 1rem;
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  margin-bottom: 1rem;
+}
+
+/* Убираем margin-bottom у обоих input */
+.search-input {
+  margin-bottom: 0;
+  box-sizing: border-box;
+}
+
+/* Убираем margin-bottom у song-input внутри song-selector */
+.song-selector .song-input {
+  margin-bottom: 0;
+  flex: 1;
+  box-sizing: border-box;
 }
 
 .search-results {
@@ -151,6 +155,8 @@ const goToSelectedSong = () => {
   border-radius: 4px;
   max-height: 300px;
   overflow-y: auto;
+  margin-top: 0.5rem;
+  box-sizing: border-box;
 }
 
 .result-item {
@@ -186,15 +192,18 @@ const goToSelectedSong = () => {
   border-top: 1px solid var(--border-color);
 }
 
-
-.song-input {
-  padding: 0.5rem;
-  margin-right: 0.5rem;
-  width: 200px;
-  font-size: 1rem;
-  /* Улучшаем отображение на мобильных */
-  -webkit-appearance: none;
-  -moz-appearance: textfield;
+/* Кнопка той же высоты, что и input */
+.song-selector button {
+  padding: 0.8rem 1rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  height: 100%;
+  box-sizing: border-box;
+  min-width: 80px;
 }
 
 /* Убираем стрелки у числового поля */
@@ -203,37 +212,6 @@ input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-
-button {
-  padding: 0.5rem 1rem;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-@media (max-width: 480px) {
-  form {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .song-input {
-    width: 80%;
-    margin-right: 0;
-    margin-bottom: 1rem;
-    padding: 0.8rem;
-    font-size: 1.2rem;
-  }
-
-  button {
-    width: 80%;
-    padding: 0.8rem;
-  }
-}
-
 .song-input {
   /* Улучшаем отображение числового поля */
   -moz-appearance: textfield;

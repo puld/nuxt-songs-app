@@ -53,7 +53,8 @@ export const useIndexDB = () => {
                     number: Number(song.n),
                     title: String(song.title),
                     body: song.body.map(item => ({
-                        id: item.id ? Number(item.id) : null,
+                        id: Number(item.id),
+                        n : Number(item.n),
                         type: String(item.type),
                         content: item.content ? String(item.content) : null,
                         repeatId: item.repeatId ? String(item.repeatId) : null

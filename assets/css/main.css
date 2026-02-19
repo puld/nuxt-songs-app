@@ -11,6 +11,7 @@
     --border-color: #e5e7eb;
     --primary: #3b82f6;
     --danger: #ef4444;
+    --chord-color: red;
 }
 
 .dark {
@@ -20,10 +21,12 @@
     --text: #f3f4f6;
     --text-secondary: #9ca3af;
     --border-color: #374151;
+    --chord-color: orange;
 }
 
 body {
     background-color: var(--bg);
     color: var(--text);
     transition: background-color 0.3s, color 0.3s;
+    font-family: Arial, sans-serif;
 }

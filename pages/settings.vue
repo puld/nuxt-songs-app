@@ -1,7 +1,11 @@
 <template>
-  <div class="settings">
-    <h1>Настройки</h1>
+  <ClientOnly>
+    <Teleport to="#navbar-center">
+      <span class="nav-title">Настройки</span>
+    </Teleport>
+  </ClientOnly>
 
+  <div class="settings">
     <div class="setting-section">
       <h2>Тема приложения</h2>
       <SettingToggle

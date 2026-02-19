@@ -1,67 +1,96 @@
 <template>
-  <div>
-    <div v-if="loading">Загрузка...</div>
-    <div v-else-if="song">
-      <div class="nav">
-        <NuxtLink
-            v-if="hasPrev"
-            @click="goToSong(prevSongNumber)"
-            class="nav-button"
-        >
-          ← Предыдущая ({{ prevSongNumber }})
-        </NuxtLink>
+  <ClientOnly>
+    <!-- Слот для контента в центре навбара -->
+    <Teleport to="#navbar-center" v-if="song">
+      <span class="nav-title">{{ song.number }}. {{ song.title }}</span>
+    </Teleport>
+  </ClientOnly>
 
-        <NuxtLink
-            v-if="hasNext"
-            @click="goToSong(nextSongNumber)"
-            class="nav-button"
-        >
-          Следующая ({{ nextSongNumber }}) →
-        </NuxtLink>
+  <div v-if="loading">Загрузка...</div>
+  <div v-else-if="song">
+    <div class="song-nav">
+      <NuxtLink
+          v-if="hasPrev"
+          @click="goToSong(prevSongNumber)"
+          class="nav-link prev"
+      >
+        <Icon name="mingcute:left-line" />
+        {{ prevSongNumber }}
+      </NuxtLink>
+
+<!--      <span class="song-number">{{ song.number }}</span>-->
+
+      <NuxtLink
+          v-if="hasNext"
+          @click="goToSong(nextSongNumber)"
+          class="nav-link next"
+      >
+        {{ nextSongNumber }}
+        <Icon name="mingcute:right-line" />
+      </NuxtLink>
+    </div>
+
+    <SongDisplay :song="song"/>
+
+    <div class="song-nav">
+      <NuxtLink
+          v-if="hasPrev"
+          @click="goToSong(prevSongNumber)"
+          class="nav-link prev"
+      >
+        <Icon name="mingcute:left-line" />
+        {{ prevSongNumber }}
+      </NuxtLink>
+
+      <NuxtLink
+          v-if="hasNext"
+          @click="goToSong(nextSongNumber)"
+          class="nav-link next"
+      >
+        {{ nextSongNumber }}
+        <Icon name="mingcute:right-line" />
+      </NuxtLink>
+    </div>
+
+    <div class="collections-section">
+      <div v-if="songCollections.length > 0" class="current-collections">
+        <h3>Входит в подборки:</h3>
+        <ul>
+          <li v-for="col in songCollections" :key="col.id" class="nav">
+
+            <NuxtLink :to="`/collections/${col.id}`">{{ col.name }}</NuxtLink>
+            <NuxtLink @click="removeFromCollection(col.id)" class="remove-btn">Х</NuxtLink>
+          </li>
+        </ul>
       </div>
-
-      <SongDisplay :song="song"/>
-
-      <div class="collections-section">
-        <div v-if="songCollections.length > 0" class="current-collections">
-          <h3>Входит в подборки:</h3>
-          <ul>
-            <li v-for="col in songCollections" :key="col.id" class="nav">
-
-              <NuxtLink :to="`/collections/${col.id}`">{{ col.name }}</NuxtLink>
-              <NuxtLink @click="removeFromCollection(col.id)" class="remove-btn">Х</NuxtLink>
-            </li>
-          </ul>
-        </div>
-        <h3>Добавить в подборку</h3>
-        <nav class="nav">
-          <select v-model="selectedCollection">
-            <option value="">Новая подборка</option>
-            <option
-                v-for="collection in collections"
-                :key="collection.id"
-                :value="collection.id"
-            >
-              {{ collection.name }}
-            </option>
-          </select>
-
-          <input
-              v-if="selectedCollection === ''"
-              v-model="newCollectionName"
-              placeholder="Название подборки"
+      <h3>Добавить в подборку</h3>
+      <nav class="nav">
+        <select v-model="selectedCollection">
+          <option value="">Новая подборка</option>
+          <option
+              v-for="collection in collections"
+              :key="collection.id"
+              :value="collection.id"
           >
+            {{ collection.name }}
+          </option>
+        </select>
 
-          <NuxtLink @click="addToCollection">
-            <Icon name="mingcute:add-fill" color="black"/>
-          </NuxtLink>
-        </nav>
-      </div>
+        <input
+            v-if="selectedCollection === ''"
+            v-model="newCollectionName"
+            placeholder="Название подборки"
+        >
+
+        <NuxtLink @click="addToCollection">
+          <Icon name="mingcute:add-line" />
+        </NuxtLink>
+      </nav>
     </div>
-    <div v-else>
-      <p>Песня не найдена</p>
-      <NuxtLink to="/">Вернуться на главную</NuxtLink>
-    </div>
+  </div>
+  <div v-else>
+    <p>Песня не найдена</p>
+    <NuxtLink to="/">Вернуться на главную</NuxtLink>
   </div>
 </template>
 
@@ -174,6 +203,34 @@ const nl2br = computed((str) => {
 </script>
 
 <style scoped>
+.song-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.song-number {
+  font-weight: bold;
+  color: var(--text);
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text);
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.nav-link:hover {
+  background: var(--bg-secondary);
+}
 
 .collections-section {
   margin-top: 2rem;

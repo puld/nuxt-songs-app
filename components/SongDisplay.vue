@@ -1,20 +1,29 @@
 <template>
   <div class="song-container" :class="[fontSizeClass, { 'hide-chords': !settings.showChords }]">
-    <h2>{{ song.number }}. {{ song.title }}</h2>
+    <div class="song-content-wrapper">
+      <ul class="song-list">
+        <li v-for="(item, index) in song.body" :key="index" class="song-list-item">
+          <div v-if="item.type === 'verse'" class="verse">
+            <span class="part-label">{{ item.n }}.</span>
+            <div
+              class="content"
+              :class="{ 'content-withChords': hasChords(item.content) }"
+              v-html="processContent(item.content)"
+            ></div>
+          </div>
 
-    <ul class="song-body">
-      <li v-for="(item, index) in song.body" :key="index" class="song-part">
-        <div v-if="item.type === 'verse'" class="verse">
-          <span class="part-label">{{ item.id + 1 }}</span>
-          <pre class="content">{{ processContent(item.content) }}</pre>
-        </div>
-
-        <div v-else-if="item.type === 'chorus'" class="chorus">
-          <span class="part-label">Припев</span>
-          <pre v-if="item.content" class="content">{{ processContent(item.content) }}</pre>
-        </div>
-      </li>
-    </ul>
+          <div v-else-if="item.type === 'chorus'" class="chorus">
+            <span class="part-label">Припев:</span>
+            <div
+              v-if="item.content"
+              class="content"
+              :class="{ 'content-withChords': hasChords(item.content) }"
+              v-html="processContent(item.content)"
+            ></div>
+          </div>
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
 
@@ -41,124 +50,171 @@ const fontSizeClass = computed(() => {
 
 const processContent = (content) => {
   if (!content) return ''
+
   if (!settings.showChords) {
-    // Удаляем аккорды в квадратных скобках
-    return content.replace(/\[.*?\]/g, '')
+    // Удаляем аккорды в фигурных скобках
+    return content.replace(/\{[^\}]*\}/g, '')
   }
-  return content
+
+  // Формат: {Am} → аккорд выше текста, {_G} → аккорд в строке
+  let result = content
+
+  // Обрабатываем инлайн аккорды {_G}
+  result = result.replace(/\{_/g, "<span class='chord'>")
+
+  // Обрабатываем аккорды над текстом {Am}
+  result = result.replace(/\{/g, "<span class='chord chord-up'>")
+  result = result.replace(/\}/g, "</span>")
+
+  // Заменяем переносы строк на <br/>
+  result = result.replace(/([^>])\n/g, '$1<br/>')
+
+  return result
+}
+
+const hasChords = (str) => {
+  return settings.showChords && /\{/.test(str)
 }
 </script>
 
 <style scoped>
 .song-container {
-  max-width: 800px;
+  width: 100%;
+}
+
+/* Адаптивная сетка: аналогично v-col cols="12" sm="10" md="8" lg="6" */
+.song-content-wrapper {
+  width: 100%;
   margin: 0 auto;
-  padding: 20px;
-  transition: font-size 0.3s ease;
-}
+  padding: 0;
 
-/* Размеры шрифтов */
-.font-size-small {
-  font-size: 16px;
-}
+  /* sm: 10/12 = 83.33% */
+  @media (min-width: 640px) {
+    width: 83.33%;
+  }
 
-.font-size-medium {
-  font-size: 24px;
-}
+  /* md: 8/12 = 66.67% */
+  @media (min-width: 768px) {
+    width: 66.67%;
+  }
 
-.font-size-large {
-  font-size: 32px;
-}
-
-/* Увеличенные размеры для контента */
-.font-size-small .content {
-  font-size: 16px;
-  line-height: 1.5;
-}
-
-.font-size-medium .content {
-  font-size: 24px;
-  line-height: 1.6;
-}
-
-.font-size-large .content {
-  font-size: 32px;
-  line-height: 1.7;
-}
-
-/* Стили для аккордов */
-.content :deep([class^="chord"]) {
-  color: var(--chord-color);
-  font-weight: bold;
-}
-
-.hide-chords :deep([class^="chord"]) {
-  display: none;
+  /* lg: 6/12 = 50% */
+  @media (min-width: 1024px) {
+    width: 50%;
+  }
 }
 
 h2 {
   text-align: center;
   margin-bottom: 30px;
-  color: var(--primary-color);
+  color: var(--text);
 }
 
-.song-body {
-  list-style: none;
-  padding: 0;
+/* Размеры шрифтов */
+.font-size-small {
+  font-size: 15px;
+}
+
+.font-size-medium {
+  font-size: 20px;
+}
+
+.font-size-large {
+  font-size: 25px;
+}
+
+/* Увеличенные размеры для контента */
+.font-size-small .content {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.font-size-medium .content {
+  font-size: 20px;
   line-height: 1.6;
 }
 
-.song-part {
+.font-size-large .content {
+  font-size: 25px;
+  line-height: 1.7;
+}
+
+/* Line-height для текста с аккордами */
+.font-size-small .content-withChords {
+  line-height: 2.0;
+}
+
+.font-size-medium .content-withChords {
+  line-height: 2.1;
+}
+
+.font-size-large .content-withChords {
+  line-height: 2.2;
+}
+
+/* Vuetify-подобный список */
+.song-list {
+  width: 100%;
+  padding: 8px;
+  list-style: none;
+}
+
+.song-list-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  padding: 0;
   margin-bottom: 20px;
 }
 
-.part-label {
-  display: flex;
-  font-weight: bold;
-  color: var(--secondary-color);
-
-  align-items: center;
-
-  font-weight: 400;
-  padding: 12px 16px;
-
-}
 .verse, .chorus {
-  align-items: flex-start;
   display: flex;
-  flex: 1 1 100%;
-  letter-spacing: normal;
-  outline: none;
-  padding: 12px 16px;
+  align-items: flex-start;
+  width: 100%;
+  flex: 1;
+  padding: 0;
   position: relative;
 }
 
+.part-label {
+  font-weight: 400;
+  padding: 12px 16px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+}
+
 .verse .part-label {
-  color: #1a73e8; /* Синий для куплетов */
+  color: var(--primary);
 }
 
 .chorus .part-label {
-  color: #e91e63; /* Розовый для припевов */
+  color: var(--danger);
 }
 
 .content {
-  white-space: pre-wrap;
-  font-family: inherit;
-  margin: 0;
+  line-height: 1.5;
+  white-space: normal;
+  flex: 1;
+  display: flex;
+  padding: 12px 16px;
   background-color: var(--bg-secondary);
   border-radius: 4px;
-
-  align-items: center;
-  align-self: center;
-  display: flex;
-  flex-wrap: wrap;
-  flex: 1 1;
-  overflow: hidden;
-  padding: 12px 16px;
+  position: relative;
 }
 
-/* Для темной темы */
-.dark .content {
-  background-color: var(--dark-bg-secondary);
+/* Стили для аккордов */
+.content :deep(.chord) {
+  color: var(--chord-color);
+  font-weight: bold;
+}
+
+.content :deep(.chord-up) {
+  position: absolute;
+  line-height: 0;
+}
+
+.hide-chords :deep(.chord) {
+  display: none;
 }
 </style>
