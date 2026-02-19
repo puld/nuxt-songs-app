@@ -33,6 +33,7 @@
     "@vitest/ui": "^4.0.18",
     "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.21",
+    "fake-indexeddb": "^6.2.5",
     "happy-dom": "^20.6.1",
     "lunr-languages": "^1.14.0",
     "postcss": "^8.5.3",

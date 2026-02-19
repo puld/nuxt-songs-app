@@ -2,5 +2,6 @@
 /.idea
 /.nuxt
 /.output
+/.serena
 /node_modules
 /tmp

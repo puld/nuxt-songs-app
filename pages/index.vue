@@ -24,7 +24,7 @@
           >
             <span class="song-number">{{ result.n }}.</span>
             <span class="song-title">{{ getSongTitle(result.n) }}</span>
-            <span class="score">(совпадение: {{ (result.score * 100).toFixed(1) }}%)</span>
+<!--            <span class="score">(совпадение: {{ (result.score * 100).toFixed(1) }}%)</span>-->
           </div>
         </div>
       </div>
@@ -108,7 +108,7 @@ const handleSearch = () => {
 }
 
 const getSongTitle = (n) => {
-  const song = allSongs.value.find(s => s.number === n)
+  const song = allSongs.value.find(s => Number(s.number) === Number(n))
   return song ? song.title : 'Неизвестная песня'
 }
 
