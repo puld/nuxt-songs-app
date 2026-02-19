@@ -11,7 +11,7 @@
         <input
             v-model="searchQuery"
             @input="handleSearch"
-            placeholder="Поиск по тексту песен..."
+            placeholder="Поиск по тексту"
             class="search-input"
         >
 
@@ -30,7 +30,7 @@
       </div>
 
       <div class="song-selector">
-        <p>Или выберите номер песни (доступно {{ songsCount }} песен)</p>
+        <p>Или введите номер (доступно {{ songsCount }} песен)</p>
 
         <form @submit.prevent="goToSelectedSong">
           <input
@@ -104,11 +104,11 @@ onMounted(async () => {
 })
 
 const handleSearch = () => {
-  search(searchQuery.value)
+  search(searchQuery.value, 7)
 }
 
 const getSongTitle = (n) => {
-  const song = allSongs.value.find(s => s.number === n)
+  const song = allSongs.value.find(s => Number(s.number) === Number(n))
   return song ? song.title : 'Неизвестная песня'
 }
 

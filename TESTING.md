@@ -9,7 +9,7 @@
 - `cleanText(text)` - очистка текста от спецсимволов
 - `prepareSongForIndexing(song)` - подготовка песни для индексации
 - `buildSearchIndex(songs)` - построение поискового индекса
-- `performSearch(searchIndex, query)` - выполнение поиска
+- `performSearch(searchIndex, query, limit)` - выполнение поиска
 
 ### 2. Обновлен `composables/useSongSearch.js`
 
@@ -28,7 +28,7 @@ export const useSongSearch = () => {
     }
 
     const search = (query) => {
-        searchResults.value = performSearch(searchIndex.value, query)
+        searchResults.value = performSearch(searchIndex.value, query, 7)
     }
 
     return {

@@ -4,21 +4,20 @@
 
     <div class="setting-section">
       <h2>Тема приложения</h2>
-      <ThemeToggle />
+      <SettingToggle
+        :options="colorModeValues"
+        :active-value="colorMode.preference"
+        @update:value="handleColorModeChange"
+      />
     </div>
 
     <div class="setting-section">
       <h2>Размер шрифта:</h2>
-      <div class="font-size-controls">
-        <button
-            v-for="size in fontSizes"
-            :key="size.value"
-            @click="setFontSize(size.value)"
-            :class="{ active: settings.fontSize === size.value }"
-        >
-          {{ size.label }}
-        </button>
-      </div>
+      <SettingToggle
+          :options="fontSizes"
+          :active-value="settings.fontSize"
+          @update:value="handleFontSizeChange"
+      />
     </div>
 
     <div class="setting-section">
@@ -47,12 +46,12 @@
         {{ updateMessage }}
       </p>
     </div>
-
-
   </div>
 </template>
 
 <script setup>
+import SettingToggle from "../components/SettingToggle.vue";
+
 const { fetchSongs } = useSongs();
 
 const updating = ref(false);
@@ -80,14 +79,25 @@ const updateSongs = async () => {
 import { useSettingsStore } from '~/stores/settings'
 
 const settings = useSettingsStore()
+const colorMode = useColorMode()
+
+const colorModeValues = [
+  { value: 'light', label: 'Светлая' },
+  { value: 'dark', label: 'Темная' },
+  { value: 'system', label: 'Как в системе' }
+]
+
 const fontSizes = [
   { value: 'small', label: 'Меньше' },
   { value: 'medium', label: 'Стандартный' },
   { value: 'large', label: 'Больше' }
 ]
-
-const setFontSize = (size) => {
+const handleFontSizeChange = (size) => {
   settings.setFontSize(size)
+}
+
+const handleColorModeChange = (mode) => {
+  colorMode.preference = mode
 }
 
 const handleChordsToggle = (e) => {
@@ -114,26 +124,6 @@ const handleChordsToggle = (e) => {
 
 .error {
   color: red;
-}
-
-.font-size-controls {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.font-size-controls button {
-  padding: 8px 15px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.font-size-controls button.active {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
 }
 
 .toggle-switch {

@@ -1,0 +1,8 @@
+[
+    { "id": 1, "collectionId": 1, "songNumber": 1, "addedAt": "2024-01-15T10:05:00.000Z" },
+    { "id": 2, "collectionId": 1, "songNumber": 2, "addedAt": "2024-01-15T10:10:00.000Z" },
+    { "id": 3, "collectionId": 1, "songNumber": 3, "addedAt": "2024-01-15T10:15:00.000Z" },
+    { "id": 4, "collectionId": 2, "songNumber": 2, "addedAt": "2024-01-16T11:05:00.000Z" },
+    { "id": 5, "collectionId": 2, "songNumber": 4, "addedAt": "2024-01-16T11:10:00.000Z" },
+    { "id": 6, "collectionId": 3, "songNumber": 1, "addedAt": "2024-01-17T12:05:00.000Z" }
+]

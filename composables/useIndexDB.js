@@ -1,6 +1,44 @@
+import { useNuxtApp } from 'nuxt/app'
+
+/**
+ * Composable для работы с IndexedDB хранилищем песен и подборок
+ * @returns {Object} Объект с методами для работы с IndexedDB
+ */
 export const useIndexDB = () => {
     const {$indexedDB} = useNuxtApp();
 
+    /**
+     * Преобразует значение в число с валидацией
+     * @param {*} value - Преобразуемое значение
+     * @returns {number} Числовое значение
+     * @throws {TypeError} Если значение не может быть преобразовано в число
+     */
+    const normalizeNumber = (value) => {
+        const num = Number(value);
+        if (isNaN(num)) {
+            throw new TypeError(`Значение "${value}" не может быть преобразовано в число`);
+        }
+        return num;
+    };
+
+    /**
+     * Создает транзакцию для заданных хранилищ
+     * @param {string|string[]} storeNames - Название или массив названий хранилищ
+     * @param {string} mode - Режим транзакции ('readonly' или 'readwrite')
+     * @returns {IDBTransaction} Объект транзакции
+     * @throws {Error} Если хранилище не существует или неверный режим
+     */
+    const createTransaction = (storeNames, mode) => {
+        return $indexedDB.transaction(storeNames, mode);
+    };
+
+    /**
+     * Сохраняет массив песен в IndexedDB, предварительно очищая хранилище
+     * @param {Array} songs - Массив песен для сохранения
+     * @returns {Promise<void>}
+     * @throws {Error} При ошибке транзакции IndexedDB
+     * @throws {TypeError} Если массив песен неверного формата
+     */
     const addSongs = async (songs) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['songs'], 'readwrite');
@@ -12,7 +50,6 @@ export const useIndexDB = () => {
             // Добавляем только нужные данные
             songs.forEach(song => {
                 store.put({
-                    id: Number(song.n),
                     number: Number(song.n),
                     title: String(song.title),
                     body: song.body.map(item => ({
@@ -29,6 +66,13 @@ export const useIndexDB = () => {
         });
     };
 
+    /**
+     * Получает песню по номеру
+     * @param {number|string} number - Номер песни
+     * @returns {Promise<Object|null>} Объект песни или null, если не найдена
+     * @throws {Error} При ошибке транзакции IndexedDB
+     * @throws {TypeError} Если номер не может быть преобразован в число
+     */
     const getSong = async (number) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['songs'], 'readonly');
@@ -40,7 +84,13 @@ export const useIndexDB = () => {
         });
     };
 
-    // Создание новой подборки
+    /**
+     * Создает новую подборку песен
+     * @param {string} name - Название подборки
+     * @returns {Promise<number>} ID созданной подборки (autoIncrement)
+     * @throws {Error} При ошибке транзакции IndexedDB
+     * @throws {TypeError} Если имя не является строкой
+     */
     const createCollection = async (name) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['collections'], 'readwrite')
@@ -56,7 +106,11 @@ export const useIndexDB = () => {
         })
     }
 
-    // Получение всех подборок
+    /**
+     * Получает список всех подборок
+     * @returns {Promise<Array>} Массив всех подборок
+     * @throws {Error} При ошибке транзакции IndexedDB
+     */
     const getCollections = async () => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['collections'], 'readonly')
@@ -68,7 +122,14 @@ export const useIndexDB = () => {
         })
     }
 
-    // Добавление песни в подборку
+    /**
+     * Добавляет песню в подборку
+     * @param {number|string} collectionId - ID подборки
+     * @param {number|string} songNumber - Номер песни
+     * @returns {Promise<void>}
+     * @throws {Error} При ошибке транзакции IndexedDB или если песня уже есть в подборке
+     * @throws {TypeError} Если ID или номер не могут быть преобразованы в число
+     */
     const addSongToCollection = async (collectionId, songNumber) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['songCollections'], 'readwrite')
@@ -98,7 +159,13 @@ export const useIndexDB = () => {
         })
     }
 
-    // Получение песен в подборке
+    /**
+     * Получает все песни из указанной подборки
+     * @param {number|string} collectionId - ID подборки
+     * @returns {Promise<Array>} Массив песен в подборке, отсортированных по номеру
+     * @throws {Error} При ошибке транзакции IndexedDB
+     * @throws {TypeError} Если ID не может быть преобразован в число
+     */
     const getSongsInCollection = async (collectionId) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['songCollections', 'songs'], 'readonly')
@@ -134,7 +201,13 @@ export const useIndexDB = () => {
         })
     }
 
-    // Получение подборок для песни
+    /**
+     * Получает список подборок, содержащих указанную песню
+     * @param {number|string} songNumber - Номер песни
+     * @returns {Promise<Array>} Массив подборок, содержащих песню
+     * @throws {Error} При ошибке транзакции IndexedDB
+     * @throws {TypeError} Если номер не может быть преобразован в число
+     */
     const getCollectionsForSong = async (songNumber) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['songCollections', 'collections'], 'readonly')
@@ -162,6 +235,13 @@ export const useIndexDB = () => {
         })
     }
 
+    /**
+     * Получает список подборок, в которые можно добавить песню (исключает уже добавленные)
+     * @param {number|string} songNumber - Номер песни
+     * @returns {Promise<Array>} Массив доступных для добавления подборок
+     * @throws {Error} При ошибке транзакции IndexedDB
+     * @throws {TypeError} Если номер не может быть преобразован в число
+     */
     const getAvailableCollections = async (songNumber) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['collections', 'songCollections'], 'readonly')
@@ -195,7 +275,13 @@ export const useIndexDB = () => {
         })
     }
 
-    // Удаление подборки
+    /**
+     * Удаляет подборку и все связи с песнями
+     * @param {number|string} id - ID подборки для удаления
+     * @returns {Promise<void>}
+     * @throws {Error} При ошибке транзакции IndexedDB
+     * @throws {TypeError} Если ID не может быть преобразован в число
+     */
     const deleteCollection = async (id) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(
@@ -225,6 +311,13 @@ export const useIndexDB = () => {
         })
     }
 
+    /**
+     * Получает подборку по ID
+     * @param {number|string} id - ID подборки
+     * @returns {Promise<Object|null>} Объект подборки или null, если не найдена
+     * @throws {Error} При ошибке транзакции IndexedDB
+     * @throws {TypeError} Если ID не может быть преобразован в число
+     */
     const getCollection = async (id) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['collections'], 'readonly')
@@ -236,6 +329,14 @@ export const useIndexDB = () => {
         })
     }
 
+    /**
+     * Удаляет песню из подборки
+     * @param {number|string} collectionId - ID подборки
+     * @param {number|string} songNumber - Номер песни
+     * @returns {Promise<void>}
+     * @throws {Error} При ошибке транзакции IndexedDB или если связь не найдена
+     * @throws {TypeError} Если ID или номер не могут быть преобразованы в число
+     */
     const removeSongFromCollection = async (collectionId, songNumber) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['songCollections'], 'readwrite')
@@ -260,6 +361,11 @@ export const useIndexDB = () => {
         })
     }
 
+    /**
+     * Получает количество песен в базе данных
+     * @returns {Promise<number>} Количество песен
+     * @throws {Error} При ошибке транзакции IndexedDB (возвращает 0 при ошибке)
+     */
     const getSongsCount = async () => {
         return new Promise((resolve) => {
             const transaction = $indexedDB.transaction(['songs'], 'readonly')
@@ -271,7 +377,11 @@ export const useIndexDB = () => {
         })
     }
 
-    // Добавляем метод для получения списка всех номеров песен
+    /**
+     * Получает список номеров всех песен в базе данных
+     * @returns {Promise<Array<number>>} Массив номеров всех песен
+     * @throws {Error} При ошибке транзакции IndexedDB (возвращает пустой массив при ошибке)
+     */
     const getSongNumbers = async () => {
         return new Promise((resolve) => {
             const transaction = $indexedDB.transaction(['songs'], 'readonly')
@@ -283,6 +393,13 @@ export const useIndexDB = () => {
         })
     }
 
+    /**
+     * Подсчитывает количество песен в подборке
+     * @param {number|string} collectionId - ID подборки
+     * @returns {Promise<number>} Количество песен в подборке
+     * @throws {Error} При ошибке транзакции IndexedDB (возвращает 0 при ошибке)
+     * @throws {TypeError} Если ID не может быть преобразован в число
+     */
     const getSongsCountInCollection = async (collectionId) => {
         return new Promise((resolve) => {
             const transaction = $indexedDB.transaction(['songCollections'], 'readonly')
@@ -295,6 +412,11 @@ export const useIndexDB = () => {
         })
     }
 
+    /**
+     * Получает все песни из базы данных
+     * @returns {Promise<Array>} Массив всех песен
+     * @throws {Error} При ошибке транзакции IndexedDB (возвращает пустой массив при ошибке)
+     */
     const getAllSongs = async () => {
         return new Promise((resolve) => {
             const transaction = $indexedDB.transaction(['songs'], 'readonly')
