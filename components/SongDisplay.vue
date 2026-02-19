@@ -4,7 +4,7 @@
       <ul class="song-list">
         <li v-for="(item, index) in song.body" :key="index" class="song-list-item">
           <div v-if="item.type === 'verse'" class="verse">
-            <span class="part-label">{{ item.id + 1 }}.</span>
+            <span class="part-label">{{ item.n }}.</span>
             <div
               class="content"
               :class="{ 'content-withChords': hasChords(item.content) }"
@@ -112,31 +112,44 @@ h2 {
 
 /* Размеры шрифтов */
 .font-size-small {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .font-size-medium {
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .font-size-large {
-  font-size: 32px;
+  font-size: 25px;
 }
 
 /* Увеличенные размеры для контента */
 .font-size-small .content {
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.5;
 }
 
 .font-size-medium .content {
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1.6;
 }
 
 .font-size-large .content {
-  font-size: 32px;
+  font-size: 25px;
   line-height: 1.7;
+}
+
+/* Line-height для текста с аккордами */
+.font-size-small .content-withChords {
+  line-height: 2.0;
+}
+
+.font-size-medium .content-withChords {
+  line-height: 2.1;
+}
+
+.font-size-large .content-withChords {
+  line-height: 2.2;
 }
 
 /* Vuetify-подобный список */
@@ -188,10 +201,6 @@ h2 {
   background-color: var(--bg-secondary);
   border-radius: 4px;
   position: relative;
-}
-
-.content-withChords {
-  line-height: 2.5;
 }
 
 /* Стили для аккордов */
