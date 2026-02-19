@@ -1,6 +1,28 @@
 const fs = require('fs');
 const path = require('path');
 
+// Загружаем названия песен из names.tsv
+function loadSongNames() {
+    const tsvPath = path.join(__dirname, '../tmp/names.tsv');
+    const tsvContent = fs.readFileSync(tsvPath, 'utf8');
+    const names = {};
+
+    const lines = tsvContent.split('\n');
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
+
+        const [number, title] = trimmedLine.split('\t');
+        if (number && title) {
+            names[parseInt(number)] = title;
+        }
+    }
+
+    return names;
+}
+
+const songNames = loadSongNames();
+
 function parseTxt(text) {
     const result = {
         songs: [],
@@ -93,10 +115,14 @@ function parseTxt(text) {
 
 // Функция парсинга отдельной песни
 function parseSong(songContent, songNumber, firstLine, songId) {
+    // Берём название из names.tsv, если есть, иначе используем первую строку
+    const titleFromTsv = songNames[songNumber];
+    const title = titleFromTsv || (firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine);
+
     const song = {
         id: songId,
         n: songNumber,
-        title: firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine,
+        title: title,
         body: []
     };
 
@@ -178,6 +204,12 @@ console.log('inputFilePath', inputFilePath)
 console.log('outputFilePath', outputFilePath)
 
 processHymnFile(inputFilePath, outputFilePath);
+
+// Копируем результат в public/assets/songs.json
+const targetPath = path.join(__dirname, '../public/assets/songs.json');
+const result = JSON.parse(fs.readFileSync(outputFilePath, 'utf8'));
+fs.writeFileSync(targetPath, JSON.stringify(result, null, 2));
+console.log(`Successfully copied result to ${targetPath}`);
 
 
 function check(result) {
