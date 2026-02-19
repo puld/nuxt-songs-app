@@ -1,5 +1,22 @@
 <script setup>
 const colorMode = useColorMode()
+const showNavbar = ref(true)
+const lastScrollY = ref(0)
+const scrollOffset = 100
+
+const onScroll = () => {
+  const currentScrollY = window.scrollY
+
+  if (currentScrollY < scrollOffset) {
+    showNavbar.value = true
+  } else if (currentScrollY > lastScrollY.value && currentScrollY > scrollOffset) {
+    showNavbar.value = false
+  } else if (currentScrollY < lastScrollY.value) {
+    showNavbar.value = true
+  }
+
+  lastScrollY.value = currentScrollY
+}
 
 useHead({
   link: [
@@ -7,6 +24,14 @@ useHead({
     {rel: 'apple-touch-icon', href: '/apple-touch-icon.png'} // 180×180
   ],
 });
+
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScroll)
+})
 </script>
 
 <template>
@@ -16,17 +41,26 @@ useHead({
     <link rel="manifest" href="manifest.webmanifest">
   </Head>
   <div class="layout" :class="colorMode.value">
-    <header class="header">
-      <NuxtLink to="/" class="logo">Сборник песен</NuxtLink>
-      <nav class="nav">
-        <NuxtLink to="/collections">Мои подборки</NuxtLink>
-        <NuxtLink to="/settings">Настройки</NuxtLink>
-      </nav>
-    </header>
+    <!-- Smart Navigation Bar -->
+    <nav class="app-bar" :class="{ 'app-bar-hidden': !showNavbar }">
+      <NuxtLink to="/" class="nav-btn">
+        <Icon name="mingcute:home-5-line" />
+      </NuxtLink>
 
-    <main class="main">
+      <!-- Динамический контент середины (номер песни, заголовок и т.д.) -->
+<!--      <div name="navbar-center" />-->
+      <div id="navbar-center">
+        <!-- Сюда прилетит контент со страницы -->
+      </div>
+
+      <NuxtLink to="/settings" class="nav-btn">
+        <Icon name="mingcute:settings-3-line" />
+      </NuxtLink>
+    </nav>
+
+    <div class="page-content">
       <slot/>
-    </main>
+    </div>
 
     <footer class="footer">
       <p>Оффлайн сборник текстов песен © {{ new Date().getFullYear() }}</p>
@@ -44,49 +78,58 @@ useHead({
   transition: background 0.3s, color 0.3s;
 }
 
-.header {
-  padding: 1rem;
+.app-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--bg);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 1rem;
+  z-index: 100;
+  transition: transform 0.3s ease-in-out;
 }
 
-.logo {
-  font-weight: bold;
-  font-size: 1.2rem;
-  text-decoration: none;
-  color: var(--text);
+.app-bar-hidden {
+  transform: translateY(-100%);
 }
 
-.nav {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
+.page-content {
+  padding-top: 56px;
+  flex: 1;
+  padding: 1rem;
 }
 
-.nav a {
-  text-decoration: none;
-  color: var(--text);
-  padding: 0.5rem;
-  border-radius: 4px;
+.nav-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.2s;
 }
 
-.nav a:hover {
+.nav-btn:hover {
   background: var(--bg-secondary);
 }
 
-.nav a.router-link-active {
-  font-weight: bold;
-  color: var(--primary);
+.nav-btn :deep(svg) {
+  width: 28px;
+  height: 28px;
 }
 
-.main {
-  flex: 1;
-  padding: 1rem;
+.nav-title {
+  font-weight: bold;
+  font-size: 1rem;
+  color: var(--text);
 }
 
 .footer {

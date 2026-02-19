@@ -1,4 +1,10 @@
 <template>
+  <ClientOnly>
+    <Teleport to="#navbar-center">
+      <span class="nav-title">Подборки</span>
+    </Teleport>
+  </ClientOnly>
+
   <div>
     <h1>Мои подборки</h1>
 

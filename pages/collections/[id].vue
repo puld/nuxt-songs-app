@@ -37,6 +37,13 @@ onMounted(async () => {
 </script>
 
 <template>
+  <ClientOnly>
+    <!-- Слот для контента в центре навбара -->
+    <Teleport to="#navbar-center">
+      <span class="nav-title">{{ collection.name }}</span>
+    </Teleport>
+  </ClientOnly>
+
   <div>
     <div v-if="loading">Загрузка...</div>
     <div v-else-if="!collection">

@@ -1,4 +1,11 @@
 <template>
+  <ClientOnly>
+    <!-- Слот для контента в центре навбара -->
+    <Teleport to="#navbar-center">
+      <span class="nav-title">Настройки</span>
+    </Teleport>
+  </ClientOnly>
+
   <div class="settings">
     <h1>Настройки</h1>
 

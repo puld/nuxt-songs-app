@@ -1,4 +1,11 @@
 <template>
+  <ClientOnly>
+    <!-- Слот для контента в центре навбара -->
+    <Teleport to="#navbar-center">
+      <span class="nav-title">Сборник песен</span>
+    </Teleport>
+  </ClientOnly>
+
   <div class="welcome-screen">
     <h1>Сборник текстов песен</h1>
     <div v-if="!allSongs.length">
