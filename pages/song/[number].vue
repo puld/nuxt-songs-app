@@ -2,7 +2,7 @@
   <ClientOnly>
     <!-- Слот для контента в центре навбара -->
     <Teleport to="#navbar-center" v-if="song">
-      <span class="song-number">{{ song.number }}. {{ song.title }}</span>
+      <span class="nav-title">{{ song.number }}. {{ song.title }}</span>
     </Teleport>
   </ClientOnly>
 

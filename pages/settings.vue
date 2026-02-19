@@ -1,14 +1,11 @@
 <template>
   <ClientOnly>
-    <!-- Слот для контента в центре навбара -->
     <Teleport to="#navbar-center">
       <span class="nav-title">Настройки</span>
     </Teleport>
   </ClientOnly>
 
   <div class="settings">
-    <h1>Настройки</h1>
-
     <div class="setting-section">
       <h2>Тема приложения</h2>
       <SettingToggle

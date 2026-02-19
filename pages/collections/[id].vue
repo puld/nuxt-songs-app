@@ -1,3 +1,37 @@
+<template>
+  <ClientOnly>
+    <Teleport to="#navbar-center">
+      <span class="nav-title">{{ collection.name }}</span>
+    </Teleport>
+  </ClientOnly>
+
+  <div>
+    <div v-if="loading">Загрузка...</div>
+    <div v-else-if="!collection">
+      <p>Подборка не найдена</p>
+      <NuxtLink to="/collections">Назад к списку</NuxtLink>
+    </div>
+    <div v-else>
+      <h2>Подборка: {{ collection.name }}</h2>
+      <p>Количество песен: {{ songs.length }}</p>
+
+      <div v-if="songs.length === 0" class="empty">
+        <p>В этой подборке пока нет песен</p>
+        <NuxtLink to="/">Добавить песни</NuxtLink>
+      </div>
+
+      <div v-else class="songs-list">
+        <div v-for="song in songs" :key="song.number" class="song-item">
+          {{ song.number }}. <NuxtLink :to="`/song/${song.number}`">{{ song.title }}</NuxtLink>
+          <button @click="removeSong(song.number)" class="remove-btn">
+            Удалить из подборки
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
 <script setup>
 const route = useRoute()
 const { getSongsInCollection, getCollection, removeSongFromCollection } = useIndexDB()
@@ -35,41 +69,6 @@ onMounted(async () => {
   }
 })
 </script>
-
-<template>
-  <ClientOnly>
-    <!-- Слот для контента в центре навбара -->
-    <Teleport to="#navbar-center">
-      <span class="nav-title">{{ collection.name }}</span>
-    </Teleport>
-  </ClientOnly>
-
-  <div>
-    <div v-if="loading">Загрузка...</div>
-    <div v-else-if="!collection">
-      <p>Подборка не найдена</p>
-      <NuxtLink to="/collections">Назад к списку</NuxtLink>
-    </div>
-    <div v-else>
-      <h2>Подборка: {{ collection.name }}</h2>
-      <p>Количество песен: {{ songs.length }}</p>
-
-      <div v-if="songs.length === 0" class="empty">
-        <p>В этой подборке пока нет песен</p>
-        <NuxtLink to="/">Добавить песни</NuxtLink>
-      </div>
-
-      <div v-else class="songs-list">
-        <div v-for="song in songs" :key="song.number" class="song-item">
-          {{ song.number }}. <NuxtLink :to="`/song/${song.number}`">{{ song.title }}</NuxtLink>
-          <button @click="removeSong(song.number)" class="remove-btn">
-            Удалить из подборки
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
 
 <style scoped>
 .songs-list {

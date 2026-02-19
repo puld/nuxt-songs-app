@@ -1,7 +1,5 @@
 <template>
   <div class="song-container" :class="[fontSizeClass, { 'hide-chords': !settings.showChords }]">
-    <h2>{{ song.number }}. {{ song.title }}</h2>
-
     <div class="song-content-wrapper">
       <ul class="song-list">
         <li v-for="(item, index) in song.body" :key="index" class="song-list-item">

@@ -44,17 +44,16 @@ onUnmounted(() => {
     <!-- Smart Navigation Bar -->
     <nav class="app-bar" :class="{ 'app-bar-hidden': !showNavbar }">
       <NuxtLink to="/" class="nav-btn">
-        <Icon name="mingcute:home-5-line" />
+        <Icon name="mingcute:home-5-line" size="2rem"/>
       </NuxtLink>
 
       <!-- Динамический контент середины (номер песни, заголовок и т.д.) -->
-<!--      <div name="navbar-center" />-->
       <div id="navbar-center">
         <!-- Сюда прилетит контент со страницы -->
       </div>
 
       <NuxtLink to="/settings" class="nav-btn">
-        <Icon name="mingcute:settings-3-line" />
+        <Icon name="mingcute:settings-3-line" size="2rem"/>
       </NuxtLink>
     </nav>
 
@@ -108,8 +107,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   cursor: pointer;
   color: var(--text);
@@ -121,14 +120,9 @@ onUnmounted(() => {
   background: var(--bg-secondary);
 }
 
-.nav-btn :deep(svg) {
-  width: 28px;
-  height: 28px;
-}
-
 .nav-title {
   font-weight: bold;
-  font-size: 1rem;
+  font-size: 2rem;
   color: var(--text);
 }
 
