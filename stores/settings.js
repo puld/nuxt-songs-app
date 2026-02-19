@@ -1,7 +1,9 @@
+import { useStorage } from '@vueuse/core'
+
 export const useSettingsStore = defineStore('settings', {
     state: () => ({
-        fontSize: 'medium', // 'small', 'medium', 'large'
-        showChords: true
+        fontSize: useStorage('fontSize', 'medium'), // 'small', 'medium', 'large'
+        showChords: useStorage('showChords', false)
     }),
     actions: {
         setFontSize(size) {

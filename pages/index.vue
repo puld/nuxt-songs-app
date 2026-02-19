@@ -11,7 +11,7 @@
         <input
             v-model="searchQuery"
             @input="handleSearch"
-            placeholder="Поиск по тексту песен..."
+            placeholder="Поиск по тексту"
             class="search-input"
         >
 
@@ -24,13 +24,13 @@
           >
             <span class="song-number">{{ result.n }}.</span>
             <span class="song-title">{{ getSongTitle(result.n) }}</span>
-<!--            <span class="score">(совпадение: {{ (result.score * 100).toFixed(1) }}%)</span>-->
+            <span class="score">(совпадение: {{ (result.score * 100).toFixed(1) }}%)</span>
           </div>
         </div>
       </div>
 
       <div class="song-selector">
-        <p>Или выберите номер песни (доступно {{ songsCount }} песен)</p>
+        <p>Или введите номер (доступно {{ songsCount }} песен)</p>
 
         <form @submit.prevent="goToSelectedSong">
           <input
@@ -104,7 +104,7 @@ onMounted(async () => {
 })
 
 const handleSearch = () => {
-  search(searchQuery.value)
+  search(searchQuery.value, 7)
 }
 
 const getSongTitle = (n) => {

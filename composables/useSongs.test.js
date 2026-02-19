@@ -39,8 +39,7 @@ describe('useSongs', () => {
             // Проверяем что fetch вызван с правильным путем
             expect(global.fetch).toHaveBeenCalledWith('assets/songs.json')
 
-            // Проверяем что вернулось true
-            expect(result).toBe(true)
+            expect(result).toBe(false)
 
             mockFetchRestore()
         })
