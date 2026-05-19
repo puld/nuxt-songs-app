@@ -12,6 +12,14 @@
 
     <div v-if="loading">Загрузка...</div>
     <div v-else class="collections-grid">
+      <NuxtLink to="/collections/favorites" class="favorites-card">
+        <div class="card-content">
+          <span class="card-icon">♥</span>
+          <span class="card-name">Избранное</span>
+          <span class="card-count">{{ pluralize(favoritesCount, ['песня', 'песни', 'песен']) }}</span>
+        </div>
+      </NuxtLink>
+
       <TransitionGroup name="fade">
         <CollectionCard
             v-for="collection in collections"
@@ -48,6 +56,8 @@
 
 <script setup>
 const { getCollections, createCollection, deleteCollection } = useIndexDB();
+const { favoriteSongs } = storeToRefs(useFavoritesStore())
+const { pluralize } = useUtils()
 
 const collections = ref([]);
 const loading = ref(true);
@@ -55,6 +65,8 @@ const showCreateModal = ref(false);
 const showDeleteModal = ref(false);
 const newCollectionName = ref('');
 const collectionToDelete = ref(null);
+
+const favoritesCount = computed(() => favoriteSongs.value.length)
 
 onMounted(async () => {
   collections.value = await getCollections();
@@ -99,6 +111,44 @@ const deleteCollectionAction = async (collection) => {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1rem;
   margin-top: 1rem;
+}
+
+.favorites-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  cursor: pointer;
+  background: var(--bg-secondary);
+  transition: transform 0.2s;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.favorites-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.favorites-card .card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.favorites-card .card-icon {
+  font-size: 2rem;
+  color: #ef4444;
+  line-height: 1;
+}
+
+.favorites-card .card-name {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.favorites-card .card-count {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
 }
 
 .modal {

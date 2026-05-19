@@ -39,7 +39,10 @@
   <div v-if="loading">Загрузка...</div>
   <div v-else-if="song">
     <!-- Название песни в теле страницы -->
-    <h1 class="song-title">{{ song.title }}</h1>
+    <div class="song-header">
+      <h1 class="song-title">{{ song.title }}</h1>
+      <FavoriteButton :song-number="song.number" />
+    </div>
 
     <SongDisplay
       :song="song"
@@ -263,6 +266,14 @@ const removeFromCollection = async (col) => {
 </script>
 
 <style scoped>
+.song-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
 .song-title {
   font-size: 1.25rem;
   font-weight: bold;

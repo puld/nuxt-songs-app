@@ -31,6 +31,7 @@
             <span class="song-title">{{ getSongTitle(result.n) }}</span>
             <span v-if="result.variantIndex > 0" class="variant-label">({{ getVariantLabel(result.n, result.variantIndex) }})</span>
             <span class="score">(совпадение: {{ (result.score * 100).toFixed(1) }}%)</span>
+            <FavoriteButton :song-number="result.n" />
           </div>
         </div>
       </div>

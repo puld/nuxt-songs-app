@@ -30,6 +30,7 @@
         >
           <span class="song-number">{{ result.n }}.</span>
           <span class="song-title">{{ getSongTitle(result.n) }}</span>
+          <FavoriteButton :song-number="result.n" />
         </div>
       </div>
 
@@ -51,7 +52,12 @@
           >
             <span class="song-number">{{ song.number }}.</span>
             <span class="song-title">{{ song.title }}</span>
+            <FavoriteButton :song-number="song.number" />
           </div>
+        </div>
+
+        <div v-if="sortMode === 'favorites' && !sortedSongs.length" class="empty-favorites">
+          Нет избранных песен
         </div>
       </template>
     </template>
@@ -61,17 +67,25 @@
 <script setup>
 const { getAllSongs } = useIndexDB()
 const { searchResults, searchQuery, buildIndex, search } = useSongSearch()
+const favoritesStore = useFavoritesStore()
+const { favoriteSongs } = storeToRefs(favoritesStore)
 
 const allSongs = ref([])
 const sortMode = ref('numeric')
 
 const sortOptions = [
   { value: 'alphabetical', label: 'По алфавиту' },
-  { value: 'numeric', label: 'По номерам' }
+  { value: 'numeric', label: 'По номерам' },
+  { value: 'favorites', label: 'Избранное' }
 ]
 
 const sortedSongs = computed(() => {
-  const songs = [...allSongs.value]
+  let songs = [...allSongs.value]
+
+  if (sortMode.value === 'favorites') {
+    songs = songs.filter(s => favoriteSongs.value.includes(s.number))
+  }
+
   if (sortMode.value === 'alphabetical') {
     return songs.sort((a, b) => a.title.localeCompare(b.title, 'ru'))
   }
@@ -188,6 +202,12 @@ const goToSong = (number) => {
 
 .empty-state a {
   color: var(--primary);
+}
+
+.empty-favorites {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
 }
 
 @media (max-width: 480px) {
