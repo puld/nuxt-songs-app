@@ -44,7 +44,7 @@ jobs:
 
       - name: Static HTML export with Nuxt
         run: |
-          npm run generate
+          NODE_ENV=production npm run generate
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

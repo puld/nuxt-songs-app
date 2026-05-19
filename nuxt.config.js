@@ -100,7 +100,7 @@ export default {
     },
 
     router: {
-        base: '/nuxt-songs-app/',
+        base: pathHost,
         mode: 'hash'
     },
 
@@ -126,7 +126,7 @@ export default {
     compatibilityDate: '2025-04-23',
 
     nitro: {
-        static: true, // Для корректного обслуживания статических файлов
+        static: false,
     },
 
     vite: {

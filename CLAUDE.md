@@ -13,6 +13,7 @@ npm run generate     # Генерация статического сайта (S
 npm run start        # Запуск production-сервера (после build)
 ```
 taskkill /F /IM node.exe #остановка 
+npm run dev:4000
 
 
 ### Парсинг текстовых файлов

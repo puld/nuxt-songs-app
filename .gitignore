@@ -4,4 +4,7 @@
 /.output
 /.serena
 /node_modules
+/android
+/capacitor.config.json
+/www
 /tmp
