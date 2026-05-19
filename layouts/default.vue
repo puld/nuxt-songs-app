@@ -1,9 +1,11 @@
-<script setup>
+    <script setup>
 const colorMode = useColorMode()
 const showNavbar = ref(true)
 const lastScrollY = ref(0)
 const scrollOffset = 100
 const sidebarOpen = ref(false)
+
+const router = useRouter()
 
 const onScroll = () => {
   const currentScrollY = window.scrollY
@@ -100,9 +102,9 @@ onUnmounted(() => {
         <!-- Сюда прилетит контент со страницы -->
       </div>
 
-      <NuxtLink to="/library" class="nav-btn" style="margin-left: auto;">
+      <button class="nav-btn" style="margin-left: auto;" @click="router.push('/library')">
         <Icon name="mingcute:book-6-line" size="1.5rem"/>
-      </NuxtLink>
+      </button>
     </nav>
 
     <div class="page-content">
@@ -256,6 +258,7 @@ onUnmounted(() => {
   color: var(--text);
   background: none;
   border: none;
+  text-decoration: none;
   transition: background 0.2s;
 }
 

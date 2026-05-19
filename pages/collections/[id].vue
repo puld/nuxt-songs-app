@@ -18,7 +18,9 @@
 
       <div v-else class="songs-list">
         <div v-for="song in songs" :key="song.number" class="song-item">
-          {{ song.number }}. <NuxtLink :to="`/song/${song.number}`">{{ song.title }}</NuxtLink>
+          <span class="song-info">
+            {{ song.number }}. <NuxtLink :to="`/song/${song.number}`">{{ song.title }}</NuxtLink>
+          </span>
           <button @click="removeFromFavorites(song)" class="remove-btn">
             Убрать из избранного
           </button>
@@ -30,7 +32,23 @@
       <NuxtLink to="/collections">Назад к списку</NuxtLink>
     </div>
     <div v-else>
-      <h2>Подборка: {{ collection.name }}</h2>
+      <div class="collection-header">
+        <div v-if="editing" class="edit-name">
+          <input
+            ref="editInput"
+            v-model="editName"
+            class="edit-input"
+            @keyup.enter="saveName"
+            @keyup.escape="cancelEdit"
+          >
+          <button @click="saveName" class="save-btn">Сохранить</button>
+          <button @click="cancelEdit" class="cancel-btn">Отмена</button>
+        </div>
+        <template v-else>
+          <h2>Подборка: {{ collection.name }}</h2>
+          <button @click="startEdit" class="edit-btn">✎</button>
+        </template>
+      </div>
       <p>Количество песен: {{ songs.length }}</p>
 
       <div v-if="songs.length === 0" class="empty">
@@ -39,13 +57,15 @@
       </div>
 
       <div v-else class="songs-list">
-        <div v-for="song in songs" :key="song.number + '-' + song.variantIndex" class="song-item">
-          {{ song.number }}. <NuxtLink :to="songLink(song)">{{ song.title }}</NuxtLink>
-          <span v-if="getVariantLabel(song) && song.variantIndex > 0" class="variant-badge">{{ getVariantLabel(song) }}</span>
-          <button @click="removeSong(song)" class="remove-btn">
-            Удалить из подборки
-          </button>
-        </div>
+          <div v-for="song in songs" :key="song.number + '-' + song.variantIndex" class="song-item">
+            <span class="song-info">
+              {{ song.number }}. <NuxtLink :to="songLink(song)">{{ song.title }}</NuxtLink>
+              <span v-if="getVariantLabel(song) && song.variantIndex > 0" class="variant-badge">{{ getVariantLabel(song) }}</span>
+            </span>
+            <button @click="removeSong(song)" class="remove-btn">
+              Удалить из подборки
+            </button>
+          </div>
       </div>
     </div>
   </div>
@@ -53,13 +73,16 @@
 
 <script setup>
 const route = useRoute()
-const { getSongsInCollection, getCollection, removeSongFromCollection, getAllSongs } = useIndexDB()
+const { getSongsInCollection, getCollection, removeSongFromCollection, getAllSongs, updateCollection } = useIndexDB()
 const favoritesStore = useFavoritesStore()
 
 const collection = ref(null)
 const songs = ref([])
 const loading = ref(true)
 const allSongs = ref([])
+const editing = ref(false)
+const editName = ref('')
+const editInput = ref(null)
 
 const isFavorites = computed(() => route.params.id === 'favorites')
 
@@ -119,6 +142,30 @@ const removeFromFavorites = (song) => {
   favoritesStore.toggleFavorite(song.number)
   songs.value = songs.value.filter(s => s.number !== song.number)
 }
+
+const startEdit = () => {
+  editName.value = collection.value.name
+  editing.value = true
+  nextTick(() => editInput.value?.focus())
+}
+
+const cancelEdit = () => {
+  editing.value = false
+  editName.value = ''
+}
+
+const saveName = async () => {
+  const name = editName.value.trim()
+  if (!name) return
+  try {
+    await updateCollection(collection.value.id, name)
+    collection.value.name = name
+    editing.value = false
+  } catch (error) {
+    console.error('Ошибка обновления:', error)
+    alert('Не удалось обновить название')
+  }
+}
 </script>
 
 <style scoped>
@@ -133,6 +180,22 @@ const removeFromFavorites = (song) => {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.song-item > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .song-item:hover {
@@ -166,10 +229,87 @@ const removeFromFavorites = (song) => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  float: right;
+  flex-shrink: 0;
 }
 
 .remove-btn:hover {
   opacity: 0.9;
+}
+
+.collection-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.collection-header h2 {
+  margin: 0;
+}
+
+.edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.edit-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text);
+}
+
+.edit-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.edit-input {
+  padding: 0.4rem 0.6rem;
+  font-size: 1rem;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+  min-width: 200px;
+}
+
+.save-btn,
+.cancel-btn {
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border: none;
+}
+
+.save-btn {
+  background: var(--primary);
+  color: white;
+}
+
+.save-btn:hover {
+  opacity: 0.9;
+}
+
+.cancel-btn {
+  background: var(--bg-secondary);
+  color: var(--text);
+  border: 1px solid var(--border-color);
+}
+
+.cancel-btn:hover {
+  background: var(--border-color);
 }
 </style>

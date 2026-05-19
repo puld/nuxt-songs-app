@@ -214,6 +214,32 @@ export const useIndexDB = () => {
         })
     }
 
+    /**
+     * Обновляет название подборки
+     * @param {number|string} id - ID подборки
+     * @param {string} name - Новое название
+     * @returns {Promise<void>}
+     */
+    const updateCollection = async (id, name) => {
+        return new Promise((resolve, reject) => {
+            const transaction = $indexedDB.transaction(['collections'], 'readwrite')
+            const store = transaction.objectStore('collections')
+            const request = store.get(Number(id))
+
+            request.onsuccess = () => {
+                if (!request.result) {
+                    reject(new Error('Подборка не найдена'))
+                    return
+                }
+                const updated = { ...request.result, name: String(name), updatedAt: new Date().toISOString() }
+                const putRequest = store.put(updated)
+                putRequest.onsuccess = () => resolve()
+                putRequest.onerror = (event) => reject(event.target.error)
+            }
+            request.onerror = (event) => reject(event.target.error)
+        })
+    }
+
     const removeSongFromCollection = async (collectionId, songNumber, variantIndex = 0) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['songCollections'], 'readwrite')
@@ -279,7 +305,7 @@ export const useIndexDB = () => {
         addSongs, getSong, createCollection, getCollections,
         addSongToCollection, removeSongFromCollection,
         getSongsInCollection, getCollectionsForSong,
-        getCollection, getAvailableCollections, deleteCollection,
+        getCollection, getAvailableCollections, deleteCollection, updateCollection,
         getSongsCount, getSongNumbers, getSongsCountInCollection, getAllSongs
     };
 };
