@@ -3,6 +3,7 @@ const colorMode = useColorMode()
 const showNavbar = ref(true)
 const lastScrollY = ref(0)
 const scrollOffset = 100
+const sidebarOpen = ref(false)
 
 const onScroll = () => {
   const currentScrollY = window.scrollY
@@ -18,10 +19,18 @@ const onScroll = () => {
   lastScrollY.value = currentScrollY
 }
 
+const toggleSidebar = () => {
+  sidebarOpen.value = !sidebarOpen.value
+}
+
+const closeSidebar = () => {
+  sidebarOpen.value = false
+}
+
 useHead({
   link: [
     {rel: 'manifest', href: 'manifest.webmanifest'},
-    {rel: 'apple-touch-icon', href: '/apple-touch-icon.png'} // 180×180
+    {rel: 'apple-touch-icon', href: '/apple-touch-icon.png'}
   ],
 });
 
@@ -41,24 +50,47 @@ onUnmounted(() => {
     <link rel="manifest" href="manifest.webmanifest">
   </Head>
   <div class="layout" :class="colorMode.value">
-    <!-- Smart Navigation Bar -->
-    <nav class="app-bar" :class="{ 'app-bar-hidden': !showNavbar }">
-      <NuxtLink to="/" class="nav-btn">
-        <Icon name="mingcute:home-5-line" size="2rem"/>
-      </NuxtLink>
+    <!-- Overlay -->
+    <Transition name="fade">
+      <div v-if="sidebarOpen" class="sidebar-overlay" @click="closeSidebar"></div>
+    </Transition>
 
-      <!-- Динамический контент середины (номер песни, заголовок и т.д.) -->
+    <!-- Sidebar -->
+    <Transition name="slide">
+      <aside v-if="sidebarOpen" class="sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">Меню</span>
+          <button class="sidebar-close" @click="closeSidebar">
+            <Icon name="mingcute:close-line" size="1.5rem"/>
+          </button>
+        </div>
+        <nav class="sidebar-nav">
+          <NuxtLink to="/" class="sidebar-link" @click="closeSidebar">
+            <Icon name="mingcute:home-5-line" size="1.25rem"/>
+            <span>Главная</span>
+          </NuxtLink>
+          <NuxtLink to="/collections" class="sidebar-link" @click="closeSidebar">
+            <Icon name="mingcute:folder-line" size="1.25rem"/>
+            <span>Подборки</span>
+          </NuxtLink>
+          <NuxtLink to="/settings" class="sidebar-link" @click="closeSidebar">
+            <Icon name="mingcute:settings-3-line" size="1.25rem"/>
+            <span>Настройки</span>
+          </NuxtLink>
+        </nav>
+      </aside>
+    </Transition>
+
+    <!-- Navigation Bar -->
+    <nav class="app-bar" :class="{ 'app-bar-hidden': !showNavbar }">
+      <button class="nav-btn hamburger" @click="toggleSidebar" aria-label="Меню">
+        <Icon name="mingcute:menu-line" size="1.5rem"/>
+      </button>
+
+      <!-- Динамический контент середины — центрируется абсолютно -->
       <div id="navbar-center">
         <!-- Сюда прилетит контент со страницы -->
       </div>
-
-      <NuxtLink to="/settings" class="nav-btn">
-        <Icon name="mingcute:settings-3-line" size="2rem"/>
-      </NuxtLink>
-
-      <NuxtLink to="/collections" class="nav-btn">
-        <Icon name="mingcute:folder-line" size="2rem"/>
-      </NuxtLink>
     </nav>
 
     <div class="page-content">
@@ -66,7 +98,7 @@ onUnmounted(() => {
     </div>
 
     <footer class="footer">
-      <p>Оффлайн сборник текстов песен © {{ new Date().getFullYear() }}</p>
+      <p>Оффлайн сборник текстов песен &copy; {{ new Date().getFullYear() }}</p>
     </footer>
   </div>
 </template>
@@ -81,6 +113,99 @@ onUnmounted(() => {
   transition: background 0.3s, color 0.3s;
 }
 
+/* Sidebar overlay */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background: var(--bg);
+  border-right: 1px solid var(--border-color);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  height: 56px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.sidebar-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text);
+  background: none;
+  border: none;
+  transition: background 0.2s;
+}
+
+.sidebar-close:hover {
+  background: var(--bg-secondary);
+}
+
+.sidebar-nav {
+  padding: 0.5rem 0;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.sidebar-link:hover {
+  background: var(--bg-secondary);
+}
+
+/* Transition: sidebar slide */
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.25s ease;
+}
+.slide-enter-from,
+.slide-leave-to {
+  transform: translateX(-100%);
+}
+
+/* Transition: overlay fade */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* App bar */
 .app-bar {
   position: fixed;
   top: 0;
@@ -90,7 +215,6 @@ onUnmounted(() => {
   background: var(--bg);
   border-bottom: 1px solid var(--border-color);
   display: flex;
-  justify-content: space-between;
   align-items: center;
   padding: 0 1rem;
   z-index: 100;
@@ -102,9 +226,11 @@ onUnmounted(() => {
 }
 
 .page-content {
-  padding-top: 56px;
+  padding-top: calc(56px + 1rem);
   flex: 1;
-  padding: 1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 1rem;
 }
 
 .nav-btn {
@@ -116,7 +242,8 @@ onUnmounted(() => {
   border-radius: 50%;
   cursor: pointer;
   color: var(--text);
-  text-decoration: none;
+  background: none;
+  border: none;
   transition: background 0.2s;
 }
 
@@ -126,9 +253,22 @@ onUnmounted(() => {
 
 .nav-title {
   font-weight: bold;
-  font-size: 2rem;
+  font-size: 1.25rem;
   color: var(--text);
+  white-space: nowrap;
 }
+
+#navbar-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nav-spacer { display: none; }
 
 .footer {
   padding: 1rem;

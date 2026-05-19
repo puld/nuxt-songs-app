@@ -295,7 +295,8 @@ h2 {
 /* Табы вариантов */
 .variant-tabs {
   display: flex;
-  gap: 0;
+  justify-content: center;
+  gap: 0.75rem;
   margin-bottom: 1rem;
   border-bottom: 2px solid var(--border-color);
   padding: 0 8px;

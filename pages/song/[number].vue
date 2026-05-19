@@ -1,58 +1,51 @@
 <template>
   <ClientOnly>
-    <!-- Слот для контента в центре навбара -->
+    <!-- Навбар: стрелки + номер песни -->
     <Teleport to="#navbar-center" v-if="song">
-      <span class="nav-title">{{ song.number }}. {{ song.title }}</span>
+      <button v-if="hasPrev" class="nav-arrow" @click="goToSong(prevSongNumber)" aria-label="Предыдущая песня">
+        <Icon name="mingcute:left-line" size="1.25rem"/>
+      </button>
+      <button class="nav-title nav-title-btn" @click="showGoToPopover = true" aria-label="Перейти к песне">
+        № {{ song.number }}
+      </button>
+      <button v-if="hasNext" class="nav-arrow" @click="goToSong(nextSongNumber)" aria-label="Следующая песня">
+        <Icon name="mingcute:right-line" size="1.25rem"/>
+      </button>
     </Teleport>
   </ClientOnly>
 
+  <!-- Popover для перехода по номеру -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showGoToPopover" class="goto-overlay" @click.self="closeGoToPopover">
+        <div class="goto-popover">
+          <form @submit.prevent="goToSongFromPopover">
+            <input
+              ref="gotoInput"
+              v-model="gotoNumber"
+              type="number"
+              inputmode="numeric"
+              :placeholder="`Номер песни (1-${maxSongNumber})`"
+              class="goto-input"
+              autofocus
+            >
+            <button type="submit" class="goto-btn">Перейти</button>
+          </form>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <div v-if="loading">Загрузка...</div>
   <div v-else-if="song">
-    <div class="song-nav">
-      <NuxtLink
-          v-if="hasPrev"
-          @click="goToSong(prevSongNumber)"
-          class="nav-link prev"
-      >
-        <Icon name="mingcute:left-line" />
-        {{ prevSongNumber }}
-      </NuxtLink>
-
-      <NuxtLink
-          v-if="hasNext"
-          @click="goToSong(nextSongNumber)"
-          class="nav-link next"
-      >
-        {{ nextSongNumber }}
-        <Icon name="mingcute:right-line" />
-      </NuxtLink>
-    </div>
+    <!-- Название песни в теле страницы -->
+    <h1 class="song-title">{{ song.title }}</h1>
 
     <SongDisplay
       :song="song"
       :initialVariantIndex="currentVariantIndex"
       @variant-change="onVariantChange"
     />
-
-    <div class="song-nav">
-      <NuxtLink
-          v-if="hasPrev"
-          @click="goToSong(prevSongNumber)"
-          class="nav-link prev"
-      >
-        <Icon name="mingcute:left-line" />
-        {{ prevSongNumber }}
-      </NuxtLink>
-
-      <NuxtLink
-          v-if="hasNext"
-          @click="goToSong(nextSongNumber)"
-          class="nav-link next"
-      >
-        {{ nextSongNumber }}
-        <Icon name="mingcute:right-line" />
-      </NuxtLink>
-    </div>
 
     <div class="collections-section">
       <div v-if="songCollections.length > 0" class="current-collections">
@@ -117,6 +110,11 @@ const newCollectionName = ref('');
 const songNumbers = ref([]);
 const currentIndex = ref(-1);
 const currentVariantIndex = ref(0);
+const showGoToPopover = ref(false);
+const gotoNumber = ref(null);
+const gotoInput = ref(null);
+
+const maxSongNumber = computed(() => songNumbers.value.length ? Math.max(...songNumbers.value) : 0)
 
 // Отображаемая метка текущего варианта
 const currentVariantLabel = computed(() => {
@@ -155,6 +153,41 @@ const nextSongNumber = computed(() => hasNext.value ? songNumbers.value[currentI
 const goToSong = (number) => {
   router.push(`/song/${number}`)
 }
+
+const closeGoToPopover = () => {
+  showGoToPopover.value = false
+  gotoNumber.value = null
+}
+
+const goToSongFromPopover = () => {
+  const num = parseInt(gotoNumber.value)
+  if (num && songNumbers.value.includes(num)) {
+    if (num === song.value.number) {
+      // Тот же номер — просто закрываем popover, не трогаем URL
+      showGoToPopover.value = false
+      gotoNumber.value = null
+    } else {
+      showGoToPopover.value = false
+      gotoNumber.value = null
+      router.push(`/song/${num}`)
+    }
+  }
+}
+
+// Фокус на инпут при открытии popover
+watch(showGoToPopover, (val) => {
+  if (val) {
+    nextTick(() => {
+      gotoInput.value?.focus()
+    })
+  }
+})
+
+// Закрываем popover при смене маршрута
+watch(() => route.params.number, () => {
+  showGoToPopover.value = false
+  gotoNumber.value = null
+})
 
 const onVariantChange = async (index) => {
   currentVariantIndex.value = index
@@ -230,33 +263,111 @@ const removeFromCollection = async (col) => {
 </script>
 
 <style scoped>
-.song-nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  margin: 1rem 0;
-}
-
-.song-number {
+.song-title {
+  font-size: 1.25rem;
   font-weight: bold;
+  margin-bottom: 0.5rem;
   color: var(--text);
+  text-align: center;
 }
 
-.nav-link {
+.nav-arrow {
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text);
+  background: none;
+  border: none;
+  transition: background 0.2s;
+}
+
+.nav-arrow:hover {
+  background: var(--bg-secondary);
+}
+
+.nav-title-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.nav-title-btn:hover {
+  background: var(--bg-secondary);
+}
+
+/* Popover перехода по номеру */
+.goto-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+}
+
+.goto-popover {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 2rem;
+  width: 90%;
+  max-width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.goto-popover form {
+  display: flex;
   gap: 0.5rem;
-  padding: 0.5rem 1rem;
+}
+
+.goto-input {
+  flex: 1;
+  padding: 0.8rem;
+  font-size: 1rem;
   border: 1px solid var(--border-color);
   border-radius: 4px;
+  background: var(--bg);
   color: var(--text);
-  text-decoration: none;
-  transition: all 0.2s;
+  -moz-appearance: textfield;
 }
 
-.nav-link:hover {
-  background: var(--bg-secondary);
+.goto-input::-webkit-outer-spin-button,
+.goto-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.goto-btn {
+  padding: 0.8rem 1rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 1rem;
+  min-width: 80px;
+}
+
+.goto-btn:hover {
+  opacity: 0.9;
+}
+
+/* Transition: fade */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 .collections-section {

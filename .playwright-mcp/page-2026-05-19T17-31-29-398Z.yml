@@ -1,0 +1,21 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - button [ref=e5] [cursor=pointer]
+      - generic [ref=e7]: Сборник песен
+    - generic [ref=e10]:
+      - paragraph [ref=e11]: Необходимо перейти в настройки и принудительно обновить базу данных текстов песен.
+      - link "Перейти в настройки для обновления" [ref=e12] [cursor=pointer]:
+        - /url: /settings
+    - contentinfo [ref=e13]:
+      - paragraph [ref=e14]: Оффлайн сборник текстов песен © 2026
+  - generic:
+    - img
+  - generic [ref=e15]:
+    - button "Toggle Nuxt DevTools" [ref=e16] [cursor=pointer]:
+      - img [ref=e17]
+    - generic "Page load time" [ref=e20]:
+      - generic [ref=e21]: "156"
+      - generic [ref=e22]: ms
+    - button "Toggle Component Inspector" [ref=e24] [cursor=pointer]:
+      - img [ref=e25]
