@@ -143,6 +143,8 @@ const goToSelectedSong = () => {
   font-size: 1rem;
   border: 1px solid var(--border-color);
   border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
 }
 
 /* Убираем margin-bottom у обоих input */
@@ -215,9 +217,9 @@ const goToSelectedSong = () => {
   border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
-  height: 100%;
   box-sizing: border-box;
   min-width: 80px;
+  font-size: 1rem;
 }
 
 /* Убираем стрелки у числового поля */
