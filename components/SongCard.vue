@@ -1,6 +1,6 @@
 <template>
   <div class="song-card" @click="$emit('click', song)">
-    <div class="song-number">№{{ song.n }}</div>
+    <div class="song-number">№{{ song.number }}</div>
     <div class="song-preview">
       {{ song.title }}
     </div>

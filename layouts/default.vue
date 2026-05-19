@@ -73,6 +73,10 @@ onUnmounted(() => {
             <Icon name="mingcute:folder-line" size="1.25rem"/>
             <span>Подборки</span>
           </NuxtLink>
+          <NuxtLink to="/library" class="sidebar-link" @click="closeSidebar">
+            <Icon name="mingcute:book-6-line" size="1.25rem"/>
+            <span>Библиотека</span>
+          </NuxtLink>
           <NuxtLink to="/settings" class="sidebar-link" @click="closeSidebar">
             <Icon name="mingcute:settings-3-line" size="1.25rem"/>
             <span>Настройки</span>
@@ -91,6 +95,10 @@ onUnmounted(() => {
       <div id="navbar-center">
         <!-- Сюда прилетит контент со страницы -->
       </div>
+
+      <NuxtLink to="/library" class="nav-btn" style="margin-left: auto;">
+        <Icon name="mingcute:book-6-line" size="1.5rem"/>
+      </NuxtLink>
     </nav>
 
     <div class="page-content">
