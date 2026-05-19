@@ -23,6 +23,107 @@ function loadSongNames() {
 
 const songNames = loadSongNames();
 
+// Разделяет контент песни на варианты по меткам типа (а), (б), (вариант для сестёр) и т.д.
+// Возвращает массив { label, content }. Если вариантов нет — один вариант с пустым label.
+function splitVariants(songContent) {
+    // Ищем границы вариантов: (метка) в начале строки или после пустых строк,
+    // за которой следует номер куплета или Припев.
+    // Не захватывает: (Припев 2 вариант: текст) — после ) нет номера куплета
+    // Не захватывает: 3(а). текст — (а) не в начале строки
+    const VARIANT_BOUNDARY_REGEX = /(?:^|\n\s*\n)\(([^)]+)\)\s*(?=\d+\.|Припев[:\s])/gi;
+
+    const matches = [...songContent.matchAll(VARIANT_BOUNDARY_REGEX)];
+
+    if (matches.length === 0) {
+        return [{ label: '', content: songContent }];
+    }
+
+    const variants = [];
+
+    for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
+        const label = match[1]; // например: "а", "б", "вариант для сестёр"
+
+        // Контент начинается после метки варианта
+        const contentStart = match.index + match[0].length;
+
+        // Контент заканчивается перед началом следующего варианта
+        const contentEnd = i < matches.length - 1
+            ? matches[i + 1].index
+            : songContent.length;
+
+        let content = songContent.substring(contentStart, contentEnd).trim();
+
+        variants.push({ label, content });
+    }
+
+    // Если первый match не в самом начале, значит есть контент перед первым вариантом
+    // (для песен типа 235, где (а) идёт сразу после номера песни)
+    const firstMatchAtStart = matches[0].index === 0;
+    if (!firstMatchAtStart) {
+        const firstContent = songContent.substring(0, matches[0].index).trim();
+        if (firstContent) {
+            variants.unshift({ label: '', content: firstContent });
+        }
+    }
+
+    return variants;
+}
+
+// Парсит тело одного варианта песни (куплеты и припевы)
+function parseSongBody(content, startId) {
+    const parts = [];
+    let currentPart = null;
+    let nextId = startId;
+
+    const lines = content.split('\n');
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
+
+        const verseMatch = trimmedLine.match(/^(\d+)\.\s*(.*)/);
+        const chorusMatch = trimmedLine.match(/^Припев(:|.)\s*(.*)/i);
+
+        if (verseMatch) {
+            if (currentPart) parts.push(currentPart);
+            currentPart = {
+                type: 'verse',
+                id: nextId++,
+                n: parseInt(verseMatch[1]),
+                content: verseMatch[2] || ''
+            };
+        } else if (chorusMatch) {
+            if (currentPart) parts.push(currentPart);
+            const chorusNumber = parts.filter(p => p.type === 'chorus').length + 1;
+            currentPart = {
+                type: 'chorus',
+                id: nextId++,
+                n: chorusNumber,
+                content: chorusMatch[2].trim()
+            };
+        } else {
+            if (currentPart) {
+                if (currentPart.content) {
+                    currentPart.content += '\n' + trimmedLine;
+                } else {
+                    currentPart.content = trimmedLine;
+                }
+            } else {
+                currentPart = {
+                    type: 'verse',
+                    id: nextId++,
+                    n: 1,
+                    content: trimmedLine
+                };
+            }
+        }
+    }
+
+    if (currentPart) parts.push(currentPart);
+
+    return { parts, nextId };
+}
+
 function parseTxt(text) {
     const result = {
         songs: [],
@@ -77,7 +178,7 @@ function parseTxt(text) {
         };
 
         // Находим и парсим песни в разделе
-        const songStartRegex = /^(\d+)\.\s*(?:\([^)]*\))?\s+(\d+\.|Припев[:.]?)\s*([^\n]+)/gmi;
+        const songStartRegex = /^(\d+)\.\s*(?:\([^)\n]*\))?[ \t]+(\d+\.|Припев[:.]?)\s*([^\n]+)/gmi;
         const allMatches = [...sectionText.matchAll(songStartRegex)];
 
         // Фильтруем: только те, где первый элемент - номер куплета 1 или припев
@@ -89,7 +190,6 @@ function parseTxt(text) {
         for (let i = 0; i < songMatches.length; i++) {
             const songMatch = songMatches[i];
             const songNumber = parseInt(songMatch[1]);
-            const verseOrChorus = songMatch[2];
             const firstLine = songMatch[3];
 
             // Определяем границу песни
@@ -123,60 +223,22 @@ function parseSong(songContent, songNumber, firstLine, songId) {
         id: songId,
         n: songNumber,
         title: title,
-        body: []
+        variants: []
     };
 
-    const lines = songContent.split('\n');
-    let currentPart = null;
+    // Разделяем на варианты
+    const variantChunks = splitVariants(songContent);
 
-    for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (!trimmedLine) continue;
+    let globalBodyId = 0; // уникальные ID внутри песни
 
-        const verseMatch = trimmedLine.match(/^(\d+)\.\s*(.*)/);
-        const chorusMatch = trimmedLine.match(/^Припев(:|.)\s*(.*)/i);
+    for (const chunk of variantChunks) {
+        const variantBody = parseSongBody(chunk.content, globalBodyId);
+        globalBodyId = variantBody.nextId;
 
-        if (verseMatch) {
-            if (currentPart) {
-                song.body.push(currentPart);
-            }
-            currentPart = {
-                type: 'verse',
-                id: song.body.length,
-                n: parseInt(verseMatch[1]),
-                content: verseMatch[2] || ''
-            };
-        } else if (chorusMatch) {
-            if (currentPart) {
-                song.body.push(currentPart);
-            }
-            const chorusNumber = song.body.filter(p => p.type === 'chorus').length + 1;
-            currentPart = {
-                type: 'chorus',
-                id: song.body.length,
-                n: chorusNumber,
-                content: chorusMatch[2].trim()
-            };
-        } else {
-            if (currentPart) {
-                if (currentPart.content) {
-                    currentPart.content += '\n' + trimmedLine;
-                } else {
-                    currentPart.content = trimmedLine;
-                }
-            } else {
-                currentPart = {
-                    type: 'verse',
-                    id: 0,
-                    n: 1,
-                    content: trimmedLine
-                };
-            }
-        }
-    }
-
-    if (currentPart) {
-        song.body.push(currentPart);
+        song.variants.push({
+            label: chunk.label,
+            body: variantBody.parts
+        });
     }
 
     return song;
@@ -205,11 +267,11 @@ console.log('outputFilePath', outputFilePath)
 
 processHymnFile(inputFilePath, outputFilePath);
 
-// Копируем результат в public/assets/songs.json
-const targetPath = path.join(__dirname, '../public/assets/songs.json');
-const result = JSON.parse(fs.readFileSync(outputFilePath, 'utf8'));
-fs.writeFileSync(targetPath, JSON.stringify(result, null, 2));
-console.log(`Successfully copied result to ${targetPath}`);
+//// Копируем результат в public/assets/songs.json
+// const targetPath = path.join(__dirname, '../public/assets/songs.json');
+// const result = JSON.parse(fs.readFileSync(outputFilePath, 'utf8'));
+// fs.writeFileSync(targetPath, JSON.stringify(result, null, 2));
+// console.log(`Successfully copied result to ${targetPath}`);
 
 
 function check(result) {
@@ -220,5 +282,16 @@ function check(result) {
             console.log("номер ", song.n)
             return
         }
+        // Проверяем варианты
+        if (!song.variants || song.variants.length === 0) {
+            console.log("нет вариантов у песни", song.n)
+            return
+        }
+        for (const variant of song.variants) {
+            if (!variant.body || variant.body.length === 0) {
+                console.log("пустой вариант у песни", song.n, "label:", variant.label)
+            }
+        }
     }
+    console.log("Проверка пройдена")
 }

@@ -1,10 +1,11 @@
 export default defineNuxtPlugin(async (nuxtApp) => {
-    const dbVersion = 1.1;
+    const dbVersion = 2;
 
     const request = indexedDB.open('SongsDB', dbVersion);
 
     request.onupgradeneeded = (event) => {
         const db = event.target.result;
+        const oldVersion = event.oldVersion;
 
         if (!db.objectStoreNames.contains('songs')) {
             db.createObjectStore('songs', { keyPath: 'number' });
@@ -20,6 +21,29 @@ export default defineNuxtPlugin(async (nuxtApp) => {
             songCollectionsStore.createIndex('collectionId', 'collectionId', { unique: false });
             songCollectionsStore.createIndex('songNumber', 'songNumber', { unique: false });
             songCollectionsStore.createIndex('collectionId_songNumber',['collectionId', 'songNumber'],{ unique: true })
+        }
+
+        // Миграция: преобразуем старый формат body → variants
+        if (oldVersion > 0 && oldVersion < 2) {
+            const transaction = event.target.transaction;
+            const store = transaction.objectStore('songs');
+            const getAllRequest = store.getAll();
+
+            getAllRequest.onsuccess = () => {
+                const songs = getAllRequest.result;
+                store.clear();
+                for (const song of songs) {
+                    if (song.body && !song.variants) {
+                        store.put({
+                            number: song.number,
+                            title: song.title,
+                            variants: [{ label: '', body: song.body }]
+                        });
+                    } else if (song.variants) {
+                        store.put(song);
+                    }
+                }
+            };
         }
     };
 

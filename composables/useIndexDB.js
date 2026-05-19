@@ -49,15 +49,21 @@ export const useIndexDB = () => {
 
             // Добавляем только нужные данные
             songs.forEach(song => {
+                // Поддерживаем оба формата: variants (новый) и body (старый)
+                const variants = song.variants || [{ label: '', body: song.body || [] }];
+
                 store.put({
                     number: Number(song.n),
                     title: String(song.title),
-                    body: song.body.map(item => ({
-                        id: Number(item.id),
-                        n : Number(item.n),
-                        type: String(item.type),
-                        content: item.content ? String(item.content) : null,
-                        repeatId: item.repeatId ? String(item.repeatId) : null
+                    variants: variants.map(variant => ({
+                        label: String(variant.label || ''),
+                        body: (variant.body || []).map(item => ({
+                            id: Number(item.id),
+                            n : Number(item.n),
+                            type: String(item.type),
+                            content: item.content ? String(item.content) : null,
+                            repeatId: item.repeatId ? String(item.repeatId) : null
+                        })),
                     })),
                 })
             })

@@ -6,22 +6,22 @@ describe('useSongSearch', () => {
         {
             number: 1,
             title: 'Осенний дождь',
-            body: [
-                { type: 'verse', content: 'Листья падают, дождь идет' }
+            variants: [
+                { label: '', body: [{ type: 'verse', content: 'Листья падают, дождь идет' }] }
             ]
         },
         {
             number: 2,
             title: 'Весенняя песня',
-            body: [
-                { type: 'verse', content: 'Птицы поют, солнце светит' }
+            variants: [
+                { label: '', body: [{ type: 'verse', content: 'Птицы поют, солнце светит' }] }
             ]
         },
         {
             number: 3,
             title: 'Дождь в городе',
-            body: [
-                { type: 'verse', content: 'Город засыпает под дождем' }
+            variants: [
+                { label: '', body: [{ type: 'verse', content: 'Город засыпает под дождем' }] }
             ]
         }
     ]
