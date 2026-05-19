@@ -2,7 +2,7 @@ const pathHost = process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/
 
 export default {
     target: 'static',
-    ssr: true,
+    ssr: false,
 
     head: {
         title: 'Сборник текстов песен',
@@ -98,13 +98,6 @@ export default {
         fallback: 'light',
         classSuffix: ''
     },
-
-    router: {
-        base: '/nuxt-songs-app/',
-        mode: 'hash'
-    },
-
-
 
     app: {
         baseURL: pathHost,

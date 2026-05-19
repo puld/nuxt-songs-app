@@ -12,7 +12,7 @@ export const createMockDB = async () => {
     }
 
     const indexedDB = new IDBFactory()
-    const dbVersion = 2
+    const dbVersion = 4
 
     return new Promise((resolve, reject) => {
         const request = indexedDB.open('SongsDB', dbVersion)
@@ -36,7 +36,8 @@ export const createMockDB = async () => {
                 const songCollectionsStore = db.createObjectStore('songCollections', { keyPath: 'id', autoIncrement: true })
                 songCollectionsStore.createIndex('collectionId', 'collectionId', { unique: false })
                 songCollectionsStore.createIndex('songNumber', 'songNumber', { unique: false })
-                songCollectionsStore.createIndex('collectionId_songNumber', ['collectionId', 'songNumber'], { unique: true })
+                songCollectionsStore.createIndex('collectionId_songNumber', ['collectionId', 'songNumber'], { unique: false })
+                songCollectionsStore.createIndex('collectionId_songNumber_variantIndex', ['collectionId', 'songNumber', 'variantIndex'], { unique: true })
             }
         }
 

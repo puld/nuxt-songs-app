@@ -21,9 +21,10 @@
       </div>
 
       <div v-else class="songs-list">
-        <div v-for="song in songs" :key="song.number" class="song-item">
-          {{ song.number }}. <NuxtLink :to="`/song/${song.number}`">{{ song.title }}</NuxtLink>
-          <button @click="removeSong(song.number)" class="remove-btn">
+        <div v-for="song in songs" :key="song.number + '-' + song.variantIndex" class="song-item">
+          {{ song.number }}. <NuxtLink :to="songLink(song)">{{ song.title }}</NuxtLink>
+          <span v-if="getVariantLabel(song) && song.variantIndex > 0" class="variant-badge">{{ getVariantLabel(song) }}</span>
+          <button @click="removeSong(song)" class="remove-btn">
             Удалить из подборки
           </button>
         </div>
@@ -40,13 +41,30 @@ const collection = ref(null)
 const songs = ref([])
 const loading = ref(true)
 
-const removeSong = async (songNumber) => {
-  if (!confirm('Удалить эту песню из подборки?')) return
+const songLink = (song) => {
+  const path = `/song/${song.number}`
+  return song.variantIndex > 0 ? `${path}?v=${song.variantIndex}` : path
+}
+
+const getVariantLabel = (song) => {
+  if (!song.variants) return ''
+  const label = song.variants[song.variantIndex]?.label
+  return label || ''
+}
+
+const removeSong = async (song) => {
+  const variantLabel = getVariantLabel(song)
+  const variantInfo = variantLabel && song.variantIndex > 0 ? ` (вариант ${variantLabel})` : ''
+  if (!confirm(`Удалить песню${variantInfo} из подборки?`)) return
 
   try {
-    await removeSongFromCollection(Number(route.params.id), Number(songNumber))
+    await removeSongFromCollection(
+      Number(route.params.id),
+      Number(song.number),
+      song.variantIndex ?? 0
+    )
     // Обновляем список песен
-    songs.value = songs.value.filter(song => song.number !== songNumber)
+    songs.value = songs.value.filter(s => !(s.number === song.number && s.variantIndex === song.variantIndex))
   } catch (error) {
     console.error('Ошибка удаления:', error)
     alert('Не удалось удалить песню')
@@ -60,7 +78,7 @@ onMounted(async () => {
     // Загружаем данные подборки
     collection.value = await getCollection(collectionId)
 
-    // Загружаем песни подборки
+    // Загружаем песни подборки (с variantIndex)
     songs.value = await getSongsInCollection(collectionId)
   } catch (error) {
     console.error('Ошибка загрузки:', error)
@@ -97,6 +115,17 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
+.variant-badge {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-secondary);
+}
+
 .remove-btn {
   padding: 0.25rem 0.5rem;
   background: var(--danger);
@@ -104,6 +133,7 @@ onMounted(async () => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  float: right;
 }
 
 .remove-btn:hover {

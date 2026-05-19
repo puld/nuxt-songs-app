@@ -25,10 +25,11 @@
               v-for="result in searchResults"
               :key="result.n"
               class="result-item"
-              @click="goToSong(result.n)"
+              @click="goToSong(result.n, result.variantIndex)"
           >
             <span class="song-number">{{ result.n }}.</span>
             <span class="song-title">{{ getSongTitle(result.n) }}</span>
+            <span v-if="result.variantIndex > 0" class="variant-label">({{ getVariantLabel(result.n, result.variantIndex) }})</span>
             <span class="score">(совпадение: {{ (result.score * 100).toFixed(1) }}%)</span>
           </div>
         </div>
@@ -94,9 +95,16 @@ const getSongTitle = (n) => {
   return song ? song.title : 'Неизвестная песня'
 }
 
-const goToSong = (n) => {
+const getVariantLabel = (n, variantIndex) => {
+  const song = allSongs.value.find(s => Number(s.number) === Number(n))
+  if (!song?.variants) return ''
+  return song.variants[variantIndex]?.label || ''
+}
+
+const goToSong = (n, variantIndex) => {
   if (n) {
-    navigateTo(`/song/${n}`)
+    const query = variantIndex > 0 ? { v: variantIndex } : {}
+    router.push({ path: `/song/${n}`, query })
   }
 }
 
@@ -184,6 +192,12 @@ const goToSelectedSong = () => {
 .score {
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.variant-label {
+  font-size: 0.8rem;
+  color: var(--primary);
+  margin-right: 0.3rem;
 }
 
 .song-selector {
