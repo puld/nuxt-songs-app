@@ -1,5 +1,5 @@
 export default defineNuxtPlugin(async (nuxtApp) => {
-    const dbVersion = 2;
+    const dbVersion = 4;
 
     const request = indexedDB.open('SongsDB', dbVersion);
 
@@ -20,10 +20,11 @@ export default defineNuxtPlugin(async (nuxtApp) => {
             const songCollectionsStore = db.createObjectStore('songCollections', { keyPath: 'id', autoIncrement: true });
             songCollectionsStore.createIndex('collectionId', 'collectionId', { unique: false });
             songCollectionsStore.createIndex('songNumber', 'songNumber', { unique: false });
-            songCollectionsStore.createIndex('collectionId_songNumber',['collectionId', 'songNumber'],{ unique: true })
+            songCollectionsStore.createIndex('collectionId_songNumber', ['collectionId', 'songNumber'], { unique: false });
+            songCollectionsStore.createIndex('collectionId_songNumber_variantIndex', ['collectionId', 'songNumber', 'variantIndex'], { unique: true });
         }
 
-        // Миграция: преобразуем старый формат body → variants
+        // Миграция v1→v2: body → variants
         if (oldVersion > 0 && oldVersion < 2) {
             const transaction = event.target.transaction;
             const store = transaction.objectStore('songs');
@@ -42,6 +43,54 @@ export default defineNuxtPlugin(async (nuxtApp) => {
                     } else if (song.variants) {
                         store.put(song);
                     }
+                }
+            };
+        }
+
+        // Миграция v2→v3 (промежуточная — добавляла variantLabel)
+        if (oldVersion >= 2 && oldVersion < 3) {
+            const transaction = event.target.transaction;
+            const store = transaction.objectStore('songCollections');
+            store.deleteIndex('collectionId_songNumber');
+            store.createIndex('collectionId_songNumber', ['collectionId', 'songNumber'], { unique: false });
+            store.createIndex('collectionId_songNumber_variantLabel', ['collectionId', 'songNumber', 'variantLabel'], { unique: true });
+
+            const getAllRequest = store.getAll();
+            getAllRequest.onsuccess = () => {
+                const links = getAllRequest.result;
+                store.clear();
+                for (const link of links) {
+                    store.put({
+                        id: link.id,
+                        collectionId: link.collectionId,
+                        songNumber: link.songNumber,
+                        variantLabel: '',
+                        addedAt: link.addedAt
+                    });
+                }
+            };
+        }
+
+        // Миграция v3→v4: variantLabel → variantIndex (число)
+        if (oldVersion >= 3 && oldVersion < 4) {
+            const transaction = event.target.transaction;
+            const store = transaction.objectStore('songCollections');
+
+            store.deleteIndex('collectionId_songNumber_variantLabel');
+            store.createIndex('collectionId_songNumber_variantIndex', ['collectionId', 'songNumber', 'variantIndex'], { unique: true });
+
+            const getAllRequest = store.getAll();
+            getAllRequest.onsuccess = () => {
+                const links = getAllRequest.result;
+                store.clear();
+                for (const link of links) {
+                    store.put({
+                        id: link.id,
+                        collectionId: link.collectionId,
+                        songNumber: link.songNumber,
+                        variantIndex: 0,
+                        addedAt: link.addedAt
+                    });
                 }
             };
         }

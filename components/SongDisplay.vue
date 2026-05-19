@@ -5,7 +5,7 @@
       <button
         v-for="(label, index) in variantLabels"
         :key="index"
-        @click="activeVariantIndex = index"
+        @click="onTabChange(index)"
         :class="['variant-tab', { active: activeVariantIndex === index }]"
       >
         {{ label }}
@@ -51,8 +51,14 @@ const props = defineProps({
       title: '',
       variants: []
     })
+  },
+  initialVariantIndex: {
+    type: Number,
+    default: 0
   }
 })
+
+const emit = defineEmits(['variant-change'])
 
 const settings = useSettingsStore()
 
@@ -65,6 +71,12 @@ const activeVariantBody = computed(() => {
   }
   // Обратная совместимость: старый формат с body
   return props.song.body || []
+})
+
+// Метка текущего активного варианта
+const activeVariantLabel = computed(() => {
+  if (!props.song.variants || !props.song.variants.length) return ''
+  return props.song.variants[activeVariantIndex.value]?.label || ''
 })
 
 // Показывать ли табы вариантов
@@ -84,8 +96,27 @@ const variantLabels = computed(() => {
 
 // Сброс активного варианта при смене песни
 watch(() => props.song.number, () => {
-  activeVariantIndex.value = 0
+  activeVariantIndex.value = props.initialVariantIndex || 0
 })
+
+// Реакция на изменение initialVariantIndex извне (например, при навигации)
+watch(() => props.initialVariantIndex, (newIndex) => {
+  if (newIndex !== activeVariantIndex.value) {
+    activeVariantIndex.value = newIndex
+  }
+})
+
+// Инициализация при монтировании
+onMounted(() => {
+  if (props.initialVariantIndex) {
+    activeVariantIndex.value = props.initialVariantIndex
+  }
+})
+
+const onTabChange = (index) => {
+  activeVariantIndex.value = index
+  emit('variant-change', index)
+}
 
 const fontSizeClass = computed(() => {
   return `font-size-${settings.fontSize}`

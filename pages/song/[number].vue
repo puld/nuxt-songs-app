@@ -18,8 +18,6 @@
         {{ prevSongNumber }}
       </NuxtLink>
 
-<!--      <span class="song-number">{{ song.number }}</span>-->
-
       <NuxtLink
           v-if="hasNext"
           @click="goToSong(nextSongNumber)"
@@ -30,7 +28,11 @@
       </NuxtLink>
     </div>
 
-    <SongDisplay :song="song"/>
+    <SongDisplay
+      :song="song"
+      :initialVariantIndex="currentVariantIndex"
+      @variant-change="onVariantChange"
+    />
 
     <div class="song-nav">
       <NuxtLink
@@ -56,14 +58,13 @@
       <div v-if="songCollections.length > 0" class="current-collections">
         <h3>Входит в подборки:</h3>
         <ul>
-          <li v-for="col in songCollections" :key="col.id" class="nav">
-
-            <NuxtLink :to="`/collections/${col.id}`">{{ col.name }}</NuxtLink>
-            <NuxtLink @click="removeFromCollection(col.id)" class="remove-btn">Х</NuxtLink>
+          <li v-for="col in songCollections" :key="col.id + '-' + col.variantIndex" class="nav">
+            <NuxtLink :to="collectionLink(col)">{{ col.name }}<span v-if="getVariantLabel(col.variantIndex)" class="variant-badge">{{ getVariantLabel(col.variantIndex) }}</span></NuxtLink>
+            <NuxtLink @click="removeFromCollection(col)" class="remove-btn">Х</NuxtLink>
           </li>
         </ul>
       </div>
-      <h3>Добавить в подборку</h3>
+      <h3>Добавить в подборку<span v-if="currentVariantLabel" class="variant-hint"> (вариант {{ currentVariantLabel }})</span></h3>
       <nav class="nav">
         <select v-model="selectedCollection">
           <option value="">Новая подборка</option>
@@ -109,16 +110,24 @@ const {
 
 const song = ref(null);
 const loading = ref(true);
-const isShowChords = ref(false);
 const collections = ref([]);
 const songCollections = ref([]);
 const selectedCollection = ref('');
 const newCollectionName = ref('');
 const songNumbers = ref([]);
 const currentIndex = ref(-1);
+const currentVariantIndex = ref(0);
+
+// Отображаемая метка текущего варианта
+const currentVariantLabel = computed(() => {
+  if (!song.value?.variants) return ''
+  const label = song.value.variants[currentVariantIndex.value]?.label
+  return label || ''
+})
 
 onMounted(async () => {
   const songNumber = parseInt(route.params.number);
+  currentVariantIndex.value = route.query.v !== undefined ? parseInt(route.query.v) || 0 : 0
 
   songNumbers.value = await getSongNumbers()
   song.value = await getSong(songNumber);
@@ -132,8 +141,8 @@ onMounted(async () => {
   // Загружаем коллекции, в которые входит песня
   songCollections.value = await getCollectionsForSong(songNumber);
 
-  // Загружаем все доступные коллекции
-  collections.value = await getAvailableCollections(songNumber);
+  // Загружаем доступные коллекции для текущего варианта
+  collections.value = await getAvailableCollections(songNumber, currentVariantIndex.value);
 
   loading.value = false;
 });
@@ -147,6 +156,34 @@ const goToSong = (number) => {
   router.push(`/song/${number}`)
 }
 
+const onVariantChange = async (index) => {
+  currentVariantIndex.value = index
+
+  // Обновляем URL query param без перезагрузки
+  if (index > 0) {
+    router.replace({ query: { v: index } })
+  } else {
+    router.replace({ query: {} })
+  }
+
+  // Обновляем список доступных коллекций для нового варианта
+  if (song.value) {
+    collections.value = await getAvailableCollections(song.value.number, index)
+  }
+}
+
+// Получить отображаемую метку варианта по индексу
+const getVariantLabel = (variantIndex) => {
+  if (!song.value?.variants) return ''
+  const label = song.value.variants[variantIndex]?.label
+  return label || ''
+}
+
+// Ссылка на подборку
+const collectionLink = (col) => {
+  return `/collections/${col.id}`
+}
+
 const addToCollection = async () => {
   if (selectedCollection.value === '') {
     if (!newCollectionName.value.trim()) return;
@@ -155,51 +192,41 @@ const addToCollection = async () => {
     selectedCollection.value = await createCollection(newCollectionName.value);
   }
 
-  // Добавляем песню в коллекцию
-  await addSongToCollection(selectedCollection.value, song.value.number);
+  // Добавляем текущий вариант песни в коллекцию
+  await addSongToCollection(selectedCollection.value, song.value.number, currentVariantIndex.value);
 
   // Обновляем список коллекций песни
   songCollections.value = await getCollectionsForSong(song.value.number);
+
+  // Обновляем список доступных коллекций
+  collections.value = await getAvailableCollections(song.value.number, currentVariantIndex.value);
 
   // Сбрасываем выбор
   selectedCollection.value = '';
   newCollectionName.value = '';
 };
 
-const removeFromCollection = async (collectionId) => {
-  if (!confirm('Удалить песню из этой подборки?')) return
+const removeFromCollection = async (col) => {
+  const variantLabel = getVariantLabel(col.variantIndex)
+  const variantInfo = variantLabel ? ` (вариант ${variantLabel})` : ''
+  if (!confirm(`Удалить песню${variantInfo} из подборки "${col.name}"?`)) return
 
   try {
     await removeSongFromCollection(
-        Number(collectionId),
-        Number(route.params.number)
+        Number(col.id),
+        Number(route.params.number),
+        col.variantIndex ?? 0
     )
     // Обновляем списки
     songCollections.value = songCollections.value.filter(
-        c => c.id !== collectionId
+        c => !(c.id === col.id && c.variantIndex === col.variantIndex)
     )
-    collections.value = await getAvailableCollections(route.params.number)
+    collections.value = await getAvailableCollections(route.params.number, currentVariantIndex.value)
   } catch (error) {
     console.error('Ошибка удаления:', error)
     alert('Не удалось удалить песню')
   }
 }
-
-const hasChords = computed((str) => {
-  return isShowChords.value && /\{/.test(str);
-});
-
-const nl2br = computed((str) => {
-  if (isShowChords.value) {
-    str = str.replace(/\{_/g, "<span class='chord'>");
-    str = str.replace(/\{/g, "<span class='chord chord-up'>");
-    str = str.replace(/\}/g, "</span>");
-  } else {
-    str = str.replace(/\{[^\}]+\}/g, '');
-  }
-  str = str.replace(/([^>])\n/g, '$1<br/>');
-  return str;
-});
 </script>
 
 <style scoped>
@@ -245,6 +272,23 @@ const nl2br = computed((str) => {
 
 .current-collections li {
   margin: 0.5rem 0;
+}
+
+.variant-badge {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-secondary);
+}
+
+.variant-hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: normal;
 }
 
 .remove-btn {

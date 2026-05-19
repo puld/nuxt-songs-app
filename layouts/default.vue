@@ -55,6 +55,10 @@ onUnmounted(() => {
       <NuxtLink to="/settings" class="nav-btn">
         <Icon name="mingcute:settings-3-line" size="2rem"/>
       </NuxtLink>
+
+      <NuxtLink to="/collections" class="nav-btn">
+        <Icon name="mingcute:folder-line" size="2rem"/>
+      </NuxtLink>
     </nav>
 
     <div class="page-content">

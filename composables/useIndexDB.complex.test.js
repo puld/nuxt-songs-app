@@ -260,8 +260,8 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
 
             const getTx = db.transaction(['songCollections'], 'readonly')
             const getStore = getTx.objectStore('songCollections')
-            const index = getStore.index('collectionId_songNumber')
-            const request = index.get([1, Number(stringN)])
+            const index = getStore.index('collectionId_songNumber_variantIndex')
+            const request = index.get([1, Number(stringN), 0])
 
             await new Promise((resolve) => {
                 request.onsuccess = () => resolve(request.result)
@@ -282,7 +282,7 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
             await addSongToCollection(collectionId, 10)
 
             // Пытка добавить ту же песню - должна выбросить ошибку
-            await expect(addSongToCollection(collectionId, 10)).rejects.toThrow('Песня уже есть в этой подборке')
+            await expect(addSongToCollection(collectionId, 10)).rejects.toThrow('Этот вариант песни уже есть в подборке')
         })
 
         it('должен успешно создавать подборку с пустым именем', async () => {
