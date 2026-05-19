@@ -68,7 +68,7 @@ export default {
             ]
         },
         devOptions: {
-            enabled: true, // Включает PWA в режиме разработки (опционально)
+            enabled: false,
             type: 'module',
         },
         client: {
