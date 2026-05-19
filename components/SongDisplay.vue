@@ -184,20 +184,7 @@ h2 {
   color: var(--text);
 }
 
-/* Размеры шрифтов */
-.font-size-small {
-  font-size: 15px;
-}
-
-.font-size-medium {
-  font-size: 20px;
-}
-
-.font-size-large {
-  font-size: 25px;
-}
-
-/* Увеличенные размеры для контента */
+/* Размеры шрифтов — только для .content (текст куплетов/припевов) */
 .font-size-small .content {
   font-size: 15px;
   line-height: 1.5;
@@ -252,6 +239,7 @@ h2 {
 
 .part-label {
   font-weight: 400;
+  font-size: 1rem;
   padding: 12px 16px;
   color: var(--text);
   display: flex;
@@ -308,7 +296,7 @@ h2 {
   background: none;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 0.9em;
+  font-size: 0.9rem;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
   transition: all 0.2s;

@@ -35,7 +35,7 @@
   <div v-if="loading">Загрузка...</div>
   <div v-else-if="song">
     <!-- Название песни в теле страницы -->
-    <h1 class="song-title">{{ song.title }}</h1>
+    <h1 class="song-title" :class="fontSizeClass">{{ song.title }}</h1>
 
     <SongDisplay
       :song="song"
@@ -85,8 +85,11 @@
 </template>
 
 <script setup>
+import { useSettingsStore } from '~/stores/settings'
+
 const route = useRoute();
 const router = useRouter()
+const settings = useSettingsStore()
 const {
   getSong,
   getSongNumbers,
@@ -110,6 +113,8 @@ const currentIndex = ref(-1);
 const currentVariantIndex = ref(0);
 const showGoToPopover = ref(false);
 const searchComponent = ref(null);
+
+const fontSizeClass = computed(() => `font-size-${settings.fontSize}`)
 
 // Отображаемая метка текущего варианта
 const currentVariantLabel = computed(() => {
@@ -260,11 +265,22 @@ const removeFromCollection = async (col) => {
 
 <style scoped>
 .song-title {
-  font-size: 1.25rem;
   font-weight: bold;
   margin-bottom: 0.5rem;
   color: var(--text);
   text-align: center;
+}
+
+.song-title.font-size-small {
+  font-size: 17px;
+}
+
+.song-title.font-size-medium {
+  font-size: 23px;
+}
+
+.song-title.font-size-large {
+  font-size: 29px;
 }
 
 .nav-arrow {
