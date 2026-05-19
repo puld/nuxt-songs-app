@@ -221,10 +221,17 @@ h2 {
 
 .part-label {
   font-weight: 400;
-  padding: 12px 16px;
+  padding: 8px 10px;
   color: var(--text);
   display: flex;
   align-items: center;
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .part-label {
+    padding: 12px 16px;
+  }
 }
 
 .verse .part-label {
@@ -268,6 +275,8 @@ h2 {
   margin-bottom: 1rem;
   border-bottom: 2px solid var(--border-color);
   padding: 0 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .variant-tab {

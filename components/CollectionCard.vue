@@ -63,9 +63,18 @@ onMounted(async () => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.collection-info {
+  flex: 1;
+  min-width: 0;
+  margin-right: 0.5rem;
+}
+
 .collection-info h3 {
   margin: 0 0 0.5rem 0;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .collection-info p {

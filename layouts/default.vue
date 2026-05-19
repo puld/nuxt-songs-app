@@ -82,13 +82,13 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  height: 56px;
+  min-height: 56px;
   background: var(--bg);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 1rem;
+  padding: 4px 1rem;
   z-index: 100;
   transition: transform 0.3s ease-in-out;
 }
@@ -98,9 +98,11 @@ onUnmounted(() => {
 }
 
 .page-content {
-  padding-top: 56px;
+  padding-top: calc(56px + 1rem);
+  padding-right: 1rem;
+  padding-bottom: 1rem;
+  padding-left: 1rem;
   flex: 1;
-  padding: 1rem;
 }
 
 .nav-btn {
@@ -120,10 +122,28 @@ onUnmounted(() => {
   background: var(--bg-secondary);
 }
 
+#navbar-center {
+  flex: 1;
+  overflow: hidden;
+  margin: 0 0.5rem;
+}
+
 .nav-title {
   font-weight: bold;
-  font-size: 2rem;
+  font-size: 1.2rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
   color: var(--text);
+}
+
+@media (min-width: 640px) {
+  .nav-title {
+    font-size: 1.5rem;
+  }
 }
 
 .footer {

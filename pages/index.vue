@@ -1,7 +1,7 @@
 <template>
   <ClientOnly>
     <Teleport to="#navbar-center">
-      <span class="nav-title">Сборник песен</span>
+      <span class="nav-title">Сборник духовных песен</span>
     </Teleport>
   </ClientOnly>
 
@@ -178,12 +178,18 @@ const goToSelectedSong = () => {
 }
 
 .song-title {
-  flex-grow: 1;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .score {
   font-size: 0.8rem;
   color: var(--text-secondary);
+  flex-shrink: 0;
+  margin-left: 0.5rem;
 }
 
 .song-selector {

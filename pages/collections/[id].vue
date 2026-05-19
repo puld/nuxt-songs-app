@@ -81,7 +81,17 @@ onMounted(async () => {
   padding: 1rem;
   border: 1px solid var(--border-color);
   border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   transition: transform 0.2s;
+}
+
+.song-item a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .song-item:hover {
@@ -104,6 +114,8 @@ onMounted(async () => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .remove-btn:hover {
