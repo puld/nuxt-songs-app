@@ -6,11 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Разработка
 ```bash
+npm install          # установить зависимости
 npm run dev          # Запуск dev-сервера на 0.0.0.0:3000
 npm run build        # Сборка для production
 npm run generate     # Генерация статического сайта (SSG для GitHub Pages)
 npm run start        # Запуск production-сервера (после build)
 ```
+taskkill /F /IM node.exe #остановка 
+
 
 ### Парсинг текстовых файлов
 ```bash

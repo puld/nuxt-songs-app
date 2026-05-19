@@ -15,16 +15,24 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@nuxt/cli": "^3.35.2",
     "@nuxtjs/color-mode": "^3.5.2",
     "@nuxtjs/pwa": "^3.1.2",
     "@pinia/nuxt": "^0.11.0",
     "@types/lunr": "^2.3.7",
+    "@vue/compiler-sfc": "^3.5.34",
     "@vueuse/core": "^14.2.1",
+    "listhen": "^1.10.0",
     "lunr": "^2.3.9",
+    "node-forge": "^1.4.0",
     "nuxt": "^3.9.0",
+    "on-change": "^6.0.2",
     "pinia": "^3.0.2",
+    "unctx": "^2.5.0",
+    "unplugin-vue-router": "^0.19.2",
     "vue": "^3.3.8",
-    "vue-router": "^4.2.5"
+    "vue-router": "^4.2.5",
+    "youch": "^4.1.1"
   },
   "devDependencies": {
     "@nuxt/devtools": "latest",
