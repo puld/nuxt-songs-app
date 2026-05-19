@@ -91,6 +91,10 @@ onUnmounted(() => {
         <Icon name="mingcute:menu-line" size="1.5rem"/>
       </button>
 
+      <NuxtLink to="/" class="nav-btn">
+        <Icon name="mingcute:home-5-line" size="1.5rem"/>
+      </NuxtLink>
+
       <!-- Динамический контент середины — центрируется абсолютно -->
       <div id="navbar-center">
         <!-- Сюда прилетит контент со страницы -->

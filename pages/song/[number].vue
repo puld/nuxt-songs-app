@@ -36,11 +36,40 @@
     </Transition>
   </Teleport>
 
+  <!-- Popover для поиска по тексту -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showSearchPopover" class="search-overlay" @click.self="closeSearchPopover">
+        <div class="search-popover">
+          <input
+            ref="searchInput"
+            v-model="searchQuery"
+            @input="handleSearch"
+            placeholder="Поиск по тексту"
+            class="search-popover-input"
+            autofocus
+          >
+          <div v-if="searchResults.length" class="search-popover-results">
+            <div
+              v-for="result in searchResults"
+              :key="result.n"
+              class="search-popover-row"
+              @click="goToSongFromSearch(result.n)"
+            >
+              <span class="song-number">{{ result.n }}.</span>
+              <span class="song-title">{{ getSearchSongTitle(result.n) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <div v-if="loading">Загрузка...</div>
   <div v-else-if="song">
     <!-- Название песни в теле страницы -->
     <div class="song-header">
-      <h1 class="song-title">{{ song.title }}</h1>
+      <h1 class="song-title" @click="showSearchPopover = true">{{ song.title }}</h1>
       <FavoriteButton :song-number="song.number" />
     </div>
 
@@ -101,8 +130,10 @@ const {
   getCollectionsForSong,
   addSongToCollection,
   getAvailableCollections,
-  removeSongFromCollection
+  removeSongFromCollection,
+  getAllSongs
 } = useIndexDB();
+const { searchResults, searchQuery, buildIndex, search } = useSongSearch()
 
 const song = ref(null);
 const loading = ref(true);
@@ -116,6 +147,9 @@ const currentVariantIndex = ref(0);
 const showGoToPopover = ref(false);
 const gotoNumber = ref(null);
 const gotoInput = ref(null);
+const showSearchPopover = ref(false);
+const searchInput = ref(null);
+const allSongs = ref([]);
 
 const maxSongNumber = computed(() => songNumbers.value.length ? Math.max(...songNumbers.value) : 0)
 
@@ -145,6 +179,10 @@ onMounted(async () => {
   // Загружаем доступные коллекции для текущего варианта
   collections.value = await getAvailableCollections(songNumber, currentVariantIndex.value);
 
+  // Загружаем все песни для поиска
+  allSongs.value = await getAllSongs()
+  buildIndex(allSongs.value)
+
   loading.value = false;
 });
 
@@ -160,6 +198,28 @@ const goToSong = (number) => {
 const closeGoToPopover = () => {
   showGoToPopover.value = false
   gotoNumber.value = null
+}
+
+const closeSearchPopover = () => {
+  showSearchPopover.value = false
+  searchQuery.value = ''
+  searchResults.value = []
+}
+
+const handleSearch = () => {
+  search(searchQuery.value, 10)
+}
+
+const getSearchSongTitle = (n) => {
+  const s = allSongs.value.find(s => Number(s.number) === Number(n))
+  return s ? s.title : 'Неизвестная песня'
+}
+
+const goToSongFromSearch = (n) => {
+  showSearchPopover.value = false
+  searchQuery.value = ''
+  searchResults.value = []
+  router.push(`/song/${n}`)
 }
 
 const goToSongFromPopover = () => {
@@ -186,10 +246,22 @@ watch(showGoToPopover, (val) => {
   }
 })
 
+// Фокус на поисковый инпут при открытии
+watch(showSearchPopover, (val) => {
+  if (val) {
+    nextTick(() => {
+      searchInput.value?.focus()
+    })
+  }
+})
+
 // Закрываем popover при смене маршрута
 watch(() => route.params.number, () => {
   showGoToPopover.value = false
   gotoNumber.value = null
+  showSearchPopover.value = false
+  searchQuery.value = ''
+  searchResults.value = []
 })
 
 const onVariantChange = async (index) => {
@@ -280,6 +352,7 @@ const removeFromCollection = async (col) => {
   margin-bottom: 0.5rem;
   color: var(--text);
   text-align: center;
+  cursor: pointer;
 }
 
 .nav-arrow {
@@ -421,5 +494,77 @@ const removeFromCollection = async (col) => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* Search popover */
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  z-index: 400;
+}
+
+.search-popover {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 480px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.search-popover-input {
+  width: 100%;
+  padding: 0.8rem;
+  font-size: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+  margin-bottom: 0.75rem;
+}
+
+.search-popover-results {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.search-popover-row {
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 0.4rem;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.search-popover-row:last-child {
+  border-bottom: none;
+}
+
+.search-popover-row:hover {
+  background: var(--bg-secondary);
+}
+
+.search-popover-row .song-number {
+  font-weight: bold;
+  color: var(--primary);
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.search-popover-row .song-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 </style>
