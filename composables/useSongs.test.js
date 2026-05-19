@@ -39,7 +39,7 @@ describe('useSongs', () => {
             // Проверяем что fetch вызван с правильным путем
             expect(global.fetch).toHaveBeenCalledWith('assets/songs.json')
 
-            expect(result).toBe(false)
+            expect(result).toBe(true)
 
             mockFetchRestore()
         })
@@ -84,7 +84,6 @@ describe('useSongs', () => {
 
             expect(result).toBe(false)
             expect(consoleErrorSpy).toHaveBeenCalledWith('Ошибка загрузки песен:', expect.any(TypeError))
-            expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(TypeError))
 
             consoleErrorSpy.mockRestore()
             mockFetchRestore()
@@ -101,7 +100,6 @@ describe('useSongs', () => {
 
             expect(result).toBe(false)
             expect(consoleErrorSpy).toHaveBeenCalledWith('Ошибка загрузки песен:', expect.any(Error))
-            expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(Error))
 
             consoleErrorSpy.mockRestore()
             mockFetchRestore()

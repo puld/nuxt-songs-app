@@ -1,8 +1,20 @@
 <template>
   <div class="song-container" :class="[fontSizeClass, { 'hide-chords': !settings.showChords }]">
+    <!-- Табы вариантов (только если вариантов больше одного) -->
+    <div v-if="hasMultipleVariants" class="variant-tabs">
+      <button
+        v-for="(label, index) in variantLabels"
+        :key="index"
+        @click="activeVariantIndex = index"
+        :class="['variant-tab', { active: activeVariantIndex === index }]"
+      >
+        {{ label }}
+      </button>
+    </div>
+
     <div class="song-content-wrapper">
       <ul class="song-list">
-        <li v-for="(item, index) in song.body" :key="index" class="song-list-item">
+        <li v-for="(item, index) in activeVariantBody" :key="index" class="song-list-item">
           <div v-if="item.type === 'verse'" class="verse">
             <span class="part-label">{{ item.n }}.</span>
             <div
@@ -37,12 +49,43 @@ const props = defineProps({
     default: () => ({
       number: 0,
       title: '',
-      body: []
+      variants: []
     })
   }
 })
 
 const settings = useSettingsStore()
+
+const activeVariantIndex = ref(0)
+
+// Body активного варианта (с обратной совместимостью)
+const activeVariantBody = computed(() => {
+  if (props.song.variants && props.song.variants.length > 0) {
+    return props.song.variants[activeVariantIndex.value].body
+  }
+  // Обратная совместимость: старый формат с body
+  return props.song.body || []
+})
+
+// Показывать ли табы вариантов
+const hasMultipleVariants = computed(() => {
+  return props.song.variants && props.song.variants.length > 1
+})
+
+// Метки табов вариантов
+const variantLabels = computed(() => {
+  if (!props.song.variants) return []
+  return props.song.variants.map((v, i) => {
+    if (v.label) return v.label
+    // Генерируем кириллические метки: а, б, в, ...
+    return String.fromCharCode(1072 + i)
+  })
+})
+
+// Сброс активного варианта при смене песни
+watch(() => props.song.number, () => {
+  activeVariantIndex.value = 0
+})
 
 const fontSizeClass = computed(() => {
   return `font-size-${settings.fontSize}`
@@ -216,5 +259,38 @@ h2 {
 
 .hide-chords :deep(.chord) {
   display: none;
+}
+
+/* Табы вариантов */
+.variant-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--border-color);
+  padding: 0 8px;
+}
+
+.variant-tab {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.9em;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.variant-tab:hover {
+  color: var(--text);
+  background: var(--bg-secondary);
+}
+
+.variant-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 500;
 }
 </style>

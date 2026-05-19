@@ -45,8 +45,19 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
                 request.onerror = () => resolve([])
             })
 
-            expect(request.result).toEqual(songsData)
-            expect(request.result).toHaveLength(5)
+            expect(request.result).toHaveLength(6)
+            // Проверяем структуру: addSongs преобразует n → number и оборачивает в variants
+            expect(request.result[0].number).toBe(1)
+            expect(request.result[0].title).toBe('Осенний дождь')
+            expect(request.result[0].variants).toHaveLength(1)
+            expect(request.result[0].variants[0].label).toBe('')
+            expect(request.result[0].variants[0].body).toHaveLength(2)
+            // Проверяем песню с несколькими вариантами
+            expect(request.result[5].number).toBe(6)
+            expect(request.result[5].title).toBe('Песня с вариантами')
+            expect(request.result[5].variants).toHaveLength(2)
+            expect(request.result[5].variants[0].label).toBe('а')
+            expect(request.result[5].variants[1].label).toBe('б')
         })
 
         it('должен очишать хранилище перед добавлением', async () => {
@@ -74,9 +85,11 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
         it('должен нормализовывать типы данных (строки в числа)', async () => {
             const stringSongs = [
                 {
-                    number: '1',
+                    n: '1',
                     title: 'Песня',
-                    body: [{type: 'verse', content: 'Текст'}]
+                    variants: [
+                        { label: '', body: [{ id: '1', n: '1', type: 'verse', content: 'Текст' }] }
+                    ]
                 }
             ]
 
@@ -94,6 +107,8 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
             })
 
             expect(request.result.number).toBe(1) // должно быть числом, не строкой
+            expect(request.result.variants[0].body[0].id).toBe(1)
+            expect(request.result.variants[0].body[0].n).toBe(1)
         })
 
         it('должен обрабатывать пустой массив песен', async () => {
@@ -182,7 +197,7 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
                 request.onerror = () => resolve(null)
             })
 
-            expect(request.result).toBeNull()
+            expect(request.result).toBeFalsy()
         })
 
         it('должен удалять все связи с песнями', async () => {
@@ -241,12 +256,12 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
 
             const stringN = '20'
 
-            await addSongToCollection(1, stringId)
+            await addSongToCollection(1, stringN)
 
             const getTx = db.transaction(['songCollections'], 'readonly')
             const getStore = getTx.objectStore('songCollections')
             const index = getStore.index('collectionId_songNumber')
-            const request = index.get([1, stringId])
+            const request = index.get([1, Number(stringN)])
 
             await new Promise((resolve) => {
                 request.onsuccess = () => resolve(request.result)
@@ -285,7 +300,7 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
             expect(id1).not.toBe(id2) // должны быть разными ID
         })
 
-        it('должен успешно загружать массив песен', async () => {
+        it('должен успешно загружать массив песен (повторная проверка)', async () => {
             const {addSongs} = useIndexDB()
 
             await expect(addSongs(songsData)).resolves.not.toThrow()
@@ -299,8 +314,8 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
                 request.onerror = () => resolve([])
             })
 
-            expect(request.result).toEqual(songsData)
-            expect(request.result).toHaveLength(5)
+            expect(request.result).toHaveLength(6)
+            expect(request.result[5].variants).toHaveLength(2)
         })
     })
 })

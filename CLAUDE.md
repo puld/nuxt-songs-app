@@ -6,150 +6,406 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Разработка
 ```bash
-npm run dev          # Запуск dev-сервера на порту 3000
+npm run dev          # Запуск dev-сервера на 0.0.0.0:3000
 npm run build        # Сборка для production
-npm run generate     # Генерация статического сайта (для деплоя на GitHub Pages)
+npm run generate     # Генерация статического сайта (SSG для GitHub Pages)
 npm run start        # Запуск production-сервера (после build)
 ```
 
 ### Парсинг текстовых файлов
 ```bash
-npm run parse-txt    # Парсинг doc.txt в result.json (использует scripts/parseTxt.js)
+npm run parse-txt    # Парсинг tmp/doc.txt → tmp/result.json (использует scripts/parseTxt.js)
+```
+
+### Тестирование
+```bash
+npm test             # Запуск тестов (Vitest)
+npm run test:ui      # Запуск тестов с Vitest UI
+npm run test:coverage # Запуск тестов с покрытием кода (v8 provider)
 ```
 
 ## Архитектура приложения
 
 ### Технологический стек
-- **Nuxt 3** - Vue.js фреймворк для SSR/SSG
-- **IndexedDB** - Клиентское хранилище для оффлайн-доступа к песням и подборкам
-- **Lunr.js** - Библиотека полнотекстового поиска с нечетким совпадением
-- **Pinia** - State management (хранит настройки пользователя)
-- **PWA** - Progressive Web App с Service Worker для оффлайн работы
-- **TailwindCSS** - CSS фреймворк
+- **Nuxt 3** (~3.9) — Vue.js фреймворк для SSR/SSG
+- **Vue 3** (~3.3) — реактивный UI
+- **IndexedDB** — клиентское хранилище для оффлайн-доступа к песням и подборкам
+- **Lunr.js** (~2.3) — полнотекстовый поиск с русским стеммингом и нечетким совпадением
+- **lunr-languages** — поддержка русского морфологического анализа
+- **Pinia** (~3.0) — state management (настройки пользователя)
+- **@vueuse/core** — утилиты (`useStorage` для персистентности настроек)
+- **@vite-pwa/nuxt** — PWA с Service Worker для оффлайн работы
+- **@nuxtjs/color-mode** — поддержка светлой/тёмной/системной темы
+- **@nuxt/icon** — иконки (используются иконки mingcute)
+- **TailwindCSS** (~3.4) — CSS фреймворк
+- **Vitest** (~4.0) + **happy-dom** — тестирование
+- **fake-indexeddb** — мок IndexedDB для тестов
 
-### Режим работы
-- `target: 'static'` - Статическая генерация сайта
-- `ssr: true` - Server-side rendering включен
-- Режим роутинга: `'hash'` (важно для GitHub Pages)
+### Режим работы Nuxt
+- `target: 'static'` — статическая генерация сайта (SSG)
+- `ssr: true` — server-side rendering включен
+- Режим роутинга: `'hash'` — URL вида `/#song/123` (важно для GitHub Pages)
+- `app.baseURL`: `/nuxt-songs-app/` в production, `/` в development
+- Dev-сервер слушает `0.0.0.0:3000`
 
-### Структура базы данных IndexedDB
+## Структура проекта
 
-Плагин `plugins/indexedDB.client.js` инициализирует три хранилища:
+```
+├── assets/css/main.css       # CSS переменные тем + Tailwind imports
+├── components/
+│   ├── CollectionCard.vue    # Карточка подборки с счётчиком песен
+│   ├── SettingToggle.vue     # Ресурсная кнопка-переключатель настроек
+│   ├── SongCard.vue          # Карточка песни (не используется в страницах)
+│   └── SongDisplay.vue       # Отображение текста песни с аккордами и табами вариантов
+├── composables/
+│   ├── useIndexDB.js         # Работа с IndexedDB (песни, подборки, связи)
+│   ├── useSongSearch.js      # Vue-обёртка для поиска (реактивность)
+│   ├── useSongs.js           # Загрузка песен из JSON в IndexedDB
+│   └── utils.js              # Утилиты (pluralize для русского языка)
+├── layouts/
+│   └── default.vue           # Smart Navbar (скрывается при скролле) + footer
+├── lib/
+│   ├── search.js             # Чистые функции поиска (Lunr.js) — тестируемые
+│   └── search.test.js        # Тесты поиска
+├── pages/
+│   ├── index.vue             # Главная: поиск + переход по номеру
+│   ├── settings.vue          # Настройки: тема, шрифт, аккорды, обновление БД
+│   ├── song/[number].vue     # Страница песни: текст, навигация, подборки
+│   └── collections/
+│       ├── index.vue         # Список подборок
+│       └── [id].vue          # Подборка: список песен
+├── plugins/
+│   └── indexedDB.client.js   # Инициализация IndexedDB (client-only)
+├── stores/
+│   └── settings.js           # Pinia store настроек (fontSize, showChords)
+├── scripts/
+│   └── parseTxt.js           # Парсер txt → JSON (Node.js скрипт)
+├── public/
+│   └── assets/songs.json     # База данных песен (кэшируется PWA)
+├── static/                   # Статические файлы (иконки PWA, favicon)
+├── tmp/                      # Временные файлы парсера (doc.txt, names.tsv, result.json)
+├── test/                     # Тестовые хелперы и фикстуры
+│   ├── setup.js              # Глобальный setup для Vitest
+│   ├── helpers/              # Моки IndexedDB, NuxtApp
+│   └── fixtures/             # Тестовые данные (songs.json, collections.json)
+└── nuxt.config.js            # Конфигурация Nuxt
+```
 
-1. **songs** - Таблица песен
-   - `number` (key) - номер песни
-   - `title` - название песни
-   - `body` - массив частей песни (куплеты, припевы)
+## Структура базы данных IndexedDB
 
-2. **collections** - Подборки песен
-   - `id` (key, autoIncrement) - ID подборки
-   - `name` - название подборки
-   - `createdAt`, `updatedAt` - метки времени
+Плагин `plugins/indexedDB.client.js` (client-only) инициализирует БД `SongsDB` (version 2) с тремя хранилищами:
 
-3. **songCollections** - Связующая таблица many-to-many
-   - `id` (key, autoIncrement) - ID связи
-   - `collectionId` - ID подборки (есть индекс)
-   - `songNumber` - номер песни (есть индекс)
-   - Индекс `collectionId_songNumber` для уникальности связей
+### songs
+- `number` (keyPath) — номер песни
+- `title` — название песни
+- `variants` — массив вариантов песни:
+  - `label` — метка варианта (пустая строка для единственного варианта, `"а"`, `"б"` или описательная, например `"вариант для сестёр"`)
+  - `body` — массив частей варианта:
+    - `id` — порядковый номер части (уникальный в пределах песни)
+    - `n` — номер куплета/припева
+    - `type` — `'verse'` (куплет) или `'chorus'` (припев)
+    - `content` — текст части (может содержать аккорды в фигурных скобках)
+    - `repeatId` — ID повторяемой части (опционально)
 
-### Основные Composables
+Для обратной совместимости старый формат с `body` на верхнем уровне поддерживается: если `variants` отсутствует, используется `song.body`.
 
-#### `useIndexDB` (composables/useIndexDB.js)
-Работает с IndexedDB через `$indexedDB`, предоставляемый плагином.
+### collections
+- `id` (keyPath, autoIncrement) — ID подборки
+- `name` — название подборки
+- `createdAt`, `updatedAt` — метки времени ISO
 
-**Методы для песен:**
-- `addSongs(songs)` - Загружает все песни (предварительно очищает хранилище)
-- `getSong(number)` - Получает песню по номеру
-- `getAllSongs()` - Получает все песни
-- `getSongsCount()` - Возвращает количество песен
-- `getSongNumbers()` - Получает список номеров всех песен
+### songCollections (many-to-many)
+- `id` (keyPath, autoIncrement) — ID связи
+- `collectionId` — ID подборки (индекс `collectionId`)
+- `songNumber` — номер песни (индекс `songNumber`)
+- `addedAt` — метка времени ISO
+- Составной уникальный индекс `collectionId_songNumber`
 
-**Методы для подборок:**
-- `createCollection(name)` - Создаёт новую подборку
-- `getCollections()` - Получает все подборки
-- `deleteCollection(id)` - Удаляет подборку и все её связи
-- `getCollection(id)` - Получает одну подборку
+## Composables
 
-**Методы для связей песен и подборок:**
-- `addSongToCollection(collectionId, songNumber)` - Добавляет песню в подборку
-- `removeSongFromCollection(collectionId, songNumber)` - Удаляет песню из подборки
-- `getSongsInCollection(collectionId)` - Получает все песни подборки
-- `getCollectionsForSong(songNumber)` - Получает подборки, содержащие песню
-- `getAvailableCollections(songNumber)` - Получает подборки, в которые можно добавить песню
-- `getSongsCountInCollection(collectionId)` - Подсчитывает песни в подборке
+### `useIndexDB` (composables/useIndexDB.js)
+Работает с IndexedDB через `$indexedDB` из `useNuxtApp()`.
 
-#### `useSongSearch` (composables/useSongSearch.js)
-Использует Lunr.js для полнотекстового поиска.
+**Песни:**
+- `addSongs(songs)` — Загружает все песни (очищает хранилище перед добавлением). Формат входных данных: `{ n, title, variants: [{ label, body: [{ id, n, type, content, repeatId }] }] }`. Поддерживает старый формат: если `variants` отсутствует, используется `body`.
+- `getSong(number)` — Получает песню по номеру
+- `getAllSongs()` — Получает все песни
+- `getSongsCount()` — Количество песен (возвращает 0 при ошибке)
+- `getSongNumbers()` — Массив номеров всех песен
 
-**Настройки поиска:**
-- Поле `title` имеет boost: 3 (больший вес)
-- Поле `content` имеет boost: 1 (стандартный вес)
-- Отключен фильтр стоп-слов для поиска по всем словам
-- Нечеткий поиск с расстоянием Левенштейна ~1
-- Спецсимволы (/()!?.,;:"'-) удаляются перед индексацией
+**Подборки:**
+- `createCollection(name)` — Создаёт новую подборку (возвращает ID)
+- `getCollections()` — Все подборки
+- `getCollection(id)` — Одна подборка
+- `deleteCollection(id)` — Удаляет подборку и все её связи с песнями
 
-**Методы:**
-- `buildIndex(songs)` - Строит поисковый индекс из массива песен
-- `search(query)` - Выполняет поиск по запросу
-- `searchIndex`, `searchResults`, `searchQuery` - реактивные переменные
+**Связи:**
+- `addSongToCollection(collectionId, songNumber)` — Добавляет песню в подборку (с проверкой дубликата)
+- `removeSongFromCollection(collectionId, songNumber)` — Удаляет песню из подборки
+- `getSongsInCollection(collectionId)` — Песни подборки (отсортированы по номеру)
+- `getCollectionsForSong(songNumber)` — Подборки, содержащие песню
+- `getAvailableCollections(songNumber)` — Подборки, в которые можно добавить песню
+- `getSongsCountInCollection(collectionId)` — Количество песен в подборке
 
-#### `useSongs` (composables/useSongs.js)
-Загрузка песен из файла.
+### `useSongSearch` (composables/useSongSearch.js)
+Vue-обёртка над `lib/search.js`. Предоставляет реактивные переменные.
 
-- `fetchSongs()` - Загружает songs.json из assets/ и сохраняет в IndexedDB
+- `buildIndex(songs)` — Строит поисковый индекс
+- `search(query, limit)` — Выполняет поиск (лимит результатов)
+- `searchIndex`, `searchResults`, `searchQuery` — реактивные ref
 
-### Поиск и навигация
+### `useSongs` (composables/useSongs.js)
+- `fetchSongs()` — Загружает `assets/songs.json` через `fetch()` и сохраняет в IndexedDB через `addSongs()`. Возвращает `true/false`.
 
-Главный экран (`pages/index.vue`) предоставляет:
-- Полнотекстовый поиск по текстам песен и названиям
-- Прямой выбор песни по номеру (1-N)
+### `useUtils` (composables/utils.js)
+- `pluralize(n, one, few, many)` — Русская плюрализация (1 песня, 2 песни, 5 песен). Возвращает пустую строку при n=0.
 
-Поисковый индекс строится один раз при загрузке приложения на основе всех песен из IndexedDB.
+## Библиотека поиска (lib/search.js)
 
-### PWA и оффлайн режим
+Чистые функции без Vue-зависимостей — основа для тестирования.
 
-Конфигурация PWA в `nuxt.config.js`:
-- Кэширует статические файлы
-- Использует стратегию `NetworkFirst` для `assets/songs.json` с 30-дневным TTL
-- Автоматическое обновление (registerType: 'autoUpdate')
-- Периодическая проверка обновлений каждые 20 сессий
+- `cleanText(text)` — Удаляет спецсимволы `/[]()!?.,;:"'-`, схлопывает пробелы
+- `prepareSongForIndexing(song)` — Подготавливает песню: `{ n, title, content }`. Контент всех вариантов объединяется. Поддерживает старый формат с `body` на верхнем уровне.
+- `buildSearchIndex(songs)` — Строит индекс Lunr с русским стеммингом (`this.use(lunr.ru)`)
+  - `title`: boost 3, `content`: boost 1
+  - Стоп-слов фильтр отключён
+  - Ref: `n` (номер песни)
+- `performSearch(searchIndex, query, limit=0)` — Поиск с нечётким совпадением (`~1`), минимальная длина запроса 3 символа, limit=0 означает «без лимита»
 
-### Настройки пользователя
+## Хранилище настроек (stores/settings.js)
 
-Store `stores/settings.js` (Pinia с persist):
-- `fontSize` - размер шрифта ('small', 'medium', 'large')
-- `showChords` - отображение аккордов (true/false)
+Pinia store с `useStorage` от VueUse (персистентность в localStorage):
 
-### Парсинг текстовых файлов
+| Поле | Тип | Значения | По умолчанию |
+|------|-----|----------|--------------|
+| `fontSize` | String | `'small'`, `'medium'`, `'large'` | `'medium'` |
+| `showChords` | Boolean | `true` / `false` | `false` |
 
-Скрипт `scripts/parseTxt.js` парсит txt файл в JSON:
-- Разделяет текст на разделы по линии подчёркиваний (`________`)
-- Извлекает песни по паттерну "X. Y. " или "Припев:"
-- Разделяет песни на куплеты и припевы
-- Сохраняет результат в `tmp/result.json`
+Действия: `setFontSize(size)`, `setShowChords(value)`
+
+## Layout и навигация
+
+`layouts/default.vue` — Smart Navigation Bar:
+- Фиксированная панель 56px сверху
+- Скрывается при скролле вниз, появляется при скролле вверх (порог 100px)
+- Слева: кнопка Home (`/`)
+- Центр: `#navbar-center` — Teleport-слот для заголовка страницы
+- Справа: кнопка Settings (`/settings`)
+- Footer внизу страницы
+
+Страницы используют `<ClientOnly><Teleport to="#navbar-center">` для динамического заголовка в навбаре.
+
+## Страницы
+
+### `pages/index.vue` — Главная
+- Полнотекстовый поиск по текстам и названиям песен (лимит 7 результатов)
+- Прямой переход по номеру песни
+- Поисковый индекс строится при `onMounted`
+- При пустой БД — предложение перейти в настройки для обновления
+
+### `pages/song/[number].vue` — Страница песни
+- Навигация: предыдущая/следующая песня (на основе списка номеров из IndexedDB)
+- Компонент `SongDisplay` для отображения текста с табами вариантов
+- Секция подборок: просмотр/добавление/удаление из подборок
+- Создание новой подборки прямо со страницы песни
+
+### `pages/settings.vue` — Настройки
+- Переключение темы (light/dark/system)
+- Размер шрифта (small/medium/large)
+- Отображение аккордов (toggle switch)
+- Принудительное обновление базы данных песен
+
+### `pages/collections/index.vue` — Список подборок
+- Создание подборки через модальное окно
+- Удаление с подтверждением
+- Карточки `CollectionCard` с количеством песен
+
+### `pages/collections/[id].vue` — Подборка
+- Список песен в подборке
+- Удаление песни из подборки
+
+## Формат аккордов в тексте песен
+
+Аккорды обозначаются фигурными скобками в `content`:
+- `{Am}` — аккорд над текстом (отображается выше строки, `chord-up`)
+- `{_G}` — инлайн-аккорд (в строке текста, `chord`)
+
+Обработка в `SongDisplay.vue`:
+- Если `showChords=false`: аккорды удаляются полностью (`{...}` → `""`)
+- Если `showChords=true`: `{_` → `<span class='chord'>`, `{` → `<span class='chord chord-up'>`, `}` → `</span>`
+
+## Табы вариантов в SongDisplay
+
+Компонент `SongDisplay.vue` отображает табы вариантов, если у песни `variants.length > 1`:
+- Табы с метками из `variant.label` (пустая метка заменяется на кириллическую букву: а, б, в, ...)
+- `activeVariantIndex` — реактивный индекс выбранного таба, сбрасывается при смене песни
+- `activeVariantBody` — computed, возвращает `variants[activeVariantIndex].body` с fallback на `song.body` для обратной совместимости
+- Для песен с одним вариантом табы не отображаются
+
+## Парсинг текстовых файлов (scripts/parseTxt.js)
+
+Node.js скрипт для конвертации `tmp/doc.txt` → `tmp/result.json`:
+
+### Формат исходного файла tmp/doc.txt
+
+Файл содержит тексты песен, разделённые на секции заголовками.
+
+**Заголовок секции** — строка с заглавной буквы, за которой следует строка с номером песни. Пример:
+```
+Перед началом собрания
+1. 1. Слушайте повесть любви...
+2. 1. Вот настал молитвы час...
+```
+
+**Песня** начинается с паттерна `N. [метка] 1. текст` или `N. [метка] Припев: текст`, где `N` — номер песни. Примеры:
+```
+1. 1. Слушайте повесть любви в простоте...        — обычная песня
+235. (а) 1. Со Христом бодрее в путь пойду...      — песня с вариантом (а)
+1254. (вариант для сестёр) 1. Хотела б я...        — песня с описательной меткой
+```
+
+**Куплеты** начинаются с `N.` (номер куплета + точка). **Припевы** — со слова `Припев:` или `Припев.`.
+
+**Варианты песни** обозначаются меткой в круглых скобках `(метка)` на отдельной строке (или после пустой строки), за которой следует номер куплета или Припев:
+```
+(а) 1. Текст варианта а...
+...
+(б) 1. Текст варианта б...
+```
+Или с описательными метками:
+```
+(вариант для сестёр) 1. Текст...
+...
+(вариант для братьев) 1. Текст...
+```
+
+Существуют также внутритекстовые скобки, которые **не являются** границами вариантов:
+- `3(а). текст` — нумерация куплета внутри текста (не разделяется на варианты)
+- `(Припев 2 вариант: текст)` — альтернативный припев внутри текста
+- `Припев 1:` / `Припев 2:` — нумерованные припевы внутри текста
+
+Функция `splitVariants()` разделяет только те `(метки)`, которые стоят в начале строки (или после пустой строки) и за которыми следует номер куплета или Припев.
+
+### Алгоритм парсинга
+
+1. Загружает красивые названия песен из `tmp/names.tsv` (формат: `номер\tназвание`)
+2. Определяет заголовки разделов (строки с заглавной буквы, перед которыми стоит номер песни на следующей строке)
+3. Извлекает песни по паттерну: `N. [(метка)] 1. текст` или `N. [(метка)] Припев: текст`
+4. `splitVariants()` — разделяет контент песни на варианты по меткам `(а)`, `(б)`, `(вариант для сестёр)` и т.д.
+5. `parseSongBody()` — парсит тело одного варианта: куплеты по `N.`, припевы по `Припев:`. Многострочные части объединяются через `\n`
+6. Функция `check()` верифицирует, что `song.n - song.id === 1` для всех песен, и что каждая песня имеет хотя бы один вариант с непустым body
+
+### Выходной формат
+```json
+{
+  "songs": [
+    {
+      "id": 0,
+      "n": 1,
+      "title": "Осенний дождь",
+      "variants": [
+        {
+          "label": "",
+          "body": [
+            { "type": "verse", "n": 1, "content": "..." },
+            { "type": "chorus", "n": 1, "content": "..." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 234,
+      "n": 235,
+      "title": "Со Христом бодрее...",
+      "variants": [
+        { "label": "а", "body": [...] },
+        { "label": "б", "body": [...] }
+      ]
+    }
+  ],
+  "sections": [{ "id": 0, "title": "...", "song_ns": [1, 2, 3] }]
+}
+```
+
+Песен с несколькими вариантами: 9 (номера 235, 854, 1067, 1175, 1188, 1254, 1309, 1363, 1455).
+
+## CSS и темы
+
+### Переменные (assets/css/main.css)
+Светлая тема (`:root`):
+- `--bg: #ffffff`, `--bg-secondary: #f3f4f6`, `--text: #111827`, `--text-secondary: #6b7280`
+- `--border-color: #e5e7eb`, `--primary: #3b82f6`, `--danger: #ef4444`, `--chord-color: red`
+
+Тёмная тема (`.dark`):
+- `--bg: #1a1a1a`, `--bg-secondary: #2d2d2d`, `--text: #f3f4f6`, `--text-secondary: #9ca3af`
+- `--border-color: #374151`, `--chord-color: orange`
+
+TailwindCSS расширяет цвета из CSS-переменных (`tailwind.config.js`):
+- `primary`, `danger`, `bg`, `bg-secondary`, `text`, `text-secondary`, `border-color`, `chord`
+- Специальный spacing: `app-bar: 56px`
+
+## PWA и оффлайн режим
+
+Конфигурация в `nuxt.config.js` (модуль `@vite-pwa/nuxt`):
+- `registerType: 'autoUpdate'` — автоматическое обновление Service Worker
+- `periodicSyncForUpdates: 20` — проверка обновлений каждые 20 сессий
+- Стратегия `NetworkFirst` для `assets/songs.json` с 30-дневным TTL (1 запись в кэше)
+- `globPatterns: ['**/*.{js,css,html,png,svg,ico}']`
+- Manifest: standalone, портретная ориентация, display_override: fullscreen/minimal-ui
+
+## Тестирование
+
+### Инфраструктура
+- **Vitest** с `happy-dom` окружением
+- **fake-indexeddb** для мокирования IndexedDB (включая `IDBKeyRange`)
+- Глобальные хелперы: `setupTestDB()`, `cleanupTestDB()` (в `test/setup.js`)
+- Моки Nuxt: `mockNuxtApp()`, `mockTransaction()`, `mockObjectStore()`, `mockRequest()` (в `test/helpers/`)
+- DB версия в тестах: `2` (в `test/helpers/setup.js`)
+
+### Покрытие
+- Покрываемые директории: `lib/**/*.js`, `composables/**/*.js`
+- Provider: v8
+- Форматы отчётов: text, json, html
+
+### Существующие тесты
+- `lib/search.test.js` — чистые функции поиска (cleanText, prepareSongForIndexing, buildSearchIndex, performSearch). Включает тесты мульти-вариантных песен и обратной совместимости со старым форматом `body`
+- `composables/useSongSearch.test.js` — Vue composable поиска (mock-данные в формате `variants`)
+- `composables/useIndexDB.complex.test.js` — IndexedDB composable (проверка структуры `variants`, нормализация типов)
+- `composables/useSongs.test.js` — загрузка песен
 
 ## Деплой на GitHub Pages
 
-1. Убедитесь, что `app.baseURL` и `router.base` настроены на `/nuxt-songs-app/`
-2. Запустите `npm run generate` для создания статического сайта в `.output/public/`
-3. Используйте GitHub Actions workflow из README.md для автоматического деплоя
-4. Установите в Settings → Pages: Deploy from branch `gh-pages`, folder `/ (root)`
+1. Пуш в `main` триггерит GitHub Actions (`.github/workflows/nuxtjs.yml`)
+2. Workflow: checkout → Node 20 → npm install → `npm run generate` → deploy
+3. `app.baseURL` и `router.base` настроены на `/nuxt-songs-app/`
+4. Результат: `.output/public/` деплоится на GitHub Pages
+5. В Settings → Pages: Deploy from branch `gh-pages`, folder `/ (root)`
 
-## Важные детали
+## Важные детали и подводные камни
 
 ### Путь к базе данных песен
-Файл `songs.json` должен находиться в `public/assets/songs.json` для кэширования через PWA Service Worker. При локальной разработке он доступен как `/assets/songs.json`.
+Файл `songs.json` находится в `public/assets/songs.json`. Этот путь важен для PWA-кэширования. При локальной разработке доступен как `/assets/songs.json`. Загрузка в IndexedDB — через `fetch('assets/songs.json')` в `useSongs.fetchSongs()`.
 
 ### Хеширование в URL
-Роутинг использует hash mode (`#song/123`) вместо обычного для корректной работы на GitHub Pages без настройки сервера.
+Роутинг использует hash mode — URL вида `/#/song/123`. Это необходимо для корректной работы на GitHub Pages без серверного роутинга.
 
 ### Индексация поиска
-Поисковый индекс пересчитывается только при загрузке страницы. После добавления новых песен через настройки нужно перезагрузить страницу.
+Поисковый индекс строится один раз при `onMounted` главной страницы. После обновления БД песен через настройки требуется перезагрузка страницы.
 
-### Поддержка тем
-Приложение использует `@nuxtjs/color-mode` с поддержкой:
-- `system` - системная тема (по умолчанию)
-- `light` - светлая тема
-- `dark` - тёмная тема
+### Плагин IndexedDB — client-only
+Плагин `plugins/indexedDB.client.js` работает только на клиенте (суффикс `.client.js`). SSR не имеет доступа к IndexedDB.
 
-CSS переменные темы определены в `assets/css/main.css` и используются через Tailwind.
+### Цветовая тема
+`@nuxtjs/color-mode` с `classSuffix: ''` — классы `light`/`dark` вешаются на корневой элемент. По умолчанию `system`.
+
+### Версия IndexedDB
+Текущая версия БД: `2` (в `plugins/indexedDB.client.js`). При обновлении с версии < 2 выполняется миграция: старый формат `body` конвертируется в `variants: [{ label: '', body }]`. При изменении схемы нужно обновить `dbVersion`.
+
+### Компонент SongCard.vue
+Существует в `components/SongCard.vue`, но не используется в текущих страницах. Поиск и навигация используют собственную разметку.
+
+### Ненужный параметр в fetchSongs
+`useSongs.fetchSongs(number)` принимает параметр `number`, который не используется в теле функции.
+
+### Дублирование стилей toggle-switch
+В `pages/settings.vue` стили `.toggle-switch` и `.slider` продублированы дважды в одном `<style scoped>` блоке.

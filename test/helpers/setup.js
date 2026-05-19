@@ -1,4 +1,4 @@
-import { IDBFactory } from 'fake-indexeddb'
+import { IDBFactory, IDBKeyRange } from 'fake-indexeddb'
 
 /**
  * Создает mock-экземпляр IndexedDB для тестов
@@ -6,8 +6,13 @@ import { IDBFactory } from 'fake-indexeddb'
  * @returns {Promise<IDBDatabase>} Mock-экземпляр базы данных
  */
 export const createMockDB = async () => {
+    // Делаем IDBKeyRange доступным глобально для fake-indexeddb
+    if (typeof globalThis.IDBKeyRange === 'undefined') {
+        globalThis.IDBKeyRange = IDBKeyRange
+    }
+
     const indexedDB = new IDBFactory()
-    const dbVersion = 1.1
+    const dbVersion = 2
 
     return new Promise((resolve, reject) => {
         const request = indexedDB.open('SongsDB', dbVersion)
@@ -17,7 +22,7 @@ export const createMockDB = async () => {
 
             // Создание object store для песен
             if (!db.objectStoreNames.contains('songs')) {
-                db.createObjectStore('songs')
+                db.createObjectStore('songs', { keyPath: 'number' })
             }
 
             // Создание object store для подборок
