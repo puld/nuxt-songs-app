@@ -83,15 +83,23 @@
       <div v-if="songCollections.length > 0" class="current-collections">
         <h3>Входит в подборки:</h3>
         <ul>
-          <li v-for="col in songCollections" :key="col.id + '-' + col.variantIndex" class="nav">
-            <NuxtLink :to="collectionLink(col)">{{ col.name }}<span v-if="getVariantLabel(col.variantIndex)" class="variant-badge">{{ getVariantLabel(col.variantIndex) }}</span></NuxtLink>
-            <NuxtLink @click="removeFromCollection(col)" class="remove-btn">Х</NuxtLink>
+          <li v-for="col in songCollections" :key="col.id + '-' + col.variantIndex" class="collection-item">
+            <NuxtLink :to="collectionLink(col)" class="collection-link">
+              {{ col.name }}
+              <span v-if="getVariantLabel(col.variantIndex)" class="variant-badge">{{ getVariantLabel(col.variantIndex) }}</span>
+            </NuxtLink>
+            <button @click="removeFromCollection(col)" class="remove-btn">✕</button>
           </li>
         </ul>
       </div>
-      <h3>Добавить в подборку<span v-if="currentVariantLabel" class="variant-hint"> (вариант {{ currentVariantLabel }})</span></h3>
-      <nav class="nav">
-        <select v-model="selectedCollection">
+
+      <h3>
+        Добавить в подборку
+        <span v-if="currentVariantLabel" class="variant-hint"> ({{ currentVariantLabel }})</span>
+      </h3>
+
+      <div class="add-to-collection">
+        <select v-model="selectedCollection" class="collection-select">
           <option value="">Новая подборка</option>
           <option
               v-for="collection in collections"
@@ -106,12 +114,14 @@
             v-if="selectedCollection === ''"
             v-model="newCollectionName"
             placeholder="Название подборки"
+            class="collection-input"
         >
 
-        <NuxtLink @click="addToCollection">
-          <Icon name="mingcute:add-line" />
-        </NuxtLink>
-      </nav>
+        <button @click="addToCollection" class="add-btn">
+          <Icon name="mingcute:add-line" size="1.25rem"/>
+          <span>Добавить</span>
+        </button>
+      </div>
     </div>
   </div>
   <div v-else>
@@ -456,17 +466,48 @@ const removeFromCollection = async (col) => {
 
 .collections-section {
   margin-top: 2rem;
-  padding: 1rem;
+  padding: 1.5rem;
   border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.collections-section h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.current-collections {
+  margin-bottom: 1.5rem;
 }
 
 .current-collections ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
-.current-collections li {
-  margin: 0.5rem 0;
+.collection-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.collection-item:last-child {
+  border-bottom: none;
+}
+
+.collection-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.collection-link:hover {
+  text-decoration: underline;
 }
 
 .variant-badge {
@@ -474,7 +515,7 @@ const removeFromCollection = async (col) => {
   margin-left: 0.3rem;
   padding: 0.1rem 0.4rem;
   font-size: 0.75rem;
-  background: var(--bg-secondary);
+  background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: 3px;
   color: var(--text-secondary);
@@ -486,14 +527,64 @@ const removeFromCollection = async (col) => {
   font-weight: normal;
 }
 
-.remove-btn {
-  padding: 0.25rem 0.5rem;
-  margin-left: 1rem;
-  background: var(--danger);
+.add-to-collection {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.collection-select,
+.collection-input {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 140px;
+}
+
+.collection-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.add-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.6rem 1rem;
+  background: var(--primary);
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.add-btn:hover {
+  opacity: 0.9;
+}
+
+.remove-btn {
+  padding: 0.25rem 0.5rem;
+  background: none;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.remove-btn:hover {
+  background: var(--danger);
+  color: white;
 }
 
 /* Search popover */
