@@ -14,23 +14,19 @@
     </Teleport>
   </ClientOnly>
 
-  <!-- Popover для перехода по номеру -->
+  <!-- Popover для поиска и перехода -->
   <Teleport to="body">
     <Transition name="fade">
       <div v-if="showGoToPopover" class="goto-overlay" @click.self="closeGoToPopover">
         <div class="goto-popover">
-          <form @submit.prevent="goToSongFromPopover">
-            <input
-              ref="gotoInput"
-              v-model="gotoNumber"
-              type="number"
-              inputmode="numeric"
-              :placeholder="`Номер песни (1-${maxSongNumber})`"
-              class="goto-input"
-              autofocus
-            >
-            <button type="submit" class="goto-btn">Перейти</button>
-          </form>
+          <SongSearchInput
+            ref="searchComponent"
+            :songs="allSongs"
+            :songNumbers="songNumbers"
+            max-width="100%"
+            max-results-height="none"
+            @select="onPopoverSelect"
+          />
         </div>
       </div>
     </Transition>
@@ -39,7 +35,7 @@
   <div v-if="loading">Загрузка...</div>
   <div v-else-if="song">
     <!-- Название песни в теле страницы -->
-    <h1 class="song-title">{{ song.title }}</h1>
+    <h1 class="song-title" :class="fontSizeClass">{{ song.title }}</h1>
 
     <SongDisplay
       :song="song"
@@ -89,8 +85,11 @@
 </template>
 
 <script setup>
+import { useSettingsStore } from '~/stores/settings'
+
 const route = useRoute();
 const router = useRouter()
+const settings = useSettingsStore()
 const {
   getSong,
   getSongNumbers,
@@ -98,7 +97,8 @@ const {
   getCollectionsForSong,
   addSongToCollection,
   getAvailableCollections,
-  removeSongFromCollection
+  removeSongFromCollection,
+  getAllSongs
 } = useIndexDB();
 
 const song = ref(null);
@@ -108,13 +108,13 @@ const songCollections = ref([]);
 const selectedCollection = ref('');
 const newCollectionName = ref('');
 const songNumbers = ref([]);
+const allSongs = ref([]);
 const currentIndex = ref(-1);
 const currentVariantIndex = ref(0);
 const showGoToPopover = ref(false);
-const gotoNumber = ref(null);
-const gotoInput = ref(null);
+const searchComponent = ref(null);
 
-const maxSongNumber = computed(() => songNumbers.value.length ? Math.max(...songNumbers.value) : 0)
+const fontSizeClass = computed(() => `font-size-${settings.fontSize}`)
 
 // Отображаемая метка текущего варианта
 const currentVariantLabel = computed(() => {
@@ -128,6 +128,7 @@ onMounted(async () => {
   currentVariantIndex.value = route.query.v !== undefined ? parseInt(route.query.v) || 0 : 0
 
   songNumbers.value = await getSongNumbers()
+  allSongs.value = await getAllSongs()
   song.value = await getSong(songNumber);
   currentIndex.value = songNumbers.value.indexOf(songNumber)
 
@@ -156,21 +157,21 @@ const goToSong = (number) => {
 
 const closeGoToPopover = () => {
   showGoToPopover.value = false
-  gotoNumber.value = null
+  searchComponent.value?.clear()
 }
 
-const goToSongFromPopover = () => {
-  const num = parseInt(gotoNumber.value)
-  if (num && songNumbers.value.includes(num)) {
-    if (num === song.value.number) {
-      // Тот же номер — просто закрываем popover, не трогаем URL
-      showGoToPopover.value = false
-      gotoNumber.value = null
-    } else {
-      showGoToPopover.value = false
-      gotoNumber.value = null
-      router.push(`/song/${num}`)
-    }
+const onPopoverSelect = async ({ n, variantIndex }) => {
+  closeGoToPopover()
+  if (Number(n) === song.value?.number) {
+    // Тот же номер — обновляем вариант напрямую
+    currentVariantIndex.value = variantIndex
+    // Обновляем список доступных коллекций для нового варианта
+    collections.value = await getAvailableCollections(Number(n), variantIndex)
+    // Обновляем URL без перезагрузки
+    router.replace({ query: variantIndex > 0 ? { v: variantIndex } : {} })
+  } else {
+    const query = variantIndex > 0 ? { v: variantIndex } : {}
+    router.push({ path: `/song/${n}`, query })
   }
 }
 
@@ -178,7 +179,7 @@ const goToSongFromPopover = () => {
 watch(showGoToPopover, (val) => {
   if (val) {
     nextTick(() => {
-      gotoInput.value?.focus()
+      searchComponent.value?.focus()
     })
   }
 })
@@ -186,7 +187,7 @@ watch(showGoToPopover, (val) => {
 // Закрываем popover при смене маршрута
 watch(() => route.params.number, () => {
   showGoToPopover.value = false
-  gotoNumber.value = null
+  searchComponent.value?.clear()
 })
 
 const onVariantChange = async (index) => {
@@ -264,11 +265,22 @@ const removeFromCollection = async (col) => {
 
 <style scoped>
 .song-title {
-  font-size: 1.25rem;
   font-weight: bold;
   margin-bottom: 0.5rem;
   color: var(--text);
   text-align: center;
+}
+
+.song-title.font-size-small {
+  font-size: 17px;
+}
+
+.song-title.font-size-medium {
+  font-size: 23px;
+}
+
+.song-title.font-size-large {
+  font-size: 29px;
 }
 
 .nav-arrow {
@@ -302,7 +314,7 @@ const removeFromCollection = async (col) => {
   background: var(--bg-secondary);
 }
 
-/* Popover перехода по номеру */
+/* Popover перехода */
 .goto-overlay {
   position: fixed;
   inset: 0;
@@ -318,46 +330,8 @@ const removeFromCollection = async (col) => {
   border-radius: 12px;
   padding: 2rem;
   width: 90%;
-  max-width: 320px;
+  max-width: 500px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.goto-popover form {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.goto-input {
-  flex: 1;
-  padding: 0.8rem;
-  font-size: 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--text);
-  -moz-appearance: textfield;
-}
-
-.goto-input::-webkit-outer-spin-button,
-.goto-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.goto-btn {
-  padding: 0.8rem 1rem;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-size: 1rem;
-  min-width: 80px;
-}
-
-.goto-btn:hover {
-  opacity: 0.9;
 }
 
 /* Transition: fade */
