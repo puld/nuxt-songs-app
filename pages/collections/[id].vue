@@ -1,7 +1,7 @@
 <template>
   <ClientOnly>
     <Teleport to="#navbar-center">
-      <span class="nav-title">{{ collection.name }}</span>
+      <span v-if="collection" class="nav-title">{{ collection.name }}</span>
     </Teleport>
   </ClientOnly>
 

@@ -1,5 +1,5 @@
 export default defineNuxtPlugin(async (nuxtApp) => {
-    const dbVersion = 4;
+    const dbVersion = 5;
 
     const request = indexedDB.open('SongsDB', dbVersion);
 
@@ -14,6 +14,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
         if (!db.objectStoreNames.contains('collections')) {
             const collectionsStore = db.createObjectStore('collections', { keyPath: 'id', autoIncrement: true });
             collectionsStore.createIndex('name', 'name', { unique: false });
+            collectionsStore.createIndex('isFavorite', 'isFavorite', { unique: false });
         }
 
         if (!db.objectStoreNames.contains('songCollections')) {
@@ -94,11 +95,56 @@ export default defineNuxtPlugin(async (nuxtApp) => {
                 }
             };
         }
+
+        // Миграция v4→v5: добавляем индекс isFavorite и создаём подборку «Избранное»
+        if (oldVersion >= 1 && oldVersion < 5) {
+            const transaction = event.target.transaction;
+            const store = transaction.objectStore('collections');
+
+            // Добавляем индекс isFavorite, если его нет
+            if (!store.indexNames.contains('isFavorite')) {
+                store.createIndex('isFavorite', 'isFavorite', { unique: false });
+            }
+
+            // Создаём подборку «Избранное» с флагом isFavorite
+            const index = store.index('isFavorite');
+            const checkRequest = index.get(1);
+            checkRequest.onsuccess = () => {
+                if (!checkRequest.result) {
+                    store.add({
+                        name: 'Избранное',
+                        isFavorite: 1,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                    });
+                }
+            };
+        }
     };
 
     const db = await new Promise((resolve, reject) => {
         request.onsuccess = (event) => resolve(event.target.result);
         request.onerror = (event) => reject(event.target.error);
+    });
+
+    // Создаём подборку «Избранное» если не существует (для новых установок)
+    await new Promise((resolve) => {
+        const transaction = db.transaction(['collections'], 'readwrite');
+        const store = transaction.objectStore('collections');
+        const index = store.index('isFavorite');
+        const checkRequest = index.get(1);
+        checkRequest.onsuccess = () => {
+            if (!checkRequest.result) {
+                store.add({
+                    name: 'Избранное',
+                    isFavorite: 1,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                });
+            }
+        };
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => resolve(); // не критично
     });
 
     nuxtApp.provide('indexedDB', db);
