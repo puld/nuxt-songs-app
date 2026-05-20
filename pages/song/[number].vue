@@ -14,52 +14,19 @@
     </Teleport>
   </ClientOnly>
 
-  <!-- Popover для перехода по номеру -->
+  <!-- Popover для поиска и перехода -->
   <Teleport to="body">
     <Transition name="fade">
       <div v-if="showGoToPopover" class="goto-overlay" @click.self="closeGoToPopover">
         <div class="goto-popover">
-          <form @submit.prevent="goToSongFromPopover">
-            <input
-              ref="gotoInput"
-              v-model="gotoNumber"
-              type="number"
-              inputmode="numeric"
-              :placeholder="`Номер песни (1-${maxSongNumber})`"
-              class="goto-input"
-              autofocus
-            >
-            <button type="submit" class="goto-btn">Перейти</button>
-          </form>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
-
-  <!-- Popover для поиска по тексту -->
-  <Teleport to="body">
-    <Transition name="fade">
-      <div v-if="showSearchPopover" class="search-overlay" @click.self="closeSearchPopover">
-        <div class="search-popover">
-          <input
-            ref="searchInput"
-            v-model="searchQuery"
-            @input="handleSearch"
-            placeholder="Поиск по тексту"
-            class="search-popover-input"
-            autofocus
-          >
-          <div v-if="searchResults.length" class="search-popover-results">
-            <div
-              v-for="result in searchResults"
-              :key="result.n"
-              class="search-popover-row"
-              @click="goToSongFromSearch(result.n)"
-            >
-              <span class="song-number">{{ result.n }}.</span>
-              <span class="song-title">{{ getSearchSongTitle(result.n) }}</span>
-            </div>
-          </div>
+          <SongSearchInput
+            ref="searchComponent"
+            :songs="allSongs"
+            :songNumbers="songNumbers"
+            max-width="100%"
+            max-results-height="none"
+            @select="onPopoverSelect"
+          />
         </div>
       </div>
     </Transition>
@@ -68,10 +35,7 @@
   <div v-if="loading">Загрузка...</div>
   <div v-else-if="song">
     <!-- Название песни в теле страницы -->
-    <div class="song-header">
-      <h1 class="song-title" @click="showSearchPopover = true">{{ song.title }}</h1>
-      <FavoriteButton :song-number="song.number" />
-    </div>
+    <h1 class="song-title" :class="fontSizeClass">{{ song.title }}</h1>
 
     <SongDisplay
       :song="song"
@@ -83,23 +47,15 @@
       <div v-if="songCollections.length > 0" class="current-collections">
         <h3>Входит в подборки:</h3>
         <ul>
-          <li v-for="col in songCollections" :key="col.id + '-' + col.variantIndex" class="collection-item">
-            <NuxtLink :to="collectionLink(col)" class="collection-link">
-              {{ col.name }}
-              <span v-if="getVariantLabel(col.variantIndex)" class="variant-badge">{{ getVariantLabel(col.variantIndex) }}</span>
-            </NuxtLink>
-            <button @click="removeFromCollection(col)" class="remove-btn">✕</button>
+          <li v-for="col in songCollections" :key="col.id + '-' + col.variantIndex" class="nav">
+            <NuxtLink :to="collectionLink(col)">{{ col.name }}<span v-if="getVariantLabel(col.variantIndex)" class="variant-badge">{{ getVariantLabel(col.variantIndex) }}</span></NuxtLink>
+            <NuxtLink @click="removeFromCollection(col)" class="remove-btn">Х</NuxtLink>
           </li>
         </ul>
       </div>
-
-      <h3>
-        Добавить в подборку
-        <span v-if="currentVariantLabel" class="variant-hint"> ({{ currentVariantLabel }})</span>
-      </h3>
-
-      <div class="add-to-collection">
-        <select v-model="selectedCollection" class="collection-select">
+      <h3>Добавить в подборку<span v-if="currentVariantLabel" class="variant-hint"> (вариант {{ currentVariantLabel }})</span></h3>
+      <nav class="nav">
+        <select v-model="selectedCollection">
           <option value="">Новая подборка</option>
           <option
               v-for="collection in collections"
@@ -114,14 +70,12 @@
             v-if="selectedCollection === ''"
             v-model="newCollectionName"
             placeholder="Название подборки"
-            class="collection-input"
         >
 
-        <button @click="addToCollection" class="add-btn">
-          <Icon name="mingcute:add-line" size="1.25rem"/>
-          <span>Добавить</span>
-        </button>
-      </div>
+        <NuxtLink @click="addToCollection">
+          <Icon name="mingcute:add-line" />
+        </NuxtLink>
+      </nav>
     </div>
   </div>
   <div v-else>
@@ -131,8 +85,11 @@
 </template>
 
 <script setup>
+import { useSettingsStore } from '~/stores/settings'
+
 const route = useRoute();
 const router = useRouter()
+const settings = useSettingsStore()
 const {
   getSong,
   getSongNumbers,
@@ -143,7 +100,6 @@ const {
   removeSongFromCollection,
   getAllSongs
 } = useIndexDB();
-const { searchResults, searchQuery, buildIndex, search } = useSongSearch()
 
 const song = ref(null);
 const loading = ref(true);
@@ -152,16 +108,13 @@ const songCollections = ref([]);
 const selectedCollection = ref('');
 const newCollectionName = ref('');
 const songNumbers = ref([]);
+const allSongs = ref([]);
 const currentIndex = ref(-1);
 const currentVariantIndex = ref(0);
 const showGoToPopover = ref(false);
-const gotoNumber = ref(null);
-const gotoInput = ref(null);
-const showSearchPopover = ref(false);
-const searchInput = ref(null);
-const allSongs = ref([]);
+const searchComponent = ref(null);
 
-const maxSongNumber = computed(() => songNumbers.value.length ? Math.max(...songNumbers.value) : 0)
+const fontSizeClass = computed(() => `font-size-${settings.fontSize}`)
 
 // Отображаемая метка текущего варианта
 const currentVariantLabel = computed(() => {
@@ -175,6 +128,7 @@ onMounted(async () => {
   currentVariantIndex.value = route.query.v !== undefined ? parseInt(route.query.v) || 0 : 0
 
   songNumbers.value = await getSongNumbers()
+  allSongs.value = await getAllSongs()
   song.value = await getSong(songNumber);
   currentIndex.value = songNumbers.value.indexOf(songNumber)
 
@@ -188,10 +142,6 @@ onMounted(async () => {
 
   // Загружаем доступные коллекции для текущего варианта
   collections.value = await getAvailableCollections(songNumber, currentVariantIndex.value);
-
-  // Загружаем все песни для поиска
-  allSongs.value = await getAllSongs()
-  buildIndex(allSongs.value)
 
   loading.value = false;
 });
@@ -207,43 +157,21 @@ const goToSong = (number) => {
 
 const closeGoToPopover = () => {
   showGoToPopover.value = false
-  gotoNumber.value = null
+  searchComponent.value?.clear()
 }
 
-const closeSearchPopover = () => {
-  showSearchPopover.value = false
-  searchQuery.value = ''
-  searchResults.value = []
-}
-
-const handleSearch = () => {
-  search(searchQuery.value, 10)
-}
-
-const getSearchSongTitle = (n) => {
-  const s = allSongs.value.find(s => Number(s.number) === Number(n))
-  return s ? s.title : 'Неизвестная песня'
-}
-
-const goToSongFromSearch = (n) => {
-  showSearchPopover.value = false
-  searchQuery.value = ''
-  searchResults.value = []
-  router.push(`/song/${n}`)
-}
-
-const goToSongFromPopover = () => {
-  const num = parseInt(gotoNumber.value)
-  if (num && songNumbers.value.includes(num)) {
-    if (num === song.value.number) {
-      // Тот же номер — просто закрываем popover, не трогаем URL
-      showGoToPopover.value = false
-      gotoNumber.value = null
-    } else {
-      showGoToPopover.value = false
-      gotoNumber.value = null
-      router.push(`/song/${num}`)
-    }
+const onPopoverSelect = async ({ n, variantIndex }) => {
+  closeGoToPopover()
+  if (Number(n) === song.value?.number) {
+    // Тот же номер — обновляем вариант напрямую
+    currentVariantIndex.value = variantIndex
+    // Обновляем список доступных коллекций для нового варианта
+    collections.value = await getAvailableCollections(Number(n), variantIndex)
+    // Обновляем URL без перезагрузки
+    router.replace({ query: variantIndex > 0 ? { v: variantIndex } : {} })
+  } else {
+    const query = variantIndex > 0 ? { v: variantIndex } : {}
+    router.push({ path: `/song/${n}`, query })
   }
 }
 
@@ -251,16 +179,7 @@ const goToSongFromPopover = () => {
 watch(showGoToPopover, (val) => {
   if (val) {
     nextTick(() => {
-      gotoInput.value?.focus()
-    })
-  }
-})
-
-// Фокус на поисковый инпут при открытии
-watch(showSearchPopover, (val) => {
-  if (val) {
-    nextTick(() => {
-      searchInput.value?.focus()
+      searchComponent.value?.focus()
     })
   }
 })
@@ -268,10 +187,7 @@ watch(showSearchPopover, (val) => {
 // Закрываем popover при смене маршрута
 watch(() => route.params.number, () => {
   showGoToPopover.value = false
-  gotoNumber.value = null
-  showSearchPopover.value = false
-  searchQuery.value = ''
-  searchResults.value = []
+  searchComponent.value?.clear()
 })
 
 const onVariantChange = async (index) => {
@@ -348,21 +264,23 @@ const removeFromCollection = async (col) => {
 </script>
 
 <style scoped>
-.song-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
 .song-title {
-  font-size: 1.25rem;
   font-weight: bold;
   margin-bottom: 0.5rem;
   color: var(--text);
   text-align: center;
-  cursor: pointer;
+}
+
+.song-title.font-size-small {
+  font-size: 17px;
+}
+
+.song-title.font-size-medium {
+  font-size: 23px;
+}
+
+.song-title.font-size-large {
+  font-size: 29px;
 }
 
 .nav-arrow {
@@ -396,7 +314,7 @@ const removeFromCollection = async (col) => {
   background: var(--bg-secondary);
 }
 
-/* Popover перехода по номеру */
+/* Popover перехода */
 .goto-overlay {
   position: fixed;
   inset: 0;
@@ -412,46 +330,8 @@ const removeFromCollection = async (col) => {
   border-radius: 12px;
   padding: 2rem;
   width: 90%;
-  max-width: 320px;
+  max-width: 500px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.goto-popover form {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.goto-input {
-  flex: 1;
-  padding: 0.8rem;
-  font-size: 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--text);
-  -moz-appearance: textfield;
-}
-
-.goto-input::-webkit-outer-spin-button,
-.goto-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.goto-btn {
-  padding: 0.8rem 1rem;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-size: 1rem;
-  min-width: 80px;
-}
-
-.goto-btn:hover {
-  opacity: 0.9;
 }
 
 /* Transition: fade */
@@ -466,48 +346,17 @@ const removeFromCollection = async (col) => {
 
 .collections-section {
   margin-top: 2rem;
-  padding: 1.5rem;
+  padding: 1rem;
   border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  border-radius: 8px;
-}
-
-.collections-section h3 {
-  margin: 0 0 0.75rem 0;
-  font-size: 1rem;
-  color: var(--text);
-}
-
-.current-collections {
-  margin-bottom: 1.5rem;
 }
 
 .current-collections ul {
   list-style: none;
   padding: 0;
-  margin: 0;
 }
 
-.collection-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.collection-item:last-child {
-  border-bottom: none;
-}
-
-.collection-link {
-  color: var(--primary);
-  text-decoration: none;
-  font-size: 0.95rem;
-}
-
-.collection-link:hover {
-  text-decoration: underline;
+.current-collections li {
+  margin: 0.5rem 0;
 }
 
 .variant-badge {
@@ -515,7 +364,7 @@ const removeFromCollection = async (col) => {
   margin-left: 0.3rem;
   padding: 0.1rem 0.4rem;
   font-size: 0.75rem;
-  background: var(--bg);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 3px;
   color: var(--text-secondary);
@@ -527,135 +376,13 @@ const removeFromCollection = async (col) => {
   font-weight: normal;
 }
 
-.add-to-collection {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.collection-select,
-.collection-input {
-  padding: 0.6rem 0.75rem;
-  font-size: 0.95rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--text);
-  box-sizing: border-box;
-  flex: 1;
-  min-width: 140px;
-}
-
-.collection-input::placeholder {
-  color: var(--text-secondary);
-}
-
-.add-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.6rem 1rem;
-  background: var(--primary);
+.remove-btn {
+  padding: 0.25rem 0.5rem;
+  margin-left: 1rem;
+  background: var(--danger);
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  transition: opacity 0.2s;
-}
-
-.add-btn:hover {
-  opacity: 0.9;
-}
-
-.remove-btn {
-  padding: 0.25rem 0.5rem;
-  background: none;
-  color: var(--danger);
-  border: 1px solid var(--danger);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-  transition: background 0.15s;
-}
-
-.remove-btn:hover {
-  background: var(--danger);
-  color: white;
-}
-
-/* Search popover */
-.search-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 10vh;
-  z-index: 400;
-}
-
-.search-popover {
-  background: var(--bg);
-  border-radius: 12px;
-  padding: 1.5rem;
-  width: 90%;
-  max-width: 480px;
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.search-popover-input {
-  width: 100%;
-  padding: 0.8rem;
-  font-size: 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--text);
-  box-sizing: border-box;
-  margin-bottom: 0.75rem;
-}
-
-.search-popover-results {
-  overflow-y: auto;
-  flex: 1;
-}
-
-.search-popover-row {
-  display: flex;
-  align-items: center;
-  padding: 0.6rem 0.4rem;
-  border-bottom: 1px solid var(--border-color);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.search-popover-row:last-child {
-  border-bottom: none;
-}
-
-.search-popover-row:hover {
-  background: var(--bg-secondary);
-}
-
-.search-popover-row .song-number {
-  font-weight: bold;
-  color: var(--primary);
-  margin-right: 0.5rem;
-  flex-shrink: 0;
-}
-
-.search-popover-row .song-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
 }
 </style>
