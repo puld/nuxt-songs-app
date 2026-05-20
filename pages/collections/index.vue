@@ -11,12 +11,14 @@
     <button @click="showCreateModal = true">Создать новую подборку</button>
 
     <div v-if="loading">Загрузка...</div>
-    <div v-else class="collections-grid">
-      <NuxtLink to="/collections/favorites" class="favorites-card">
-        <div class="card-content">
-          <span class="card-icon">♥</span>
-          <span class="card-name">Избранное</span>
-          <span class="card-count">{{ pluralize(favoritesCount, ['песня', 'песни', 'песен']) }}</span>
+    <div v-else class="collections-list">
+      <NuxtLink to="/collections/favorites" class="favorites-row">
+        <div class="favorites-info">
+          <span class="favorites-icon">♥</span>
+          <div class="favorites-text">
+            <span class="favorites-name">Избранное</span>
+            <span class="favorites-meta">{{ favoritesCount }} {{ pluralize(favoritesCount, 'песня', 'песни', 'песен') }}</span>
+          </div>
         </div>
       </NuxtLink>
 
@@ -106,49 +108,55 @@ const deleteCollectionAction = async (collection) => {
 </script>
 
 <style scoped>
-.collections-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
+.collections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-top: 1rem;
 }
 
-.favorites-card {
+.favorites-row {
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 1.5rem;
-  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.6rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   background: var(--bg-secondary);
-  transition: transform 0.2s;
+  transition: background 0.15s;
   text-decoration: none;
   color: var(--text);
 }
 
-.favorites-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.favorites-row:hover {
+  background: var(--border-color);
 }
 
-.favorites-card .card-content {
+.favorites-info {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.75rem;
 }
 
-.favorites-card .card-icon {
-  font-size: 2rem;
+.favorites-icon {
+  font-size: 1.5rem;
   color: #ef4444;
   line-height: 1;
 }
 
-.favorites-card .card-name {
-  font-weight: bold;
-  font-size: 1.1rem;
+.favorites-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
-.favorites-card .card-count {
+.favorites-name {
+  font-weight: 600;
+}
+
+.favorites-meta {
+  font-size: 0.8rem;
   color: var(--text-secondary);
-  font-size: 0.9rem;
 }
 
 .modal {
