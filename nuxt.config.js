@@ -13,8 +13,7 @@ export default {
             { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no' }
         ],
         link: [
-            {rel: 'icon', type: 'image/x-icon', href: pathHost + 'favicon.ico'},
-            {rel: 'manifest', href: pathHost + 'manifest.json'}
+            {rel: 'icon', type: 'image/x-icon', href: pathHost + 'favicon.ico'}
         ]
     },
 
@@ -82,7 +81,6 @@ export default {
     ],
 
     buildModules: [
-        '@nuxtjs/pwa',
         '@nuxtjs/color-mode'
     ],
 

@@ -156,7 +156,9 @@ const hasChords = (str) => {
   width: 100%;
 }
 
-/* Адаптивная сетка: аналогично v-col cols="12" sm="10" md="8" lg="6" */
+/* Адаптивная сетка: аналогично v-col cols="12" sm="10" md="8" lg="6"
+   ВНИМАНИЕ: Брейкпоинты ширины синхронизированы с .song-title-row
+   в pages/song/[number].vue — при рефакторинге менять оба места. */
 .song-content-wrapper {
   width: 100%;
   margin: 0 auto;

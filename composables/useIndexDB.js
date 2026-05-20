@@ -275,11 +275,48 @@ export const useIndexDB = () => {
         })
     }
 
+    const getFavoriteCollection = async () => {
+        return new Promise((resolve, reject) => {
+            const transaction = $indexedDB.transaction(['collections'], 'readonly')
+            const store = transaction.objectStore('collections')
+            const index = store.index('isFavorite')
+            const request = index.get(1)
+            request.onsuccess = () => resolve(request.result || null)
+            request.onerror = (event) => reject(event.target.error)
+        })
+    }
+
+    const isSongInFavorite = async (songNumber, variantIndex = 0) => {
+        const favorite = await getFavoriteCollection()
+        if (!favorite) return false
+        return new Promise((resolve, reject) => {
+            const transaction = $indexedDB.transaction(['songCollections'], 'readonly')
+            const store = transaction.objectStore('songCollections')
+            const index = store.index('collectionId_songNumber_variantIndex')
+            const request = index.get([Number(favorite.id), Number(songNumber), Number(variantIndex)])
+            request.onsuccess = () => resolve(!!request.result)
+            request.onerror = (event) => reject(event.target.error)
+        })
+    }
+
+    const addToFavorite = async (songNumber, variantIndex = 0) => {
+        const favorite = await getFavoriteCollection()
+        if (!favorite) throw new Error('Подборка «Избранное» не найдена')
+        return addSongToCollection(favorite.id, songNumber, variantIndex)
+    }
+
+    const removeFromFavorite = async (songNumber, variantIndex = 0) => {
+        const favorite = await getFavoriteCollection()
+        if (!favorite) throw new Error('Подборка «Избранное» не найдена')
+        return removeSongFromCollection(favorite.id, songNumber, variantIndex)
+    }
+
     return {
         addSongs, getSong, createCollection, getCollections,
         addSongToCollection, removeSongFromCollection,
         getSongsInCollection, getCollectionsForSong,
         getCollection, getAvailableCollections, deleteCollection,
-        getSongsCount, getSongNumbers, getSongsCountInCollection, getAllSongs
+        getSongsCount, getSongNumbers, getSongsCountInCollection, getAllSongs,
+        getFavoriteCollection, isSongInFavorite, addToFavorite, removeFromFavorite
     };
 };

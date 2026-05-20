@@ -32,10 +32,44 @@
     </Transition>
   </Teleport>
 
+  <!-- Попап добавления в подборку -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showAddPopup" class="popup-overlay" @click.self="showAddPopup = false">
+        <div class="popup-content">
+          <h3 class="popup-title">Добавить в подборку</h3>
+          <div class="popup-collections">
+            <button
+              v-for="col in displayAvailableCollections"
+              :key="col.id"
+              class="popup-collection-item"
+              @click="addSongToPopupCollection(col)"
+            >
+              {{ col.name }}
+            </button>
+            <div v-if="displayAvailableCollections.length === 0" class="popup-empty">
+              Нет доступных подборок
+            </div>
+          </div>
+          <div class="popup-divider"></div>
+          <form class="popup-create" @submit.prevent="createAndAddCollection">
+            <input v-model="newCollectionName" placeholder="Новая подборка" class="popup-input">
+            <button type="submit" class="popup-create-btn" :disabled="!newCollectionName.trim()">Создать</button>
+          </form>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <div v-if="loading">Загрузка...</div>
   <div v-else-if="song">
-    <!-- Название песни в теле страницы -->
-    <h1 class="song-title" :class="fontSizeClass">{{ song.title }}</h1>
+    <!-- Название песни + звёздочка избранного -->
+    <div class="song-title-row">
+      <h1 class="song-title" :class="fontSizeClass">{{ song.title }}</h1>
+      <button class="favorite-star" :class="{ active: isSongFavorite }" @click="toggleFavorite" aria-label="Избранное">
+        <Icon :name="isSongFavorite ? 'mingcute:star-fill' : 'mingcute:star-line'" size="1.3em"/>
+      </button>
+    </div>
 
     <SongDisplay
       :song="song"
@@ -43,39 +77,21 @@
       @variant-change="onVariantChange"
     />
 
+    <!-- Чипы подборок + кнопка добавить -->
     <div class="collections-section">
-      <div v-if="songCollections.length > 0" class="current-collections">
-        <h3>Входит в подборки:</h3>
-        <ul>
-          <li v-for="col in songCollections" :key="col.id + '-' + col.variantIndex" class="nav">
-            <NuxtLink :to="collectionLink(col)">{{ col.name }}<span v-if="getVariantLabel(col.variantIndex)" class="variant-badge">{{ getVariantLabel(col.variantIndex) }}</span></NuxtLink>
-            <NuxtLink @click="removeFromCollection(col)" class="remove-btn">Х</NuxtLink>
-          </li>
-        </ul>
-      </div>
-      <h3>Добавить в подборку<span v-if="currentVariantLabel" class="variant-hint"> (вариант {{ currentVariantLabel }})</span></h3>
-      <nav class="nav">
-        <select v-model="selectedCollection">
-          <option value="">Новая подборка</option>
-          <option
-              v-for="collection in collections"
-              :key="collection.id"
-              :value="collection.id"
-          >
-            {{ collection.name }}
-          </option>
-        </select>
-
-        <input
-            v-if="selectedCollection === ''"
-            v-model="newCollectionName"
-            placeholder="Название подборки"
+      <div class="collections-chips">
+        <NuxtLink
+          v-for="col in displayCollections"
+          :key="col.id + '-' + col.variantIndex"
+          :to="collectionLink(col)"
+          class="collection-chip"
         >
-
-        <NuxtLink @click="addToCollection">
-          <Icon name="mingcute:add-line" />
+          <span class="chip-name">{{ col.name }}</span>
+          <span v-if="getVariantLabel(col.variantIndex)" class="variant-badge">{{ getVariantLabel(col.variantIndex) }}</span>
+          <button class="chip-remove" @click.prevent="removeFromCollection(col)" aria-label="Удалить из подборки">×</button>
         </NuxtLink>
-      </nav>
+        <button class="chip-add" @click="openAddPopup" aria-label="Добавить в подборку">+</button>
+      </div>
     </div>
   </div>
   <div v-else>
@@ -98,21 +114,35 @@ const {
   addSongToCollection,
   getAvailableCollections,
   removeSongFromCollection,
-  getAllSongs
+  getAllSongs,
+  isSongInFavorite,
+  addToFavorite,
+  removeFromFavorite
 } = useIndexDB();
 
 const song = ref(null);
 const loading = ref(true);
-const collections = ref([]);
+const availableCollections = ref([]);
 const songCollections = ref([]);
-const selectedCollection = ref('');
 const newCollectionName = ref('');
 const songNumbers = ref([]);
 const allSongs = ref([]);
 const currentIndex = ref(-1);
 const currentVariantIndex = ref(0);
 const showGoToPopover = ref(false);
+const showAddPopup = ref(false);
 const searchComponent = ref(null);
+const isSongFavorite = ref(false);
+
+// Подборки без «Избранного» — для чипов
+const displayCollections = computed(() =>
+  songCollections.value.filter(c => !c.isFavorite)
+)
+
+// Доступные подборки без «Избранного» — для попапа
+const displayAvailableCollections = computed(() =>
+  availableCollections.value.filter(c => !c.isFavorite)
+)
 
 const fontSizeClass = computed(() => `font-size-${settings.fontSize}`)
 
@@ -141,7 +171,10 @@ onMounted(async () => {
   songCollections.value = await getCollectionsForSong(songNumber);
 
   // Загружаем доступные коллекции для текущего варианта
-  collections.value = await getAvailableCollections(songNumber, currentVariantIndex.value);
+  availableCollections.value = await getAvailableCollections(songNumber, currentVariantIndex.value);
+
+  // Проверяем, в избранном ли песня
+  isSongFavorite.value = await isSongInFavorite(songNumber, currentVariantIndex.value);
 
   loading.value = false;
 });
@@ -166,7 +199,9 @@ const onPopoverSelect = async ({ n, variantIndex }) => {
     // Тот же номер — обновляем вариант напрямую
     currentVariantIndex.value = variantIndex
     // Обновляем список доступных коллекций для нового варианта
-    collections.value = await getAvailableCollections(Number(n), variantIndex)
+    availableCollections.value = await getAvailableCollections(Number(n), variantIndex)
+    // Обновляем состояние избранного
+    isSongFavorite.value = await isSongInFavorite(Number(n), variantIndex)
     // Обновляем URL без перезагрузки
     router.replace({ query: variantIndex > 0 ? { v: variantIndex } : {} })
   } else {
@@ -200,9 +235,10 @@ const onVariantChange = async (index) => {
     router.replace({ query: {} })
   }
 
-  // Обновляем список доступных коллекций для нового варианта
+  // Обновляем списки для нового варианта
   if (song.value) {
-    collections.value = await getAvailableCollections(song.value.number, index)
+    availableCollections.value = await getAvailableCollections(song.value.number, index)
+    isSongFavorite.value = await isSongInFavorite(song.value.number, index)
   }
 }
 
@@ -218,27 +254,57 @@ const collectionLink = (col) => {
   return `/collections/${col.id}`
 }
 
-const addToCollection = async () => {
-  if (selectedCollection.value === '') {
-    if (!newCollectionName.value.trim()) return;
+const openAddPopup = () => {
+  newCollectionName.value = ''
+  showAddPopup.value = true
+}
 
-    // Создаем новую коллекцию
-    selectedCollection.value = await createCollection(newCollectionName.value);
+const refreshCollections = async () => {
+  if (!song.value) return
+  songCollections.value = await getCollectionsForSong(song.value.number)
+  availableCollections.value = await getAvailableCollections(song.value.number, currentVariantIndex.value)
+  isSongFavorite.value = await isSongInFavorite(song.value.number, currentVariantIndex.value)
+}
+
+const addSongToPopupCollection = async (col) => {
+  try {
+    await addSongToCollection(col.id, song.value.number, currentVariantIndex.value)
+    showAddPopup.value = false
+    await refreshCollections()
+  } catch (error) {
+    console.error('Ошибка добавления:', error)
+    if (error.message !== 'Этот вариант песни уже есть в подборке') {
+      alert('Не удалось добавить песню')
+    }
   }
+}
 
-  // Добавляем текущий вариант песни в коллекцию
-  await addSongToCollection(selectedCollection.value, song.value.number, currentVariantIndex.value);
+const createAndAddCollection = async () => {
+  if (!newCollectionName.value.trim()) return
+  try {
+    const collectionId = await createCollection(newCollectionName.value.trim())
+    await addSongToCollection(collectionId, song.value.number, currentVariantIndex.value)
+    showAddPopup.value = false
+    newCollectionName.value = ''
+    await refreshCollections()
+  } catch (error) {
+    console.error('Ошибка создания подборки:', error)
+    alert('Не удалось создать подборку')
+  }
+}
 
-  // Обновляем список коллекций песни
-  songCollections.value = await getCollectionsForSong(song.value.number);
-
-  // Обновляем список доступных коллекций
-  collections.value = await getAvailableCollections(song.value.number, currentVariantIndex.value);
-
-  // Сбрасываем выбор
-  selectedCollection.value = '';
-  newCollectionName.value = '';
-};
+const toggleFavorite = async () => {
+  try {
+    if (isSongFavorite.value) {
+      await removeFromFavorite(song.value.number, currentVariantIndex.value)
+    } else {
+      await addToFavorite(song.value.number, currentVariantIndex.value)
+    }
+    await refreshCollections()
+  } catch (error) {
+    console.error('Ошибка переключения избранного:', error)
+  }
+}
 
 const removeFromCollection = async (col) => {
   const variantLabel = getVariantLabel(col.variantIndex)
@@ -251,11 +317,7 @@ const removeFromCollection = async (col) => {
         Number(route.params.number),
         col.variantIndex ?? 0
     )
-    // Обновляем списки
-    songCollections.value = songCollections.value.filter(
-        c => !(c.id === col.id && c.variantIndex === col.variantIndex)
-    )
-    collections.value = await getAvailableCollections(route.params.number, currentVariantIndex.value)
+    await refreshCollections()
   } catch (error) {
     console.error('Ошибка удаления:', error)
     alert('Не удалось удалить песню')
@@ -264,11 +326,38 @@ const removeFromCollection = async (col) => {
 </script>
 
 <style scoped>
+/* Строка заголовка песни + звёздочка избранного
+   Ширина совпадает с .song-content-wrapper в SongDisplay.vue,
+   чтобы звезда была прижата к правому краю колонки текста песни.
+   Адаптивные брейкпоинты: 640→83.33%, 768→66.67%, 1024→50% —
+   должны синхронизироваться при рефакторинге верстки. */
+.song-title-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+
+  @media (min-width: 640px) {
+    width: 83.33%;
+  }
+
+  @media (min-width: 768px) {
+    width: 66.67%;
+  }
+
+  @media (min-width: 1024px) {
+    width: 50%;
+  }
+}
+
 .song-title {
   font-weight: bold;
-  margin-bottom: 0.5rem;
   color: var(--text);
   text-align: center;
+  margin: 0;
+  flex: 1;
 }
 
 .song-title.font-size-small {
@@ -281,6 +370,27 @@ const removeFromCollection = async (col) => {
 
 .song-title.font-size-large {
   font-size: 29px;
+}
+
+.favorite-star {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s, transform 0.2s;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.favorite-star:hover {
+  transform: scale(1.2);
+}
+
+.favorite-star.active {
+  color: #f59e0b;
 }
 
 .nav-arrow {
@@ -334,6 +444,99 @@ const removeFromCollection = async (col) => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
+/* Попап добавления в подборку */
+.popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+}
+
+.popup-content {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.popup-title {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.popup-collections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.popup-collection-item {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.popup-collection-item:hover {
+  background: var(--bg-secondary);
+}
+
+.popup-empty {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
+}
+
+.popup-divider {
+  border-top: 1px solid var(--border-color);
+  margin: 1rem 0;
+}
+
+.popup-create {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.popup-input {
+  flex: 1;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.popup-create-btn {
+  padding: 0.5rem 1rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.popup-create-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Transition: fade */
 .fade-enter-active,
 .fade-leave-active {
@@ -344,45 +547,87 @@ const removeFromCollection = async (col) => {
   opacity: 0;
 }
 
+/* Чипы подборок */
 .collections-section {
   margin-top: 2rem;
   padding: 1rem;
   border-top: 1px solid var(--border-color);
 }
 
-.current-collections ul {
-  list-style: none;
-  padding: 0;
+.collections-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
 }
 
-.current-collections li {
-  margin: 0.5rem 0;
+.collection-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: background 0.15s;
+}
+
+.collection-chip:hover {
+  background: var(--border-color);
+}
+
+.chip-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .variant-badge {
   display: inline-block;
-  margin-left: 0.3rem;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.75rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  padding: 0.1rem 0.3rem;
+  font-size: 0.7rem;
+  background: var(--border-color);
   border-radius: 3px;
   color: var(--text-secondary);
 }
 
-.variant-hint {
-  font-size: 0.85rem;
+.chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
   color: var(--text-secondary);
-  font-weight: normal;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.1rem;
+  transition: color 0.15s;
 }
 
-.remove-btn {
-  padding: 0.25rem 0.5rem;
-  margin-left: 1rem;
-  background: var(--danger);
-  color: white;
-  border: none;
-  border-radius: 4px;
+.chip-remove:hover {
+  color: var(--danger);
+}
+
+.chip-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px dashed var(--border-color);
+  background: none;
   cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.chip-add:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 </style>
