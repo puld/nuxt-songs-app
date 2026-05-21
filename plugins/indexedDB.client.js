@@ -1,5 +1,5 @@
 export default defineNuxtPlugin(async (nuxtApp) => {
-    const dbVersion = 5;
+    const dbVersion = 6;
 
     const request = indexedDB.open('SongsDB', dbVersion);
 
@@ -120,6 +120,41 @@ export default defineNuxtPlugin(async (nuxtApp) => {
                 }
             };
         }
+
+        // Миграция v5→v6: гарантируем наличие индексов isFavorite и collectionId_songNumber_variantIndex
+        if (oldVersion >= 1 && oldVersion < 6) {
+            const transaction = event.target.transaction;
+
+            // Проверяем/создаём индекс isFavorite в collections
+            const collectionsStore = transaction.objectStore('collections');
+            if (!collectionsStore.indexNames.contains('isFavorite')) {
+                collectionsStore.createIndex('isFavorite', 'isFavorite', { unique: false });
+            }
+
+            // Проверяем/создаём индекс collectionId_songNumber_variantIndex в songCollections
+            const songCollectionsStore = transaction.objectStore('songCollections');
+            if (!songCollectionsStore.indexNames.contains('collectionId_songNumber_variantIndex')) {
+                // Удаляем старый уникальный индекс если есть
+                if (songCollectionsStore.indexNames.contains('collectionId_songNumber_variantLabel')) {
+                    songCollectionsStore.deleteIndex('collectionId_songNumber_variantLabel');
+                }
+                songCollectionsStore.createIndex('collectionId_songNumber_variantIndex', ['collectionId', 'songNumber', 'variantIndex'], { unique: true });
+            }
+
+            // Создаём подборку «Избранное» если не существует
+            const index = collectionsStore.index('isFavorite');
+            const checkRequest = index.get(1);
+            checkRequest.onsuccess = () => {
+                if (!checkRequest.result) {
+                    collectionsStore.add({
+                        name: 'Избранное',
+                        isFavorite: 1,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                    });
+                }
+            };
+        }
     };
 
     const db = await new Promise((resolve, reject) => {
@@ -129,23 +164,75 @@ export default defineNuxtPlugin(async (nuxtApp) => {
 
     // Создаём подборку «Избранное» если не существует (для новых установок)
     await new Promise((resolve) => {
-        const transaction = db.transaction(['collections'], 'readwrite');
-        const store = transaction.objectStore('collections');
-        const index = store.index('isFavorite');
-        const checkRequest = index.get(1);
-        checkRequest.onsuccess = () => {
-            if (!checkRequest.result) {
-                store.add({
-                    name: 'Избранное',
-                    isFavorite: 1,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
+        try {
+            const transaction = db.transaction(['collections'], 'readwrite');
+            const store = transaction.objectStore('collections');
+            if (!store.indexNames.contains('isFavorite')) {
+                // Индекс отсутствует — пробуем создать (возможно, база повреждена)
+                resolve();
+                return;
+            }
+            const index = store.index('isFavorite');
+            const checkRequest = index.get(1);
+            checkRequest.onsuccess = () => {
+                if (!checkRequest.result) {
+                    store.add({
+                        name: 'Избранное',
+                        isFavorite: 1,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                    });
+                }
+            };
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => resolve(); // не критично
+        } catch (e) {
+            resolve(); // не критично
+        }
+    });
+
+    // Автоматическая загрузка песен при пустой базе данных
+    const songsCount = await new Promise((resolve) => {
+        const transaction = db.transaction(['songs'], 'readonly');
+        const store = transaction.objectStore('songs');
+        const countRequest = store.count();
+        countRequest.onsuccess = () => resolve(countRequest.result);
+        countRequest.onerror = () => resolve(0);
+    });
+
+    if (songsCount === 0) {
+        try {
+            const response = await fetch('assets/songs.json');
+            if (response.ok) {
+                const data = await response.json();
+                await new Promise((resolve, reject) => {
+                    const transaction = db.transaction(['songs'], 'readwrite');
+                    const store = transaction.objectStore('songs');
+                    for (const song of data.songs) {
+                        const variants = song.variants || [{ label: '', body: song.body || [] }];
+                        store.put({
+                            number: Number(song.n),
+                            title: String(song.title),
+                            variants: variants.map(variant => ({
+                                label: String(variant.label || ''),
+                                body: (variant.body || []).map(item => ({
+                                    id: Number(item.id),
+                                    n: Number(item.n),
+                                    type: String(item.type),
+                                    content: item.content ? String(item.content) : null,
+                                    repeatId: item.repeatId ? String(item.repeatId) : null
+                                })),
+                            })),
+                        });
+                    }
+                    transaction.oncomplete = () => resolve();
+                    transaction.onerror = (event) => reject(event.target.error);
                 });
             }
-        };
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => resolve(); // не критично
-    });
+        } catch (error) {
+            console.error('Ошибка автоматической загрузки песен:', error);
+        }
+    }
 
     nuxtApp.provide('indexedDB', db);
 });

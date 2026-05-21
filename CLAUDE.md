@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Правила коммитов
+
+- НЕ добавлять `Generated with [Claude Code]` в сообщения коммитов
+- НЕ добавлять `Co-Authored-By: Claude` в сообщения коммитов
+
 ## Основные команды
 
 ### Разработка
