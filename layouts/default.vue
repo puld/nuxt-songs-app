@@ -27,10 +27,12 @@ const closeSidebar = () => {
   sidebarOpen.value = false
 }
 
+const manifestHref = useRuntimeConfig().app.baseURL + 'manifest.webmanifest'
+
 useHead({
   link: [
-    {rel: 'manifest', href: 'manifest.webmanifest'},
-    {rel: 'apple-touch-icon', href: '/apple-touch-icon.png'}
+    {rel: 'manifest', href: manifestHref},
+    {rel: 'apple-touch-icon', href: useRuntimeConfig().app.baseURL + 'apple-touch-icon.png'}
   ],
 });
 
@@ -47,7 +49,6 @@ onUnmounted(() => {
   <Head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#ffffff">
-    <link rel="manifest" href="manifest.webmanifest">
   </Head>
   <div class="layout" :class="colorMode.value">
     <!-- Overlay -->
