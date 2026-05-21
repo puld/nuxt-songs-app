@@ -185,7 +185,7 @@ const hasChords = (str) => {
 
 .part-label {
   flex-shrink: 0;
-  width: 3.5rem;
+  width: 5.5rem;
   text-align: right;
   padding: 0 0.5rem 0 0;
   color: var(--primary);
@@ -202,11 +202,11 @@ const hasChords = (str) => {
   color: var(--danger);
 }
 
-/* Адаптация метки припева по ширине */
+/* Адаптация метки припева на узких экранах */
 @media (max-width: 360px) {
-  .chorus .part-label {
-    width: auto;
-    margin-right: 0;
+  .part-label {
+    width: 4.5rem;
+    font-size: 0.85em;
   }
 }
 
