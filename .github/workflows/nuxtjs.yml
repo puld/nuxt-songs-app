@@ -44,6 +44,8 @@ jobs:
 
       - name: Static HTML export with Nuxt
         run: |
+          export COMMIT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          export BUILD_DATE=$(date +%d.%m.%Y)
           npm run generate
 
       - name: Upload artifact

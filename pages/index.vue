@@ -21,11 +21,13 @@
         />
       </div>
     </div>
+    <p class="app-version">v{{ config.appVersion }} · {{ config.appCommit }} · {{ config.appBuildDate }}</p>
   </div>
 </template>
 
 <script setup>
 
+const config = useRuntimeConfig()
 const {getAllSongs, getSongNumbers} = useIndexDB()
 
 const allSongs = ref([])
@@ -61,5 +63,12 @@ const goToSong = ({ n, variantIndex }) => {
   margin-top: 2rem;
   margin-bottom: 2rem;
   max-width: 100%;
+}
+
+.app-version {
+  margin-top: 3rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 </style>
