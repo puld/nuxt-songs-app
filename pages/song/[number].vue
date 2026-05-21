@@ -154,29 +154,33 @@ const currentVariantLabel = computed(() => {
 })
 
 onMounted(async () => {
-  const songNumber = parseInt(route.params.number);
-  currentVariantIndex.value = route.query.v !== undefined ? parseInt(route.query.v) || 0 : 0
+  try {
+    const songNumber = parseInt(route.params.number);
+    currentVariantIndex.value = route.query.v !== undefined ? parseInt(route.query.v) || 0 : 0
 
-  songNumbers.value = await getSongNumbers()
-  allSongs.value = await getAllSongs()
-  song.value = await getSong(songNumber);
-  currentIndex.value = songNumbers.value.indexOf(songNumber)
+    songNumbers.value = await getSongNumbers()
+    allSongs.value = await getAllSongs()
+    song.value = await getSong(songNumber);
+    currentIndex.value = songNumbers.value.indexOf(songNumber)
 
-  if (!song.value) {
+    if (!song.value) {
+      loading.value = false;
+      return;
+    }
+
+    // Загружаем коллекции, в которые входит песня
+    songCollections.value = await getCollectionsForSong(songNumber);
+
+    // Загружаем доступные коллекции для текущего варианта
+    availableCollections.value = await getAvailableCollections(songNumber, currentVariantIndex.value);
+
+    // Проверяем, в избранном ли песня
+    isSongFavorite.value = await isSongInFavorite(songNumber, currentVariantIndex.value);
+  } catch (error) {
+    console.error('Ошибка загрузки песни:', error);
+  } finally {
     loading.value = false;
-    return;
   }
-
-  // Загружаем коллекции, в которые входит песня
-  songCollections.value = await getCollectionsForSong(songNumber);
-
-  // Загружаем доступные коллекции для текущего варианта
-  availableCollections.value = await getAvailableCollections(songNumber, currentVariantIndex.value);
-
-  // Проверяем, в избранном ли песня
-  isSongFavorite.value = await isSongInFavorite(songNumber, currentVariantIndex.value);
-
-  loading.value = false;
 });
 
 const hasPrev = computed(() => currentIndex.value > 0)

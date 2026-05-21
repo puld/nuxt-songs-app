@@ -276,26 +276,42 @@ export const useIndexDB = () => {
     }
 
     const getFavoriteCollection = async () => {
-        return new Promise((resolve, reject) => {
-            const transaction = $indexedDB.transaction(['collections'], 'readonly')
-            const store = transaction.objectStore('collections')
-            const index = store.index('isFavorite')
-            const request = index.get(1)
-            request.onsuccess = () => resolve(request.result || null)
-            request.onerror = (event) => reject(event.target.error)
+        return new Promise((resolve) => {
+            try {
+                const transaction = $indexedDB.transaction(['collections'], 'readonly')
+                const store = transaction.objectStore('collections')
+                if (!store.indexNames.contains('isFavorite')) {
+                    resolve(null)
+                    return
+                }
+                const index = store.index('isFavorite')
+                const request = index.get(1)
+                request.onsuccess = () => resolve(request.result || null)
+                request.onerror = () => resolve(null)
+            } catch (e) {
+                resolve(null)
+            }
         })
     }
 
     const isSongInFavorite = async (songNumber, variantIndex = 0) => {
         const favorite = await getFavoriteCollection()
         if (!favorite) return false
-        return new Promise((resolve, reject) => {
-            const transaction = $indexedDB.transaction(['songCollections'], 'readonly')
-            const store = transaction.objectStore('songCollections')
-            const index = store.index('collectionId_songNumber_variantIndex')
-            const request = index.get([Number(favorite.id), Number(songNumber), Number(variantIndex)])
-            request.onsuccess = () => resolve(!!request.result)
-            request.onerror = (event) => reject(event.target.error)
+        return new Promise((resolve) => {
+            try {
+                const transaction = $indexedDB.transaction(['songCollections'], 'readonly')
+                const store = transaction.objectStore('songCollections')
+                if (!store.indexNames.contains('collectionId_songNumber_variantIndex')) {
+                    resolve(false)
+                    return
+                }
+                const index = store.index('collectionId_songNumber_variantIndex')
+                const request = index.get([Number(favorite.id), Number(songNumber), Number(variantIndex)])
+                request.onsuccess = () => resolve(!!request.result)
+                request.onerror = () => resolve(false)
+            } catch (e) {
+                resolve(false)
+            }
         })
     }
 
