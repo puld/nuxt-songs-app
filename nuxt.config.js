@@ -1,8 +1,19 @@
 const pathHost = process.env.NODE_ENV === 'production' ? '/nuxt-songs-app/' : '/'
 
+import { readFileSync } from 'fs'
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'))
+
 export default {
     target: 'static',
     ssr: false,
+
+    runtimeConfig: {
+        public: {
+            appVersion: pkg.version,
+            appCommit: process.env.COMMIT_SHA || 'dev',
+            appBuildDate: process.env.BUILD_DATE || new Date().toISOString().slice(0, 10),
+        }
+    },
 
     head: {
         title: 'Сборник текстов песен',
