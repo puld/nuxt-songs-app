@@ -13,28 +13,16 @@
     </div>
 
     <div class="song-content-wrapper">
-      <ul class="song-list">
-        <li v-for="(item, index) in activeVariantBody" :key="index" class="song-list-item">
-          <div v-if="item.type === 'verse'" class="verse">
-            <span class="part-label">{{ item.n }}.</span>
-            <div
-              class="content"
-              :class="{ 'content-withChords': hasChords(item.content) }"
-              v-html="processContent(item.content)"
-            ></div>
-          </div>
-
-          <div v-else-if="item.type === 'chorus'" class="chorus">
-            <span class="part-label">Припев:</span>
-            <div
-              v-if="item.content"
-              class="content"
-              :class="{ 'content-withChords': hasChords(item.content) }"
-              v-html="processContent(item.content)"
-            ></div>
-          </div>
-        </li>
-      </ul>
+      <div class="song-sheet">
+        <div v-for="(item, index) in activeVariantBody" :key="index" class="song-part" :class="item.type">
+          <span class="part-label">{{ item.type === 'verse' ? item.n + '.' : 'Припев:' }}</span>
+          <div
+            class="content"
+            :class="{ 'content-withChords': hasChords(item.content) }"
+            v-html="processContent(item.content)"
+          ></div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -180,24 +168,69 @@ const hasChords = (str) => {
   }
 }
 
-h2 {
-  text-align: center;
-  margin-bottom: 30px;
-  color: var(--text);
+/* «Лист песни» — единый фон, без карточек/рамок */
+.song-sheet {
+  padding: 0.5rem 0;
 }
 
-/* Размеры шрифтов — только для .content (текст куплетов/припевов) */
-.font-size-small .content {
+.song-part {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.song-part:last-child {
+  margin-bottom: 0;
+}
+
+.part-label {
+  flex-shrink: 0;
+  width: 3.5rem;
+  text-align: right;
+  padding: 0 0.5rem 0 0;
+  color: var(--primary);
+  font-weight: 500;
+  line-height: inherit;
+  user-select: none;
+}
+
+.verse .part-label {
+  color: var(--primary);
+}
+
+.chorus .part-label {
+  color: var(--danger);
+}
+
+/* Адаптация метки припева по ширине */
+@media (max-width: 360px) {
+  .chorus .part-label {
+    width: auto;
+    margin-right: 0;
+  }
+}
+
+.content {
+  flex: 1;
+  white-space: normal;
+  position: relative;
+}
+
+/* Размеры шрифтов */
+.font-size-small .content,
+.font-size-small .part-label {
   font-size: 15px;
   line-height: 1.5;
 }
 
-.font-size-medium .content {
+.font-size-medium .content,
+.font-size-medium .part-label {
   font-size: 20px;
   line-height: 1.6;
 }
 
-.font-size-large .content {
+.font-size-large .content,
+.font-size-large .part-label {
   font-size: 25px;
   line-height: 1.7;
 }
@@ -213,58 +246,6 @@ h2 {
 
 .font-size-large .content-withChords {
   line-height: 2.2;
-}
-
-/* Vuetify-подобный список */
-.song-list {
-  width: 100%;
-  padding: 8px;
-  list-style: none;
-}
-
-.song-list-item {
-  width: 100%;
-  display: flex;
-  align-items: flex-start;
-  padding: 0;
-  margin-bottom: 20px;
-}
-
-.verse, .chorus {
-  display: flex;
-  align-items: flex-start;
-  width: 100%;
-  flex: 1;
-  padding: 0;
-  position: relative;
-}
-
-.part-label {
-  font-weight: 400;
-  font-size: 1rem;
-  padding: 12px 16px;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-}
-
-.verse .part-label {
-  color: var(--primary);
-}
-
-.chorus .part-label {
-  color: var(--danger);
-}
-
-.content {
-  line-height: 1.5;
-  white-space: normal;
-  flex: 1;
-  display: flex;
-  padding: 12px 16px;
-  background-color: var(--bg-secondary);
-  border-radius: 4px;
-  position: relative;
 }
 
 /* Стили для аккордов */
