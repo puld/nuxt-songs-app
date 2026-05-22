@@ -20,6 +20,12 @@
           @select="goToSong"
         />
       </div>
+      <Transition name="fade">
+        <button v-if="showInstallButton" class="install-btn" @click="installApp">
+          <Icon name="mingcute:download-2-line" size="1.1rem" />
+          <span>Установить приложение</span>
+        </button>
+      </Transition>
     </div>
     <p class="app-version">v{{ config.appVersion }} · {{ config.appCommit }} · {{ config.appBuildDate }}</p>
   </div>
@@ -29,6 +35,7 @@
 
 const config = useRuntimeConfig()
 const {getAllSongs, getSongNumbers} = useIndexDB()
+const pwa = usePWA()
 
 const allSongs = ref([])
 const songNumbers = ref([])
@@ -50,6 +57,14 @@ const goToSong = ({ n, variantIndex }) => {
   }
 }
 
+const installApp = () => {
+  pwa.install()
+}
+
+const showInstallButton = computed(() => {
+  return pwa.showInstallPrompt.value && !pwa.isPWAInstalled.value
+})
+
 </script>
 
 <style scoped>
@@ -63,6 +78,27 @@ const goToSong = ({ n, variantIndex }) => {
   margin-top: 2rem;
   margin-bottom: 2rem;
   max-width: 100%;
+}
+
+.install-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.install-btn:active {
+  opacity: 0.8;
 }
 
 .app-version {
