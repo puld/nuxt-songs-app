@@ -7,12 +7,10 @@ export default {
     target: 'static',
     ssr: false,
 
-    runtimeConfig: {
-        public: {
-            appVersion: pkg.version,
-            appCommit: process.env.COMMIT_SHA || 'dev',
-            appBuildDate: process.env.BUILD_DATE || new Date().toISOString().slice(0, 10),
-        }
+    appConfig: {
+        appVersion: pkg.version,
+        appCommit: process.env.COMMIT_SHA || 'dev',
+        appBuildDate: new Date().toISOString().slice(0, 10),
     },
 
     head: {

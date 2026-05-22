@@ -3,6 +3,7 @@ import { useSettingsStore } from '~/stores/settings'
 
 const colorMode = useColorMode()
 const settings = useSettingsStore()
+const appConfig = useAppConfig()
 const showNavbar = ref(true)
 const lastScrollY = ref(0)
 const scrollOffset = 100
@@ -115,14 +116,15 @@ onUnmounted(() => {
     </div>
 
     <footer class="footer">
-      <p>Оффлайн сборник текстов песен &copy; {{ new Date().getFullYear() }}</p>
+      <span class="footer-text">Оффлайн сборник текстов песен &copy;</span>
+      <span class="footer-version">v{{ appConfig.appVersion }} · {{ appConfig.appCommit }} · {{ appConfig.appBuildDate }}</span>
     </footer>
   </div>
 </template>
 
 <style>
 .layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -360,5 +362,14 @@ onUnmounted(() => {
   border-top: 1px solid var(--border-color);
   font-size: 0.8rem;
   color: var(--text-secondary);
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+}
+
+.footer-version {
+  font-size: 0.7rem;
 }
 </style>
