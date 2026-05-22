@@ -116,8 +116,8 @@ onUnmounted(() => {
     </div>
 
     <footer class="footer">
-      <p class="footer-text">Оффлайн сборник текстов песен &copy;</p>
-      <p class="footer-version">v{{ appConfig.appVersion }} · {{ appConfig.appCommit }} · {{ appConfig.appBuildDate }}</p>
+      <span class="footer-text">Оффлайн сборник текстов песен &copy;</span>
+      <span class="footer-version">v{{ appConfig.appVersion }} · {{ appConfig.appCommit }} · {{ appConfig.appBuildDate }}</span>
     </footer>
   </div>
 </template>
@@ -363,14 +363,13 @@ onUnmounted(() => {
   font-size: 0.8rem;
   color: var(--text-secondary);
   flex-shrink: 0;
-}
-
-.footer-text, .footer-version {
-  margin: 0;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
 }
 
 .footer-version {
   font-size: 0.7rem;
-  margin-top: 0.25rem;
 }
 </style>
