@@ -46,6 +46,20 @@
     </div>
 
     <div class="setting-section">
+      <h2>Не гасить экран:</h2>
+      <label class="toggle-switch">
+        <input
+            type="checkbox"
+            :checked="settings.keepScreenOn"
+            @change="handleKeepScreenOnToggle"
+        >
+        <span class="slider"></span>
+        <span class="toggle-label">{{ settings.keepScreenOn ? 'Вкл' : 'Выкл' }}</span>
+      </label>
+      <p class="setting-hint">Экран не будет гаснуть при открытом приложении</p>
+    </div>
+
+    <div class="setting-section">
       <h2>Обновление базы данных</h2>
       <p>Принудительно обновить базу данных текстов песен</p>
       <button
@@ -114,6 +128,10 @@ const handleColorModeChange = (mode) => {
 
 const handleChordsToggle = (e) => {
   settings.setShowChords(e.target.checked)
+}
+
+const handleKeepScreenOnToggle = (e) => {
+  settings.setKeepScreenOn(e.target.checked)
 }
 </script>
 
@@ -184,5 +202,12 @@ input:checked + .slider:before {
 
 .toggle-label {
   user-select: none;
+}
+
+.setting-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.4rem;
+  margin-bottom: 0;
 }
 </style>

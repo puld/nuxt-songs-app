@@ -11,6 +11,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - ВСЕ изменения UI проверять визуально через браузер (Playwright screenshot/snapshot) до коммита
 
+## Правила тестирования
+
+- Писать тестопригодный код: выделять чистые функции без Vue-зависимостей в `lib/`, composables — тонкие обёртки
+- Покрывать новый код тестами сразу при реализации, а не после
+- Чистые функции тестировать в `lib/*.test.js`, composables — в `composables/*.test.js`
+
 ## Основные команды
 
 ### Разработка

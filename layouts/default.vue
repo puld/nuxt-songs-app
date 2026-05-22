@@ -40,6 +40,12 @@ const closeSidebar = () => {
 
 provide('toggleSidebar', toggleSidebar)
 
+// Wake Lock: не гасить экран
+const wakeLock = useWakeLock()
+onMounted(() => {
+  wakeLock.apply()
+})
+
 const onScroll = () => {
   const currentScrollY = window.scrollY
 
