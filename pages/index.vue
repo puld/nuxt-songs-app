@@ -1,5 +1,13 @@
 <template>
   <ClientOnly>
+    <Teleport to="#navbar-left">
+      <button class="nav-btn hamburger" @click="toggleSidebar" aria-label="Меню">
+        <Icon name="mingcute:menu-line" size="1.5rem"/>
+      </button>
+    </Teleport>
+  </ClientOnly>
+
+  <ClientOnly>
     <Teleport to="#navbar-center">
       <span class="nav-title">Сборник песен</span>
     </Teleport>
@@ -34,6 +42,7 @@
 
 const {getAllSongs, getSongNumbers} = useIndexDB()
 const pwa = usePWA()
+const toggleSidebar = inject('toggleSidebar', () => {})
 
 const allSongs = ref([])
 const songNumbers = ref([])

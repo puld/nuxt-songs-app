@@ -1,5 +1,13 @@
 <template>
   <ClientOnly>
+    <Teleport to="#navbar-left">
+      <button class="nav-btn" @click="$router.back()" aria-label="Назад">
+        <Icon name="mingcute:arrow-left-line" size="1.5rem"/>
+      </button>
+    </Teleport>
+  </ClientOnly>
+
+  <ClientOnly>
     <Teleport to="#navbar-center">
       <span class="nav-title">Настройки</span>
     </Teleport>

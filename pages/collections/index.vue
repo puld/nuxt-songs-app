@@ -1,5 +1,13 @@
 <template>
   <ClientOnly>
+    <Teleport to="#navbar-left">
+      <button class="nav-btn hamburger" @click="toggleSidebar" aria-label="Меню">
+        <Icon name="mingcute:menu-line" size="1.5rem"/>
+      </button>
+    </Teleport>
+  </ClientOnly>
+
+  <ClientOnly>
     <Teleport to="#navbar-center">
       <span class="nav-title">Подборки</span>
     </Teleport>
@@ -48,6 +56,7 @@
 
 <script setup>
 const { getCollections, createCollection, deleteCollection } = useIndexDB();
+const toggleSidebar = inject('toggleSidebar', () => {})
 
 const collections = ref([]);
 const loading = ref(true);
