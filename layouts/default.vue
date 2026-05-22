@@ -8,6 +8,37 @@ const showNavbar = ref(true)
 const lastScrollY = ref(0)
 const scrollOffset = 100
 const sidebarOpen = ref(false)
+const sidebarCollections = ref([])
+const { getCollections, getSongsCountInCollection } = useIndexDB()
+
+const loadSidebarCollections = async () => {
+  const collections = await getCollections()
+  const withCounts = await Promise.all(
+    collections.map(async (c) => ({
+      ...c,
+      songsCount: await getSongsCountInCollection(c.id)
+    }))
+  )
+  // «Избранное» первым, остальные по дате создания
+  const favorite = withCounts.find(c => c.isFavorite)
+  const others = withCounts
+    .filter(c => !c.isFavorite)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+  sidebarCollections.value = favorite ? [favorite, ...others] : others
+}
+
+const toggleSidebar = () => {
+  sidebarOpen.value = !sidebarOpen.value
+  if (sidebarOpen.value) {
+    loadSidebarCollections()
+  }
+}
+
+const closeSidebar = () => {
+  sidebarOpen.value = false
+}
+
+provide('toggleSidebar', toggleSidebar)
 
 const onScroll = () => {
   const currentScrollY = window.scrollY
@@ -21,14 +52,6 @@ const onScroll = () => {
   }
 
   lastScrollY.value = currentScrollY
-}
-
-const toggleSidebar = () => {
-  sidebarOpen.value = !sidebarOpen.value
-}
-
-const closeSidebar = () => {
-  sidebarOpen.value = false
 }
 
 const manifestHref = useRuntimeConfig().app.baseURL + 'manifest.webmanifest'
@@ -72,33 +95,58 @@ onUnmounted(() => {
     <Transition name="slide">
       <aside v-if="sidebarOpen" class="sidebar">
         <div class="sidebar-header">
-          <span class="sidebar-title">Меню</span>
-          <button class="sidebar-close" @click="closeSidebar">
+          <button class="sidebar-close-btn" @click="closeSidebar">
             <Icon name="mingcute:close-line" size="1.5rem"/>
           </button>
+          <span class="sidebar-title">Меню</span>
         </div>
         <nav class="sidebar-nav">
           <NuxtLink to="/" class="sidebar-link" @click="closeSidebar">
             <Icon name="mingcute:home-5-line" size="1.25rem"/>
             <span>Главная</span>
           </NuxtLink>
-          <NuxtLink to="/collections" class="sidebar-link" @click="closeSidebar">
-            <Icon name="mingcute:folder-line" size="1.25rem"/>
+
+          <div class="sidebar-divider"></div>
+
+          <div class="sidebar-section-header">
             <span>Подборки</span>
-          </NuxtLink>
+          </div>
+
+          <div class="sidebar-collections">
+            <NuxtLink
+              v-for="collection in sidebarCollections"
+              :key="collection.id"
+              :to="`/collections/${collection.id}`"
+              class="sidebar-link sidebar-collection-link"
+              @click="closeSidebar"
+            >
+              <Icon
+                :name="collection.isFavorite ? 'mingcute:star-fill' : 'mingcute:folder-line'"
+                :class="{ 'favorite-icon': collection.isFavorite }"
+                size="1.25rem"
+              />
+              <span class="sidebar-collection-name">{{ collection.name }}</span>
+              <span class="sidebar-collection-count">{{ collection.songsCount }}</span>
+            </NuxtLink>
+          </div>
+
+          <div class="sidebar-divider"></div>
+        </nav>
+
+        <div class="sidebar-bottom">
           <NuxtLink to="/settings" class="sidebar-link" @click="closeSidebar">
             <Icon name="mingcute:settings-3-line" size="1.25rem"/>
             <span>Настройки</span>
           </NuxtLink>
-        </nav>
+        </div>
       </aside>
     </Transition>
 
     <!-- Navigation Bar -->
     <nav class="app-bar" :class="{ 'app-bar-hidden': !showNavbar }">
-      <button class="nav-btn hamburger" @click="toggleSidebar" aria-label="Меню">
-        <Icon name="mingcute:menu-line" size="1.5rem"/>
-      </button>
+      <div id="navbar-left">
+        <!-- Контент телепортируется со страниц: гамбургер или стрелка назад -->
+      </div>
 
       <!-- Динамический контент середины — центрируется абсолютно -->
       <div id="navbar-center">
@@ -157,8 +205,8 @@ onUnmounted(() => {
 .sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 1rem;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
   height: 56px;
   border-bottom: 1px solid var(--border-color);
 }
@@ -168,26 +216,31 @@ onUnmounted(() => {
   font-size: 1.1rem;
 }
 
-.sidebar-close {
+.sidebar-close-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   cursor: pointer;
   color: var(--text);
   background: none;
   border: none;
+  flex-shrink: 0;
   transition: background 0.2s;
 }
 
-.sidebar-close:hover {
+.sidebar-close-btn:hover {
   background: var(--bg-secondary);
 }
 
 .sidebar-nav {
   padding: 0.5rem 0;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-link {
@@ -202,6 +255,56 @@ onUnmounted(() => {
 
 .sidebar-link:hover {
   background: var(--bg-secondary);
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 0.25rem 1rem;
+}
+
+.sidebar-section-header {
+  padding: 0.5rem 1.25rem 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.sidebar-collections {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar-collection-link {
+  padding: 0.6rem 1.25rem;
+}
+
+.sidebar-collection-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-collection-count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.favorite-icon {
+  color: #f59e0b;
+}
+
+.sidebar-bottom {
+  border-top: 1px solid var(--border-color);
+  padding: 0.25rem 0;
 }
 
 /* Transition: sidebar slide */
@@ -275,6 +378,12 @@ onUnmounted(() => {
   font-size: 1.25rem;
   color: var(--text);
   white-space: nowrap;
+}
+
+#navbar-left {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 #navbar-center {

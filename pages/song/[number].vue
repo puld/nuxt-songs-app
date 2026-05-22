@@ -1,5 +1,13 @@
 <template>
   <ClientOnly>
+    <Teleport to="#navbar-left" v-if="song">
+      <button class="nav-btn hamburger" @click="toggleSidebar" aria-label="Меню">
+        <Icon name="mingcute:menu-line" size="1.5rem"/>
+      </button>
+    </Teleport>
+  </ClientOnly>
+
+  <ClientOnly>
     <!-- Навбар: стрелки + номер песни -->
     <Teleport to="#navbar-center" v-if="song">
       <button v-if="hasPrev" class="nav-arrow" @click="goToSong(prevSongNumber)" aria-label="Предыдущая песня">
@@ -112,6 +120,7 @@ import { useSettingsStore } from '~/stores/settings'
 const route = useRoute();
 const router = useRouter()
 const settings = useSettingsStore()
+const toggleSidebar = inject('toggleSidebar', () => {})
 const {
   getSong,
   getSongNumbers,
