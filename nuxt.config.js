@@ -102,6 +102,26 @@ export default {
         '@vite-pwa/nuxt'
     ],
 
+    icon: {
+        clientBundle: {
+            icons: [
+                'mingcute:search-line',
+                'mingcute:close-line',
+                'mingcute:home-5-line',
+                'mingcute:folder-line',
+                'mingcute:settings-3-line',
+                'mingcute:menu-line',
+                'mingcute:left-line',
+                'mingcute:right-line',
+                'mingcute:star-fill',
+                'mingcute:star-line',
+            ],
+            scan: true,
+            sizeLimitKb: 256,
+        },
+        fallbackToApi: false,
+    },
+
     colorMode: {
         preference: 'system',
         fallback: 'light',
