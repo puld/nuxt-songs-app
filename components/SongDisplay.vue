@@ -39,6 +39,7 @@
 
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
+import { processRepeats } from '~/lib/repeats'
 
 const props = defineProps({
   song: {
@@ -123,20 +124,18 @@ const fontSizeClass = computed(() => {
 const processContent = (content) => {
   if (!content) return ''
 
+  // 1. Обрабатываем повторы (/текст /Nр.) — не затрагивает аккорды {Am}
+  let result = processRepeats(content)
+
   if (!settings.showChords) {
-    // Удаляем аккорды в фигурных скобках
-    return content.replace(/\{[^\}]*\}/g, '')
+    // Удаляем аккорды в фигурных скобках (в уже обработанном HTML)
+    result = result.replace(/\{[^\}]*\}/g, '')
+  } else {
+    // Формат: {Am} → аккорд выше текста, {_G} → аккорд в строке
+    result = result.replace(/\{_/g, "<span class='chord'>")
+    result = result.replace(/\{/g, "<span class='chord chord-up'>")
+    result = result.replace(/\}/g, "</span>")
   }
-
-  // Формат: {Am} → аккорд выше текста, {_G} → аккорд в строке
-  let result = content
-
-  // Обрабатываем инлайн аккорды {_G}
-  result = result.replace(/\{_/g, "<span class='chord'>")
-
-  // Обрабатываем аккорды над текстом {Am}
-  result = result.replace(/\{/g, "<span class='chord chord-up'>")
-  result = result.replace(/\}/g, "</span>")
 
   // Заменяем переносы строк на <br/>
   result = result.replace(/([^>])\n/g, '$1<br/>')
@@ -405,6 +404,38 @@ const hasChords = (str) => {
 
 .hide-chords :deep(.chord) {
   display: none;
+}
+
+/* Маркеры повторов */
+.content :deep(.repeat) {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.content :deep(.repeat-depth-1) {
+  font-style: italic;
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
+.content :deep(.repeat-depth-2) {
+  font-style: italic;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+.content :deep(.repeat-depth-3) {
+  font-style: italic;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.content :deep(.repeat-marker) {
+  color: var(--text-secondary);
+  font-style: normal;
+  font-size: 0.85em;
+  user-select: none;
+  opacity: 0.7;
 }
 
 /* Табы вариантов */
