@@ -27,13 +27,11 @@
         </button>
       </Transition>
     </div>
-    <p class="app-version">v{{ config.appVersion }} · {{ config.appCommit }} · {{ config.appBuildDate }}</p>
   </div>
 </template>
 
 <script setup>
 
-const config = useRuntimeConfig()
 const {getAllSongs, getSongNumbers} = useIndexDB()
 const pwa = usePWA()
 
@@ -99,12 +97,5 @@ const showInstallButton = computed(() => {
 
 .install-btn:active {
   opacity: 0.8;
-}
-
-.app-version {
-  margin-top: 3rem;
-  text-align: center;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
 }
 </style>
