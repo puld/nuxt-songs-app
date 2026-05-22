@@ -354,8 +354,6 @@ onUnmounted(() => {
   }
 }
 
-.nav-spacer { display: none; }
-
 .footer {
   padding: 1rem;
   text-align: center;
