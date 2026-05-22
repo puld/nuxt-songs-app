@@ -123,56 +123,11 @@ const handleChordsToggle = (e) => {
 }
 
 .success {
-  color: green;
+  color: var(--primary);
 }
 
 .error {
-  color: red;
-}
-
-.toggle-switch {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.toggle-switch input {
-  display: none;
-}
-
-.slider {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 24px;
-  background-color: #ccc;
-  border-radius: 24px;
-  transition: .4s;
-}
-
-.slider:before {
-  content: "";
-  position: absolute;
-  height: 16px;
-  width: 16px;
-  left: 4px;
-  bottom: 4px;
-  background-color: white;
-  border-radius: 50%;
-  transition: .4s;
-}
-
-input:checked + .slider {
-  background-color: var(--primary);
-}
-
-input:checked + .slider:before {
-  transform: translateX(26px);
-}
-
-.toggle-label {
-  margin-left: 5px;
+  color: var(--danger);
 }
 
 .toggle-switch {
