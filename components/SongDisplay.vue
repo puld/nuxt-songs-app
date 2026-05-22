@@ -15,12 +15,22 @@
     <div class="song-content-wrapper">
       <div class="song-sheet">
         <div v-for="(item, index) in activeVariantBody" :key="index" class="song-part" :class="item.type">
-          <span class="part-label">{{ item.type === 'verse' ? item.n + '.' : 'Припев:' }}</span>
-          <div
-            class="content"
-            :class="{ 'content-withChords': hasChords(item.content) }"
-            v-html="processContent(item.content)"
-          ></div>
+          <template v-if="item.type === 'verse'">
+            <span class="part-label">{{ item.n }}.</span>
+            <div
+              class="content"
+              :class="{ 'content-withChords': hasChords(item.content) }"
+              v-html="processContent(item.content)"
+            ></div>
+          </template>
+          <template v-else>
+            <span class="part-label chorus-label">Припев:</span>
+            <div
+              class="content"
+              :class="{ 'content-withChords': hasChords(item.content) }"
+              v-html="processContent(item.content)"
+            ></div>
+          </template>
         </div>
       </div>
     </div>
@@ -152,6 +162,11 @@ const hasChords = (str) => {
   margin: 0 auto;
   padding: 0;
 
+  /* xs: сужаем чтобы «Припев:» не выходил за экран */
+  @media (min-width: 480px) {
+    width: 90%;
+  }
+
   /* sm: 10/12 = 83.33% */
   @media (min-width: 640px) {
     width: 83.33%;
@@ -168,14 +183,70 @@ const hasChords = (str) => {
   }
 }
 
-/* «Лист песни» — единый фон, без карточек/рамок */
-.song-sheet {
-  padding: 0.5rem 0;
+/* Средний шрифт: чуть уже на xs, чтобы «Припев:» не выходил за экран */
+@media (min-width: 480px) {
+  .font-size-medium .song-content-wrapper {
+    width: 85%;
+  }
 }
 
+@media (min-width: 640px) {
+  .font-size-medium .song-content-wrapper {
+    width: 83.33%;
+  }
+}
+
+/* Крупный шрифт на xs: «Припев:» в режиме «строка сверху», колонка шире */
+@media (min-width: 480px) {
+  .font-size-large .song-content-wrapper {
+    width: 95%;
+  }
+}
+
+@media (min-width: 640px) {
+  .font-size-large .song-content-wrapper {
+    width: 95%;
+  }
+}
+
+/* Крупный шрифт: inline «Припев:» с 768px, стандартная ширина */
+@media (min-width: 768px) {
+  .font-size-large .song-content-wrapper {
+    width: 66.67%;
+  }
+}
+
+/* Средний/крупный шрифт: ограничение ширины на широких десктопах */
+@media (min-width: 1024px) {
+  .font-size-medium .song-content-wrapper {
+    max-width: 40rem;
+  }
+
+  .font-size-large .song-content-wrapper {
+    max-width: 35rem;
+  }
+}
+
+/* «Лист песни» — CSS переменные для колонок
+   --label-col фиксирована по размеру шрифта, чтобы «Припев:»
+   в inline режиме не расширял колонку и не сдвигал текст */
+.song-sheet {
+  --label-col: 1.5rem;
+}
+
+.font-size-medium .song-sheet {
+  --label-col: 2rem;
+}
+
+.font-size-large .song-sheet {
+  --label-col: 2.5rem;
+}
+
+/* Каждая часть — свой grid с едиными колонками */
 .song-part {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: var(--label-col) 1fr;
+  column-gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
@@ -183,35 +254,108 @@ const hasChords = (str) => {
   margin-bottom: 0;
 }
 
-.part-label {
-  flex-shrink: 0;
-  width: 5.5rem;
-  text-align: right;
-  padding: 0 0.5rem 0 0;
+/* Номер куплета — в левой колонке, по левому краю */
+.verse .part-label {
+  grid-column: 1;
+  text-align: left;
   color: var(--primary);
   font-weight: 500;
   line-height: inherit;
   user-select: none;
 }
 
-.verse .part-label {
-  color: var(--primary);
+.verse .content {
+  grid-column: 2;
 }
 
-.chorus .part-label {
+/* Припев: лейбл в колонке 1, по левому краю (как номера куплетов) */
+.chorus-label {
+  grid-column: 1;
+  grid-row: 1;
+  text-align: left;
   color: var(--danger);
+  font-weight: 500;
+  line-height: inherit;
+  user-select: none;
 }
 
-/* Адаптация метки припева на узких экранах */
-@media (max-width: 360px) {
-  .part-label {
-    width: 4.5rem;
-    font-size: 0.85em;
+.chorus .content {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+/* На широких экранах: номера и «Припев:» по правому краю */
+@media (min-width: 480px) {
+  .verse .part-label {
+    text-align: right;
+  }
+
+  .chorus {
+    position: relative;
+  }
+
+  .chorus-label {
+    position: absolute;
+    right: calc(100% - var(--label-col));
+    top: 0;
+    width: max-content;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  .chorus .content {
+    grid-row: 1;
+  }
+}
+
+/* Крупный шрифт: «Припев:» в режиме «строка выше» до 768px,
+   т.к. при inline-позиционировании он выступает за экран */
+@media (min-width: 480px) {
+  .font-size-large .verse .part-label {
+    text-align: left;
+  }
+
+  .font-size-large .chorus {
+    position: static;
+  }
+
+  .font-size-large .chorus-label {
+    position: static;
+    width: auto;
+    white-space: normal;
+    text-align: left;
+  }
+
+  .font-size-large .chorus .content {
+    grid-row: 2;
+  }
+}
+
+/* Крупный шрифт: inline «Припев:» с 768px (отступ достаточен) */
+@media (min-width: 768px) {
+  .font-size-large .verse .part-label {
+    text-align: right;
+  }
+
+  .font-size-large .chorus {
+    position: relative;
+  }
+
+  .font-size-large .chorus-label {
+    position: absolute;
+    right: calc(100% - var(--label-col));
+    top: 0;
+    width: max-content;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  .font-size-large .chorus .content {
+    grid-row: 1;
   }
 }
 
 .content {
-  flex: 1;
   white-space: normal;
   position: relative;
 }
