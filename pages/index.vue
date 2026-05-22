@@ -28,6 +28,18 @@
           @select="goToSong"
         />
       </div>
+
+      <div class="instructions">
+        <ul v-if="favoriteCount === 0" class="instruction-text instruction-extended">
+          <li>Ищите песни по номеру или тексту</li>
+          <li>Нажмите <Icon name="mingcute:star-line" size="0.95rem" class="instruction-icon" /> на странице песни, чтобы добавить в «Избранное»</li>
+          <li>Ваши подборки доступны через меню ☰</li>
+        </ul>
+        <p v-else class="instruction-text">
+          Ищите песни по номеру или тексту. Подборки — через меню ☰.
+        </p>
+      </div>
+
       <Transition name="fade">
         <button v-if="showInstallButton" class="install-btn" @click="installApp">
           <Icon name="mingcute:download-2-line" size="1.1rem" />
@@ -40,18 +52,24 @@
 
 <script setup>
 
-const {getAllSongs, getSongNumbers} = useIndexDB()
+const {getAllSongs, getSongNumbers, getFavoriteCollection, getSongsCountInCollection} = useIndexDB()
 const pwa = usePWA()
 const toggleSidebar = inject('toggleSidebar', () => {})
 
 const allSongs = ref([])
 const songNumbers = ref([])
+const favoriteCount = ref(0)
 const searchComponent = ref(null)
 const router = useRouter()
 
 onMounted(async () => {
   allSongs.value = await getAllSongs()
   songNumbers.value = await getSongNumbers()
+
+  const favorite = await getFavoriteCollection()
+  if (favorite) {
+    favoriteCount.value = await getSongsCountInCollection(favorite.id)
+  }
 
   // Фокус на поле поиска
   searchComponent.value?.focus()
@@ -83,8 +101,45 @@ const showInstallButton = computed(() => {
 
 .search-container {
   margin-top: 2rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   max-width: 100%;
+}
+
+.instructions {
+  margin-bottom: 2rem;
+}
+
+.instruction-text {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.instruction-extended {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border-radius: 0.5rem;
+  list-style: none;
+  padding-left: 1rem;
+}
+
+.instruction-extended li {
+  position: relative;
+  padding-left: 1rem;
+}
+
+.instruction-extended li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+}
+
+.instruction-icon {
+  vertical-align: text-top;
 }
 
 .install-btn {
