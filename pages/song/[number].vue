@@ -14,6 +14,15 @@
     </Teleport>
   </ClientOnly>
 
+  <ClientOnly>
+    <!-- Навбар: звезда избранного -->
+    <Teleport to="#navbar-right" v-if="song">
+      <button class="favorite-star" :class="{ active: isSongFavorite }" @click="toggleFavorite" aria-label="Избранное">
+        <Icon :name="isSongFavorite ? 'mingcute:star-fill' : 'mingcute:star-line'" size="1.5rem"/>
+      </button>
+    </Teleport>
+  </ClientOnly>
+
   <!-- Popover для поиска и перехода -->
   <Teleport to="body">
     <Transition name="fade">
@@ -63,12 +72,9 @@
 
   <div v-if="loading">Загрузка...</div>
   <div v-else-if="song">
-    <!-- Название песни + звёздочка избранного -->
-    <div class="song-title-row">
+    <!-- Название песни -->
+    <div class="song-title-row" :class="fontSizeClass">
       <h1 class="song-title" :class="fontSizeClass">{{ song.title }}</h1>
-      <button class="favorite-star" :class="{ active: isSongFavorite }" @click="toggleFavorite" aria-label="Избранное">
-        <Icon :name="isSongFavorite ? 'mingcute:star-fill' : 'mingcute:star-line'" size="1.3em"/>
-      </button>
     </div>
 
     <SongDisplay
@@ -333,26 +339,70 @@ const removeFromCollection = async (col) => {
 /* Строка заголовка песни + звёздочка избранного
    Ширина совпадает с .song-content-wrapper в SongDisplay.vue,
    чтобы звезда была прижата к правому краю колонки текста песни.
-   Адаптивные брейкпоинты: 640→83.33%, 768→66.67%, 1024→50% —
-   должны синхронизироваться при рефакторинге верстки. */
+   ВНИМАНИЕ: Брейкпоинты ширины синхронизированы с .song-content-wrapper
+   в components/SongDisplay.vue — при рефакторинге менять оба места. */
 .song-title-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
   width: 100%;
   margin-left: auto;
   margin-right: auto;
 
+  /* xs: сужаем чтобы «Припев:» не выходил за экран */
+  @media (min-width: 480px) {
+    width: 90%;
+  }
+
+  /* sm: 10/12 = 83.33% */
   @media (min-width: 640px) {
     width: 83.33%;
   }
 
+  /* md: 8/12 = 66.67% */
   @media (min-width: 768px) {
     width: 66.67%;
   }
 
+  /* lg: 6/12 = 50% */
   @media (min-width: 1024px) {
     width: 50%;
+  }
+}
+
+/* Средний/крупный шрифт: уже колонка на xs (синхронно с SongDisplay) */
+@media (min-width: 480px) {
+  .song-title-row.font-size-medium {
+    width: 85%;
+  }
+
+  .song-title-row.font-size-large {
+    width: 95%;
+  }
+}
+
+@media (min-width: 640px) {
+  .song-title-row.font-size-medium {
+    width: 83.33%;
+  }
+
+  .song-title-row.font-size-large {
+    width: 95%;
+  }
+}
+
+@media (min-width: 768px) {
+  .song-title-row.font-size-large {
+    width: 66.67%;
+  }
+}
+
+/* Средний/крупный шрифт: ограничение ширины на широких десктопах */
+@media (min-width: 1024px) {
+  .song-title-row.font-size-medium {
+    max-width: 40rem;
+  }
+
+  .song-title-row.font-size-large {
+    max-width: 35rem;
   }
 }
 
@@ -361,7 +411,6 @@ const removeFromCollection = async (col) => {
   color: var(--text);
   text-align: center;
   margin: 0;
-  flex: 1;
 }
 
 .song-title.font-size-small {
@@ -386,11 +435,15 @@ const removeFromCollection = async (col) => {
   transition: color 0.2s, transform 0.2s;
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
 }
 
 .favorite-star:hover {
-  transform: scale(1.2);
+  background: var(--bg-secondary);
+  transform: scale(1.1);
 }
 
 .favorite-star.active {

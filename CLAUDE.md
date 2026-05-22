@@ -7,6 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - НЕ добавлять `Generated with [Claude Code]` в сообщения коммитов
 - НЕ добавлять `Co-Authored-By: Claude` в сообщения коммитов
 
+## Правила редизайна
+
+- ВСЕ изменения UI проверять визуально через браузер (Playwright screenshot/snapshot) до коммита
+
 ## Основные команды
 
 ### Разработка
