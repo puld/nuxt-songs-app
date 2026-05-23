@@ -8,7 +8,7 @@
 
 | # | Задача | Статус | Примечания |
 |---|--------|--------|------------|
-| 1 | Редизайн SongDisplay: «Лист песни» с маркерами куплетов/припевов | ЧАСТИЧНО | Куплеты/припевы + подсветка повторов готовы, нет max-width для мелкого шрифта |
+| 1 | Редизайн SongDisplay: «Лист песни» с маркерами куплетов/припевов | ГОТОВО | Куплеты/припевы + подсветка повторов + max-width для всех размеров шрифта |
 | 2 | Боковое меню: подборки в меню, настройки внизу | ГОТОВО | Подборки в сайдбаре, Избранное со звёздочкой, настройки внизу, скролл, кнопка закрытия на месте гамбургера, Teleport `#navbar-left` для гамбургера/назад |
 | 3 | Страница подборки: стиль поиска + режим редактирования | ГОТОВО | Режим редактирования, стиль как в поиске, удаление подборки (кроме «Избранного») |
 | 4 | Главная: инструкция под поиском | ГОТОВО | 3 пункта при пустом избранном, краткая подсказка иначе, иконка mingcute:star-line, шрифт 0.95rem |
@@ -40,15 +40,15 @@
 |---|--------|--------|------------|
 | 16 | Дедупликация toggle-switch CSS | ГОТОВО | Коммит 8371b0d |
 | 17 | Удаление мёртвого CSS (.nav-spacer) | ГОТОВО | Коммит 8371b0d |
-| 18 | Горизонтальный режим: max-width контента | ЧАСТИЧНО | Только medium/large шрифты, нет для small |
-| 19 | Хардкод цветов → CSS-переменные | ЧАСТИЧНО | Остались: `#f59e0b` (звезда), `#ccc` (slider off), `#fff` (кнопка установки) |
-| 20 | Два лайаута: гамбургер и стрелка назад | НЕ НАЧАТО | Вынести `#navbar-left` из Teleport страниц в layout; layout `default` (гамбургер + sidebar) и `back` (стрелка назад); `settings.vue` и `collections/[id].vue` → `definePageMeta({ layout: 'back' })`; удалить Teleport `#navbar-left` из всех страниц, удалить `inject('toggleSidebar')`/`inject('updateAvailable')`; бейдж обновления на гамбургере в layout `default` |
+| 18 | Горизонтальный режим: max-width контента | ГОТОВО | max-width: 45rem для small/medium/large шрифтов на десктопе |
+| 19 | Хардкод цветов → CSS-переменные | ГОТОВО | `--star-color`, `--toggle-off`, `--on-primary`; тост адаптивной ширины |
+| 20 | Два лайаута: гамбургер и стрелка назад | ГОТОВО | Один layout + компоненты NavBarHamburger/NavBarBack (вместо двух layout); provide/inject для toggleSidebar и updateAvailable; AppFooter вынесен в компонент; useLayoutCommon — общая логика layout |
 
 ---
 
 ## Детали по задачам
 
-### #1 SongDisplay — что осталось
+### #1 SongDisplay — ГОТОВО
 - max-width для мелкого шрифта при широких экранах
 
 ### #2 Боковое меню — ГОТОВО
@@ -122,24 +122,27 @@
 - Функции в `useIndexDB`: `getSongSettings(number)`, `setTranspose(number, value)`
 - Обновить dbVersion (сейчас 6, но songSettings нет)
 
-### #18 Горизонтальный режим — что осталось
-- Добавить max-width для `.font-size-small` при `min-width: 1024px`
-- Аналогично для `.song-title-row` в `song/[number].vue`
+### #18 Горизонтальный режим — ГОТОВО
+- ✅ max-width: 45rem для `.font-size-small` при `min-width: 1024px` (SongDisplay + song-title-row)
+- ✅ max-width для medium/large уже были
 
-### #19 Хардкод цветов — что осталось
-- `#f59e0b` → CSS-переменная (звезда избранного, `song/[number].vue`)
-- `#ccc` → CSS-переменная (slider off, `settings.vue`)
-- `#fff` → CSS-переменная (кнопка установки, `index.vue`)
+### #19 Хардкод цветов → CSS-переменные — ГОТОВО
+- ✅ `--star-color: #f59e0b` — для звёздочки избранного (song/[number].vue, default.vue)
+- ✅ `--toggle-off: #ccc` (светлая) / `#555` (тёмная) — для slider в настройках
+- ✅ `--on-primary: #ffffff` — для текста на primary-кнопках (index.vue, UpdateToast.vue)
+- ✅ Тост адаптивной ширины (left/right: 1rem вместо центрирования с white-space: nowrap)
+- ✅ Исправлена анимация toast-slide (убран translateX(-50%))
 
-### #20 Два лайаута: гамбургер и стрелка назад
-- Создать `layouts/back.vue` — как `default.vue`, но вместо гамбургера стрелка назад в `#navbar-left`, без sidebar
-- Layout `default.vue` — рендерит гамбургер + бейдж обновления прямо в `#navbar-left` (без Teleport)
-- `settings.vue` и `collections/[id].vue` → `definePageMeta({ layout: 'back' })`
-- Удалить `<ClientOnly><Teleport to="#navbar-left">` из всех 5 страниц
-- Удалить `inject('toggleSidebar')` из `index.vue`, `song/[number].vue`, `collections/index.vue`
-- Удалить `inject('updateAvailable')` из `index.vue`
-- Удалить `provide('toggleSidebar')` и `provide('updateAvailable')` из `layouts/default.vue` (если больше не нужны)
-- Вынести общий template (sidebar, navbar, footer, UpdateToast) в компоненты для избежания дублирования
+### #20 Один layout + компоненты NavBarHamburger/NavBarBack — ГОТОВО
+- ✅ Один layout (default.vue) с Teleport-слотами #navbar-left/#center/#right
+- ✅ Компонент NavBarHamburger (с бейджем обновлений)
+- ✅ Компонент NavBarBack (стрелка назад)
+- ✅ useLayoutCommon — общая логика layout (скролл, wakeLock, autoUpdate, fontClass)
+- ✅ AppFooter — вынесенный футер
+- ✅ provide/inject для toggleSidebar и updateAvailable
+- ✅ Удалён layout back.vue и компонент AppNavbar.vue
+- ✅ Удалена страница /collections (список подборок — в сайдбаре)
+- ✅ Удалён CollectionCard.vue
 
 ---
 

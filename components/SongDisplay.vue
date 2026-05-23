@@ -217,6 +217,10 @@ const hasChords = (str) => {
 
 /* Средний/крупный шрифт: ограничение ширины на широких десктопах */
 @media (min-width: 1024px) {
+  .font-size-small .song-content-wrapper {
+    max-width: 45rem;
+  }
+
   .font-size-medium .song-content-wrapper {
     max-width: 40rem;
   }

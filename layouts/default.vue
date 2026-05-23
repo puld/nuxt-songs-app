@@ -252,7 +252,7 @@ provide('updateAvailable', autoUpdate.updateAvailable)
 }
 
 .favorite-icon {
-  color: #f59e0b;
+  color: var(--star-color);
 }
 
 .sidebar-bottom {

@@ -477,6 +477,10 @@ const removeFromCollection = async (col) => {
 
 /* Средний/крупный шрифт: ограничение ширины на широких десктопах */
 @media (min-width: 1024px) {
+  .song-title-row.font-size-small {
+    max-width: 45rem;
+  }
+
   .song-title-row.font-size-medium {
     max-width: 40rem;
   }
@@ -527,7 +531,7 @@ const removeFromCollection = async (col) => {
 }
 
 .favorite-star.active {
-  color: #f59e0b;
+  color: var(--star-color);
 }
 
 .nav-arrow {
@@ -653,7 +657,7 @@ const removeFromCollection = async (col) => {
 }
 
 .favorite-icon {
-  color: #f59e0b;
+  color: var(--star-color);
 }
 
 .popup-empty {

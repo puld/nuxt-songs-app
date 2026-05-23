@@ -76,31 +76,31 @@ onUnmounted(() => {
 .update-toast {
   position: fixed;
   bottom: 5rem;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 1rem;
+  right: 1rem;
   background: var(--bg-secondary);
   border: 1px solid var(--primary);
   border-radius: 0.75rem;
-  padding: 0.85rem 1.25rem;
+  padding: 0.85rem 1rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   z-index: 400;
-  max-width: calc(100vw - 2rem);
-  white-space: nowrap;
 }
 
 .toast-text {
   font-size: 0.9rem;
   color: var(--text);
   font-weight: 500;
+  flex: 1;
+  min-width: 0;
 }
 
 .toast-btn {
   padding: 0.4rem 0.9rem;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
   border: none;
   border-radius: 0.5rem;
   font-size: 0.85rem;
@@ -145,7 +145,7 @@ onUnmounted(() => {
 
 .toast-slide-enter-from,
 .toast-slide-leave-to {
-  transform: translateX(-50%) translateY(100%);
+  transform: translateY(100%);
   opacity: 0;
 }
 </style>
