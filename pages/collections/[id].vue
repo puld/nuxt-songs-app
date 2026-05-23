@@ -23,7 +23,9 @@
   </ClientOnly>
 
   <div class="collection-page">
-    <div v-if="loading">Загрузка...</div>
+    <div v-if="loading">
+      <LoadingText />
+    </div>
     <div v-else-if="!collection">
       <p>Подборка не найдена</p>
       <NuxtLink to="/">На главную</NuxtLink>

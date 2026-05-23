@@ -17,9 +17,12 @@
   </ClientOnly>
 
   <div class="welcome-screen">
-    <div v-if="!allSongs.length">
-      <p>Необходимо перейти в настройки и принудительно обновить базу данных текстов песен.</p>
-      <NuxtLink to="/settings">Перейти в настройки для обновления</NuxtLink>
+    <div v-if="loading">
+      <LoadingText text="Загрузка базы данных..." />
+    </div>
+    <div v-else-if="!allSongs.length">
+      <p>Не удалось загрузить базу данных песен.</p>
+      <NuxtLink to="/settings">Обновить в настройках</NuxtLink>
     </div>
     <div v-else>
       <div class="search-container">
@@ -63,12 +66,14 @@ const updateAvailable = inject('updateAvailable', ref(false))
 const allSongs = ref([])
 const songNumbers = ref([])
 const favoriteCount = ref(0)
+const loading = ref(true)
 const searchComponent = ref(null)
 const router = useRouter()
 
 onMounted(async () => {
   allSongs.value = await getAllSongs()
   songNumbers.value = await getSongNumbers()
+  loading.value = false
 
   const favorite = await getFavoriteCollection()
   if (favorite) {
