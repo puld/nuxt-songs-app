@@ -1,9 +1,7 @@
 <template>
   <ClientOnly>
-    <Teleport to="#navbar-left" v-if="song">
-      <button class="nav-btn hamburger" @click="toggleSidebar" aria-label="Меню">
-        <Icon name="mingcute:menu-line" size="1.5rem"/>
-      </button>
+    <Teleport to="#navbar-left">
+      <NavBarHamburger />
     </Teleport>
   </ClientOnly>
 
@@ -122,7 +120,6 @@ import { useSettingsStore } from '~/stores/settings'
 const route = useRoute();
 const router = useRouter()
 const settings = useSettingsStore()
-const toggleSidebar = inject('toggleSidebar', () => {})
 const {
   getSong,
   getSongNumbers,

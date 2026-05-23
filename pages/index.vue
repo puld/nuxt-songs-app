@@ -1,12 +1,7 @@
 <template>
   <ClientOnly>
     <Teleport to="#navbar-left">
-      <button class="nav-btn hamburger" @click="toggleSidebar" aria-label="Меню">
-        <span class="nav-btn-icon-wrap">
-          <Icon name="mingcute:menu-line" size="1.5rem"/>
-          <span v-if="updateAvailable" class="update-badge"></span>
-        </span>
-      </button>
+      <NavBarHamburger />
     </Teleport>
   </ClientOnly>
 
@@ -60,8 +55,6 @@
 
 const {getAllSongs, getSongNumbers, getFavoriteCollection, getSongsCountInCollection} = useIndexDB()
 const pwa = usePWA()
-const toggleSidebar = inject('toggleSidebar', () => {})
-const updateAvailable = inject('updateAvailable', ref(false))
 
 const allSongs = ref([])
 const songNumbers = ref([])
@@ -170,22 +163,5 @@ const showInstallButton = computed(() => {
 
 .install-btn:active {
   opacity: 0.8;
-}
-
-.nav-btn-icon-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.update-badge {
-  position: absolute;
-  top: -3px;
-  right: -5px;
-  width: 8px;
-  height: 8px;
-  background: var(--danger);
-  border-radius: 50%;
 }
 </style>

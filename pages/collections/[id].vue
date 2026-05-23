@@ -1,9 +1,7 @@
 <template>
   <ClientOnly>
     <Teleport to="#navbar-left">
-      <button class="nav-btn" @click="$router.back()" aria-label="Назад">
-        <Icon name="mingcute:arrow-left-line" size="1.5rem"/>
-      </button>
+      <NavBarBack />
     </Teleport>
   </ClientOnly>
 
@@ -117,7 +115,7 @@ const deleteCollection = async () => {
 
   try {
     await deleteCollectionDB(Number(route.params.id))
-    router.push('/collections')
+    router.push('/')
   } catch (error) {
     console.error('Ошибка удаления подборки:', error)
   }
