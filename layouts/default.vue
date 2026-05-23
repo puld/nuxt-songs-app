@@ -125,7 +125,7 @@ provide('updateAvailable', autoUpdate.updateAvailable)
 
 <style>
 .layout {
-  min-height: 100dvh;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--bg);
