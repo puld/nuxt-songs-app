@@ -92,7 +92,6 @@ provide('updateAvailable', autoUpdate.updateAvailable)
             </NuxtLink>
           </div>
 
-          <div class="sidebar-divider"></div>
         </nav>
 
         <div class="sidebar-bottom">
@@ -201,7 +200,7 @@ provide('updateAvailable', autoUpdate.updateAvailable)
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1.25rem;
+  padding: 0.9rem 1.25rem;
   color: var(--text);
   text-decoration: none;
   transition: background 0.2s;
@@ -233,7 +232,7 @@ provide('updateAvailable', autoUpdate.updateAvailable)
 }
 
 .sidebar-collection-link {
-  padding: 0.6rem 1.25rem;
+  padding: 0.75rem 1.25rem;
 }
 
 .sidebar-collection-name {
