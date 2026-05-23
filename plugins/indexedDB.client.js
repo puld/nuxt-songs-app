@@ -202,33 +202,8 @@ export default defineNuxtPlugin(async (nuxtApp) => {
 
     if (songsCount === 0) {
         try {
-            const response = await fetch('assets/songs.json');
-            if (response.ok) {
-                const data = await response.json();
-                await new Promise((resolve, reject) => {
-                    const transaction = db.transaction(['songs'], 'readwrite');
-                    const store = transaction.objectStore('songs');
-                    for (const song of data.songs) {
-                        const variants = song.variants || [{ label: '', body: song.body || [] }];
-                        store.put({
-                            number: Number(song.n),
-                            title: String(song.title),
-                            variants: variants.map(variant => ({
-                                label: String(variant.label || ''),
-                                body: (variant.body || []).map(item => ({
-                                    id: Number(item.id),
-                                    n: Number(item.n),
-                                    type: String(item.type),
-                                    content: item.content ? String(item.content) : null,
-                                    repeatId: item.repeatId ? String(item.repeatId) : null
-                                })),
-                            })),
-                        });
-                    }
-                    transaction.oncomplete = () => resolve();
-                    transaction.onerror = (event) => reject(event.target.error);
-                });
-            }
+            const { fetchSongs } = useSongs();
+            await fetchSongs();
         } catch (error) {
             console.error('Ошибка автоматической загрузки песен:', error);
         }
