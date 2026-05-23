@@ -173,7 +173,7 @@ const handleKeepScreenOnToggle = (e) => {
   display: inline-block;
   width: 50px;
   height: 24px;
-  background-color: #ccc;
+  background-color: var(--toggle-off);
   border-radius: 24px;
   transition: .4s;
 }

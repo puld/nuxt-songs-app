@@ -153,7 +153,7 @@ const showInstallButton = computed(() => {
   width: 100%;
   padding: 0.75rem 1rem;
   background-color: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
   border: none;
   border-radius: 0.5rem;
   font-size: 0.95rem;
