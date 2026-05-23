@@ -78,7 +78,9 @@
     </Transition>
   </Teleport>
 
-  <div v-if="loading">Загрузка...</div>
+  <div v-if="loading">
+    <LoadingText />
+  </div>
   <div v-else-if="song">
     <!-- Название песни -->
     <div class="song-title-row" :class="fontSizeClass">

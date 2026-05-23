@@ -2,7 +2,10 @@
   <ClientOnly>
     <Teleport to="#navbar-left">
       <button class="nav-btn hamburger" @click="toggleSidebar" aria-label="Меню">
-        <Icon name="mingcute:menu-line" size="1.5rem"/>
+        <span class="nav-btn-icon-wrap">
+          <Icon name="mingcute:menu-line" size="1.5rem"/>
+          <span v-if="updateAvailable" class="update-badge"></span>
+        </span>
       </button>
     </Teleport>
   </ClientOnly>
@@ -14,9 +17,12 @@
   </ClientOnly>
 
   <div class="welcome-screen">
-    <div v-if="!allSongs.length">
-      <p>Необходимо перейти в настройки и принудительно обновить базу данных текстов песен.</p>
-      <NuxtLink to="/settings">Перейти в настройки для обновления</NuxtLink>
+    <div v-if="loading">
+      <LoadingText text="Загрузка базы данных..." />
+    </div>
+    <div v-else-if="!allSongs.length">
+      <p>Не удалось загрузить базу данных песен.</p>
+      <NuxtLink to="/settings">Обновить в настройках</NuxtLink>
     </div>
     <div v-else>
       <div class="search-container">
@@ -55,16 +61,19 @@
 const {getAllSongs, getSongNumbers, getFavoriteCollection, getSongsCountInCollection} = useIndexDB()
 const pwa = usePWA()
 const toggleSidebar = inject('toggleSidebar', () => {})
+const updateAvailable = inject('updateAvailable', ref(false))
 
 const allSongs = ref([])
 const songNumbers = ref([])
 const favoriteCount = ref(0)
+const loading = ref(true)
 const searchComponent = ref(null)
 const router = useRouter()
 
 onMounted(async () => {
   allSongs.value = await getAllSongs()
   songNumbers.value = await getSongNumbers()
+  loading.value = false
 
   const favorite = await getFavoriteCollection()
   if (favorite) {
@@ -161,5 +170,22 @@ const showInstallButton = computed(() => {
 
 .install-btn:active {
   opacity: 0.8;
+}
+
+.nav-btn-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.update-badge {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 8px;
+  height: 8px;
+  background: var(--danger);
+  border-radius: 50%;
 }
 </style>

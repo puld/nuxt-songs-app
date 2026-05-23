@@ -1,22 +1,21 @@
-import { useNuxtApp } from 'nuxt/app'
 import { useIndexDB } from './useIndexDB'
 
 /**
- * Composable для загрузки песен из JSON файла
- * @returns {Object} Объект с методами для работы с песнями
+ * Composable для загрузки песен из JSON файла.
+ * Единая точка входа для загрузки песен — используется плагином и настройками.
+ * После успешной загрузки сохраняет ETag ответа в settings store.
  */
 export const useSongs = () => {
     const { addSongs } = useIndexDB()
 
     /**
-     * Загружает песни из файла assets/songs.json и сохраняет в IndexedDB
+     * Загружает песни из файла assets/songs.json и сохраняет в IndexedDB.
+     * Сохраняет ETag ответа в settings store для автообновления.
+     *
      * @returns {Promise<boolean>} true при успешной загрузке, false при ошибке
-     * @throws {TypeError} Если получен не JSON ответ
-     * @throws {Error} При ошибках сети или парсинга
      */
-    const fetchSongs = async (number) => {
+    const fetchSongs = async () => {
         try {
-            // Правильный путь к файлу
             const response = await fetch('assets/songs.json')
 
             if (!response.ok) {
@@ -31,6 +30,14 @@ export const useSongs = () => {
 
             const data = await response.json()
             await addSongs(data.songs)
+
+            // Сохраняем ETag для автообновления
+            const etag = response.headers.get('etag')
+            if (etag) {
+                const settings = useSettingsStore()
+                settings.setSongsEtag(etag)
+            }
+
             return true
         } catch (error) {
             console.error('Ошибка загрузки песен:', error)

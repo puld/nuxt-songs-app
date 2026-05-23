@@ -1,6 +1,6 @@
 # План доработок по спецификации v1
 
-Последнее обновление: 2026-05-22
+Последнее обновление: 2026-05-23
 
 ## Статус задач
 
@@ -15,7 +15,7 @@
 | 5 | Парсер повторов `/.../Nр.` с вложенностью (стек) | ГОТОВО | `lib/repeats.js`: tokenize + parseTokens + buildHtml, `//` = два открывающих, 27 тестов |
 | 6 | Подсветка повторов в UI | ГОТОВО | Курсив + `--text-secondary`, маркеры `/` и `/Nр.` отображаются (не курсивные), `repeat-depth-*` для вложенности |
 | 7 | Опция «Не гасить экран» | ГОТОВО | Toggle в настройках, navigator.wakeLock, visibilitychange, 10 тестов |
-| 8 | Автообновление: проверка хеша, toast + бейдж | НЕ НАЧАТО | Есть только автозагрузка при пустой БД |
+| 8 | Автообновление: проверка ETag, toast + бейдж | ГОТОВО | ETag через HEAD-запрос (0 байт), toast + бейдж, коулдаун 30 мин |
 
 ### Приоритет 2 — Хранение данных
 
@@ -42,6 +42,7 @@
 | 17 | Удаление мёртвого CSS (.nav-spacer) | ГОТОВО | Коммит 8371b0d |
 | 18 | Горизонтальный режим: max-width контента | ЧАСТИЧНО | Только medium/large шрифты, нет для small |
 | 19 | Хардкод цветов → CSS-переменные | ЧАСТИЧНО | Остались: `#f59e0b` (звезда), `#ccc` (slider off), `#fff` (кнопка установки) |
+| 20 | Два лайаута: гамбургер и стрелка назад | НЕ НАЧАТО | Вынести `#navbar-left` из Teleport страниц в layout; layout `default` (гамбургер + sidebar) и `back` (стрелка назад); `settings.vue` и `collections/[id].vue` → `definePageMeta({ layout: 'back' })`; удалить Teleport `#navbar-left` из всех страниц, удалить `inject('toggleSidebar')`/`inject('updateAvailable')`; бейдж обновления на гамбургере в layout `default` |
 
 ---
 
@@ -59,7 +60,7 @@
 - ✅ Кнопка закрытия (X) в хедере сайдбара, на месте гамбургера
 - ✅ Teleport `#navbar-left` — страницы сами решают, что слева: гамбургер (главная, песня, подборки) или стрелка назад (настройки, конкретная подборка)
 - ✅ `provide('toggleSidebar')` / `inject('toggleSidebar')` — страницы вызывают открытие сайдбара
-- Бейдж на иконке настроек при наличии обновления (связано с #8) — пока не сделано
+- Бейдж на иконке настроек при наличии обновления — ГОТОВО (в рамках #8)
 
 ### #4 Главная — ГОТОВО
 - ✅ Расширенная инструкция (3 пункта с буллетами) при пустом избранном
@@ -103,11 +104,17 @@
 - ✅ Подключение в `layouts/default.vue` — `wakeLock.apply()` в onMounted
 - ✅ 10 тестов в `lib/wakeLock.test.js`
 
-### #8 Автообновление
-- При запуске: проверка хеша/etag `songs.json`
-- Если отличается: toast + бейдж на иконке настроек
-- Пользователь сам запускает обновление
-- Если обновление <10 сек — можно обновлять сразу при подтверждении
+### #8 Автообновление — ГОТОВО
+- ✅ ETag через HEAD-запрос к songs.json (0 байт при отсутствии изменений)
+- ✅ GitHub Pages поддерживает ETag (проверено на puld.github.io)
+- ✅ `lib/autoUpdate.js`: `shouldCheck()` (коулдаун 30 мин), `checkForUpdate()` (HEAD + ETag)
+- ✅ `stores/settings.js`: `songsEtag`, `lastUpdateCheck`, `updateAvailable`
+- ✅ `composables/useAutoUpdate.js`: `performCheck()`, `applyUpdate()`
+- ✅ `useSongs.fetchSongs()` — единая точка входа для загрузки песен, сама сохраняет ETag
+- ✅ `plugins/indexedDB.client.js` — использует `fetchSongs()` вместо дублированного кода
+- ✅ Toast: `UpdateToast.vue` — "Доступно обновление" + кнопка "Обновить", автоскрытие 30 сек
+- ✅ Бейдж: красная точка на иконке настроек в сайдбаре при `updateAvailable`
+- ✅ 12 тестов в `lib/autoUpdate.test.js`
 
 ### #13 songSettings + транспонирование
 - Новое хранилище в IndexedDB: `songSettings` (keyPath: `songNumber`, поля: `transpose`)
@@ -124,6 +131,16 @@
 - `#ccc` → CSS-переменная (slider off, `settings.vue`)
 - `#fff` → CSS-переменная (кнопка установки, `index.vue`)
 
+### #20 Два лайаута: гамбургер и стрелка назад
+- Создать `layouts/back.vue` — как `default.vue`, но вместо гамбургера стрелка назад в `#navbar-left`, без sidebar
+- Layout `default.vue` — рендерит гамбургер + бейдж обновления прямо в `#navbar-left` (без Teleport)
+- `settings.vue` и `collections/[id].vue` → `definePageMeta({ layout: 'back' })`
+- Удалить `<ClientOnly><Teleport to="#navbar-left">` из всех 5 страниц
+- Удалить `inject('toggleSidebar')` из `index.vue`, `song/[number].vue`, `collections/index.vue`
+- Удалить `inject('updateAvailable')` из `index.vue`
+- Удалить `provide('toggleSidebar')` и `provide('updateAvailable')` из `layouts/default.vue` (если больше не нужны)
+- Вынести общий template (sidebar, navbar, footer, UpdateToast) в компоненты для избежания дублирования
+
 ---
 
 ## Рекомендуемый порядок реализации
@@ -133,6 +150,7 @@
 3. ~~**#3 Страница подборки: режим редактирования**~~ — ГОТОВО
 4. ~~**#7 Не гасить экран**~~ — ГОТОВО
 5. ~~**#5 + #6 Повторы**~~ — ГОТОВО
-6. **#8 Автообновление** — сложнее, но важно для актуальности данных
+6. ~~**#8 Автообновление**~~ — ГОТОВО
 7. **#13 + #15 Транспонирование** — songSettings + UI
-8. **#18 + #19 Полировка** — остатки P4
+8. **#20 Два лайаута** — вынести navbar-left из Teleport
+9. **#18 + #19 Полировка** — остатки P4

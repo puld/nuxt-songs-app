@@ -40,11 +40,28 @@ const closeSidebar = () => {
 
 provide('toggleSidebar', toggleSidebar)
 
+// Автообновление базы данных
+const autoUpdate = useAutoUpdate()
+const showToast = ref(false)
+
+provide('updateAvailable', autoUpdate.updateAvailable)
+
 // Wake Lock: не гасить экран
 const wakeLock = useWakeLock()
 onMounted(() => {
   wakeLock.apply()
+
+  // Проверяем обновление базы данных
+  autoUpdate.performCheck().then(() => {
+    if (autoUpdate.updateAvailable.value) {
+      showToast.value = true
+    }
+  })
 })
+
+const onUpdateApplied = () => {
+  showToast.value = false
+}
 
 const onScroll = () => {
   const currentScrollY = window.scrollY
@@ -141,7 +158,10 @@ onUnmounted(() => {
 
         <div class="sidebar-bottom">
           <NuxtLink to="/settings" class="sidebar-link" @click="closeSidebar">
-            <Icon name="mingcute:settings-3-line" size="1.25rem"/>
+            <span class="sidebar-link-icon-wrap">
+              <Icon name="mingcute:settings-3-line" size="1.25rem"/>
+              <span v-if="autoUpdate.updateAvailable.value" class="update-badge"></span>
+            </span>
             <span>Настройки</span>
           </NuxtLink>
         </div>
@@ -173,6 +193,8 @@ onUnmounted(() => {
       <span class="footer-text">Оффлайн сборник текстов песен &copy;</span>
       <span class="footer-version">v{{ appConfig.appVersion }} · {{ appConfig.appCommit }} · {{ appConfig.appBuildDate }}</span>
     </footer>
+
+    <UpdateToast v-model="showToast" @applied="onUpdateApplied"/>
   </div>
 </template>
 
@@ -311,6 +333,23 @@ onUnmounted(() => {
 .sidebar-bottom {
   border-top: 1px solid var(--border-color);
   padding: 0.25rem 0;
+}
+
+.sidebar-link-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.update-badge {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 8px;
+  height: 8px;
+  background: var(--danger);
+  border-radius: 50%;
 }
 
 /* Transition: sidebar slide */

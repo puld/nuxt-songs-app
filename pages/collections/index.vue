@@ -18,7 +18,9 @@
 
     <button @click="showCreateModal = true">Создать новую подборку</button>
 
-    <div v-if="loading">Загрузка...</div>
+    <div v-if="loading">
+      <LoadingText />
+    </div>
     <div v-else class="collections-grid">
       <TransitionGroup name="fade">
         <CollectionCard
