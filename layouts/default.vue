@@ -3,10 +3,10 @@ import { useSettingsStore } from '~/stores/settings'
 
 const colorMode = useColorMode()
 const settings = useSettingsStore()
-const appConfig = useAppConfig()
-const showNavbar = ref(true)
-const lastScrollY = ref(0)
-const scrollOffset = 100
+
+const { showNavbar, autoUpdate, showToast, onUpdateApplied } = useLayoutCommon()
+
+// Sidebar
 const sidebarOpen = ref(false)
 const sidebarCollections = ref([])
 const { getCollections, getSongsCountInCollection } = useIndexDB()
@@ -19,7 +19,6 @@ const loadSidebarCollections = async () => {
       songsCount: await getSongsCountInCollection(c.id)
     }))
   )
-  // «Избранное» первым, остальные по дате создания
   const favorite = withCounts.find(c => c.isFavorite)
   const others = withCounts
     .filter(c => !c.isFavorite)
@@ -38,69 +37,9 @@ const closeSidebar = () => {
   sidebarOpen.value = false
 }
 
+// Provide для компонентов NavBarHamburger / NavBarBack
 provide('toggleSidebar', toggleSidebar)
-
-// Автообновление базы данных
-const autoUpdate = useAutoUpdate()
-const showToast = ref(false)
-
 provide('updateAvailable', autoUpdate.updateAvailable)
-
-// Wake Lock: не гасить экран
-const wakeLock = useWakeLock()
-onMounted(() => {
-  wakeLock.apply()
-
-  // Проверяем обновление базы данных
-  autoUpdate.performCheck().then(() => {
-    if (autoUpdate.updateAvailable.value) {
-      showToast.value = true
-    }
-  })
-})
-
-const onUpdateApplied = () => {
-  showToast.value = false
-}
-
-const onScroll = () => {
-  const currentScrollY = window.scrollY
-
-  if (currentScrollY < scrollOffset) {
-    showNavbar.value = true
-  } else if (currentScrollY > lastScrollY.value && currentScrollY > scrollOffset) {
-    showNavbar.value = false
-  } else if (currentScrollY < lastScrollY.value) {
-    showNavbar.value = true
-  }
-
-  lastScrollY.value = currentScrollY
-}
-
-const manifestHref = useRuntimeConfig().app.baseURL + 'manifest.webmanifest'
-
-useHead({
-  link: [
-    {rel: 'manifest', href: manifestHref},
-    {rel: 'apple-touch-icon', href: useRuntimeConfig().app.baseURL + 'apple-touch-icon.png'}
-  ],
-});
-
-onMounted(() => {
-  window.addEventListener('scroll', onScroll, { passive: true })
-
-  // Синхронизируем класс размера шрифта на <html> для CSS в layout
-  const updateFontClass = () => {
-    document.documentElement.classList.remove('font-size-small', 'font-size-medium', 'font-size-large')
-    document.documentElement.classList.add(`font-size-${settings.fontSize}`)
-  }
-  updateFontClass()
-  watch(() => settings.fontSize, updateFontClass)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('scroll', onScroll)
-})
 </script>
 
 <template>
@@ -153,7 +92,6 @@ onUnmounted(() => {
             </NuxtLink>
           </div>
 
-          <div class="sidebar-divider"></div>
         </nav>
 
         <div class="sidebar-bottom">
@@ -170,29 +108,16 @@ onUnmounted(() => {
 
     <!-- Navigation Bar -->
     <nav class="app-bar" :class="{ 'app-bar-hidden': !showNavbar }">
-      <div id="navbar-left">
-        <!-- Контент телепортируется со страниц: гамбургер или стрелка назад -->
-      </div>
-
-      <!-- Динамический контент середины — центрируется абсолютно -->
-      <div id="navbar-center">
-        <!-- Сюда прилетит контент со страницы -->
-      </div>
-
-      <!-- Динамический контент справа -->
-      <div id="navbar-right">
-        <!-- Сюда прилетит контент со страницы -->
-      </div>
+      <div id="navbar-left"></div>
+      <div id="navbar-center"></div>
+      <div id="navbar-right"></div>
     </nav>
 
     <div class="page-content">
       <slot/>
     </div>
 
-    <footer class="footer">
-      <span class="footer-text">Оффлайн сборник текстов песен &copy;</span>
-      <span class="footer-version">v{{ appConfig.appVersion }} · {{ appConfig.appCommit }} · {{ appConfig.appBuildDate }}</span>
-    </footer>
+    <AppFooter />
 
     <UpdateToast v-model="showToast" @applied="onUpdateApplied"/>
   </div>
@@ -222,7 +147,7 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 280px;
+  width: 300px;
   background: var(--bg);
   border-right: 1px solid var(--border-color);
   z-index: 300;
@@ -275,7 +200,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1.25rem;
+  padding: 0.9rem 1.25rem;
   color: var(--text);
   text-decoration: none;
   transition: background 0.2s;
@@ -307,7 +232,7 @@ onUnmounted(() => {
 }
 
 .sidebar-collection-link {
-  padding: 0.6rem 1.25rem;
+  padding: 0.75rem 1.25rem;
 }
 
 .sidebar-collection-name {
@@ -372,7 +297,7 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* App bar */
+/* Navigation Bar */
 .app-bar {
   position: fixed;
   top: 0;
@@ -390,39 +315,6 @@ onUnmounted(() => {
 
 .app-bar-hidden {
   transform: translateY(-100%);
-}
-
-.page-content {
-  padding-top: calc(56px + 1rem);
-  flex: 1;
-  padding-left: 1rem;
-  padding-right: 1rem;
-  padding-bottom: 1rem;
-}
-
-.nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  cursor: pointer;
-  color: var(--text);
-  background: none;
-  border: none;
-  transition: background 0.2s;
-}
-
-.nav-btn:hover {
-  background: var(--bg-secondary);
-}
-
-.nav-title {
-  font-weight: bold;
-  font-size: 1.25rem;
-  color: var(--text);
-  white-space: nowrap;
 }
 
 #navbar-left {
@@ -508,20 +400,43 @@ onUnmounted(() => {
   }
 }
 
-.footer {
-  padding: 1rem;
-  text-align: center;
-  border-top: 1px solid var(--border-color);
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0 0.5rem;
+.page-content {
+  padding-top: calc(56px + 1rem);
+  flex: 1;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 1rem;
 }
 
-.footer-version {
-  font-size: 0.7rem;
+.nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text);
+  background: none;
+  border: none;
+  transition: background 0.2s;
+}
+
+.nav-btn:hover {
+  background: var(--bg-secondary);
+}
+
+.nav-btn-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-title {
+  font-weight: bold;
+  font-size: 1.25rem;
+  color: var(--text);
+  white-space: nowrap;
 }
 </style>

@@ -177,7 +177,24 @@ export const useIndexDB = () => {
                     const availableCollections = allCollections.filter(
                         collection => !existingCollectionIds.includes(collection.id)
                     )
-                    resolve(availableCollections)
+
+                    // Добавляем songsCount для каждой подборки
+                    const results = []
+                    let pending = availableCollections.length
+                    if (pending === 0) { resolve(results); return }
+
+                    availableCollections.forEach(collection => {
+                        const countIndex = songCollectionsStore.index('collectionId')
+                        const countReq = countIndex.count(collection.id)
+                        countReq.onsuccess = () => {
+                            results.push({ ...collection, songsCount: countReq.result || 0 })
+                            if (--pending === 0) resolve(results)
+                        }
+                        countReq.onerror = () => {
+                            results.push({ ...collection, songsCount: 0 })
+                            if (--pending === 0) resolve(results)
+                        }
+                    })
                 }
             }
             transaction.onerror = (event) => reject(event.target.error)

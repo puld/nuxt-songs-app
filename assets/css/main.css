@@ -25,6 +25,7 @@
 }
 
 body {
+    margin: 0;
     background-color: var(--bg);
     color: var(--text);
     transition: background-color 0.3s, color 0.3s;
