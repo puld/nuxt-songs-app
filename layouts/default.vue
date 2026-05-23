@@ -147,7 +147,7 @@ provide('updateAvailable', autoUpdate.updateAvailable)
   top: 0;
   left: 0;
   bottom: 0;
-  width: 280px;
+  width: 300px;
   background: var(--bg);
   border-right: 1px solid var(--border-color);
   z-index: 300;

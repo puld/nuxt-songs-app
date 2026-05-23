@@ -36,9 +36,10 @@
           <li>Нажмите <Icon name="mingcute:star-line" size="0.95rem" class="instruction-icon" /> на странице песни, чтобы добавить в «Избранное»</li>
           <li>Ваши подборки доступны через меню ☰</li>
         </ul>
-        <p v-else class="instruction-text">
-          Ищите песни по номеру или тексту. Подборки — через меню ☰.
-        </p>
+        <div v-else class="instruction-text">
+          Ищите песни по номеру или тексту<br>
+          Подборки — через меню ☰
+        </div>
       </div>
 
       <Transition name="fade">

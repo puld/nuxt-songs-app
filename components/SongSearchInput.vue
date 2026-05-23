@@ -130,6 +130,7 @@ defineExpose({ focus, clear })
 
 .search-input {
   flex: 1;
+  min-width: 150px;
   padding: 0.8rem;
   font-size: 1rem;
   border: 1px solid var(--border-color);
@@ -165,7 +166,7 @@ defineExpose({ focus, clear })
 }
 
 .result-item {
-  padding: 0.6rem 0.8rem;
+  padding: 0.85rem 0.8rem;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   display: flex;

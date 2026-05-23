@@ -32,8 +32,8 @@
   <!-- Popover для поиска и перехода -->
   <Teleport to="body">
     <Transition name="fade">
-      <div v-if="showGoToPopover" class="goto-overlay" @click.self="closeGoToPopover">
-        <div class="goto-popover">
+      <div v-if="showGoToPopover" class="goto-overlay" :style="gotoOverlayStyle" @click.self="closeGoToPopover">
+        <div class="goto-popover" ref="gotoPopoverEl">
           <SongSearchInput
             ref="searchComponent"
             :songs="allSongs"
@@ -50,8 +50,8 @@
   <!-- Попап добавления в подборку -->
   <Teleport to="body">
     <Transition name="fade">
-      <div v-if="showAddPopup" class="popup-overlay" @click.self="showAddPopup = false">
-        <div class="popup-content">
+      <div v-if="showAddPopup" class="popup-overlay" :style="popupOverlayStyle" @click.self="showAddPopup = false">
+        <div class="popup-content" ref="popupContentEl">
           <h3 class="popup-title">Добавить в подборку</h3>
           <div class="popup-collections">
             <button
@@ -60,7 +60,13 @@
               class="popup-collection-item"
               @click="addSongToPopupCollection(col)"
             >
-              {{ col.name }}
+              <Icon
+                :name="col.isFavorite ? 'mingcute:star-fill' : 'mingcute:folder-line'"
+                :class="{ 'favorite-icon': col.isFavorite }"
+                size="1.25rem"
+              />
+              <span class="popup-collection-name">{{ col.name }}</span>
+              <span class="popup-collection-count">{{ col.songsCount }}</span>
             </button>
             <div v-if="displayAvailableCollections.length === 0" class="popup-empty">
               Нет доступных подборок
@@ -127,6 +133,7 @@ const {
   getCollectionsForSong,
   addSongToCollection,
   getAvailableCollections,
+  getSongsCountInCollection,
   removeSongFromCollection,
   getAllSongs,
   isSongInFavorite,
@@ -147,6 +154,71 @@ const showGoToPopover = ref(false);
 const showAddPopup = ref(false);
 const searchComponent = ref(null);
 const isSongFavorite = ref(false);
+const popupContentEl = ref(null);
+const gotoPopoverEl = ref(null);
+
+// Смещение попапов при открытой клавиатуре (visualViewport API)
+const popupOffset = ref(0);
+const gotoOffset = ref(0);
+
+const popupOverlayStyle = computed(() => {
+  if (popupOffset.value === 0) return {}
+  return { alignItems: 'flex-start', paddingTop: `${popupOffset.value}px` }
+})
+const gotoOverlayStyle = computed(() => {
+  if (gotoOffset.value === 0) return {}
+  return { alignItems: 'flex-start', paddingTop: `${gotoOffset.value}px` }
+})
+
+const calcOffset = (el) => {
+  const vv = window.visualViewport
+  if (!vv || !el) return 0
+  const offsetTop = vv.height / 2 - el.offsetHeight / 2
+  return Math.max(0, -offsetTop + 16)
+}
+
+const updatePopupOffset = () => {
+  popupOffset.value = showAddPopup.value ? calcOffset(popupContentEl.value) : 0
+}
+const updateGotoOffset = () => {
+  gotoOffset.value = showGoToPopover.value ? calcOffset(gotoPopoverEl.value) : 0
+}
+
+watch(showAddPopup, (open) => {
+  if (open) {
+    popupOffset.value = 0
+    const vv = window.visualViewport
+    if (vv) {
+      vv.addEventListener('resize', updatePopupOffset)
+      vv.addEventListener('scroll', updatePopupOffset)
+    }
+  } else {
+    popupOffset.value = 0
+    const vv = window.visualViewport
+    if (vv) {
+      vv.removeEventListener('resize', updatePopupOffset)
+      vv.removeEventListener('scroll', updatePopupOffset)
+    }
+  }
+})
+
+watch(showGoToPopover, (open) => {
+  if (open) {
+    gotoOffset.value = 0
+    const vv = window.visualViewport
+    if (vv) {
+      vv.addEventListener('resize', updateGotoOffset)
+      vv.addEventListener('scroll', updateGotoOffset)
+    }
+  } else {
+    gotoOffset.value = 0
+    const vv = window.visualViewport
+    if (vv) {
+      vv.removeEventListener('resize', updateGotoOffset)
+      vv.removeEventListener('scroll', updateGotoOffset)
+    }
+  }
+})
 
 // Подборки без «Избранного» — для чипов
 const displayCollections = computed(() =>
@@ -538,25 +610,50 @@ const removeFromCollection = async (col) => {
 .popup-collections {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
   max-height: 250px;
   overflow-y: auto;
 }
 
 .popup-collection-item {
   background: none;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 0.6rem 0.8rem;
+  border: none;
+  border-bottom: none;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
   cursor: pointer;
   text-align: left;
   color: var(--text);
-  font-size: 0.9rem;
-  transition: background 0.15s;
+  text-decoration: none;
+  font-size: inherit;
+  font-family: inherit;
+  transition: background 0.2s;
 }
 
 .popup-collection-item:hover {
   background: var(--bg-secondary);
+}
+
+.popup-collection-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup-collection-count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.favorite-icon {
+  color: #f59e0b;
 }
 
 .popup-empty {

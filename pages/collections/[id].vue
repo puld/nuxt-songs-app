@@ -165,7 +165,7 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   align-items: center;
-  padding: 0.6rem 0.8rem;
+  padding: 0.85rem 0.8rem;
   text-decoration: none;
   color: var(--text);
   min-width: 0;
