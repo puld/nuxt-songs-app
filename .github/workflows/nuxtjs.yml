@@ -60,7 +60,10 @@ jobs:
           static_site_generator: nuxt
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci --ignore-scripts
+          npm install @rollup/rollup-linux-x64-gnu --no-save
+          npm run postinstall
 
       - name: Generate songs.json
         run: npm run songs:parse
