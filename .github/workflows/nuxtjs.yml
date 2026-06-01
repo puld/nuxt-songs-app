@@ -60,9 +60,7 @@ jobs:
           static_site_generator: nuxt
 
       - name: Install dependencies
-        run: |
-          rm -rf .nuxt node_modules package-lock.json
-          npm install
+        run: npm ci
 
       - name: Generate songs.json
         run: npm run songs:parse
