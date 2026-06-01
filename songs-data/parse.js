@@ -215,6 +215,7 @@ function main() {
 
   // 5. Вывод
   const output = JSON.stringify(result, null, 2);
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, output, 'utf8');
   console.error(`Записано в ${outputPath}`);
 }
