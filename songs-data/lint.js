@@ -16,6 +16,96 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * Допустимые поля мета-блока
+ */
+const META_FIELDS = {
+  meter: { allowMultiple: false },
+  rhyme: { allowMultiple: false },
+  note: { allowMultiple: true }
+};
+
+/**
+ * Проверяет мета-блок @meta...@end в тексте песни.
+ * Возвращает массив ошибок [{ line, message }].
+ */
+function validateMetaBlock(lines) {
+  const errors = [];
+  const metaStart = lines.indexOf('@meta');
+  const metaEnd = lines.indexOf('@end');
+
+  // Нет мета-блока — допустимо
+  if (metaStart === -1 && metaEnd === -1) {
+    return errors;
+  }
+
+  // @meta без @end
+  if (metaStart !== -1 && metaEnd === -1) {
+    errors.push({ line: metaStart + 1, message: '@meta без закрывающего @end' });
+    return errors;
+  }
+
+  // @end без @meta
+  if (metaStart === -1 && metaEnd !== -1) {
+    errors.push({ line: metaEnd + 1, message: '@end без открывающего @meta' });
+    return errors;
+  }
+
+  // @end перед @meta
+  if (metaEnd < metaStart) {
+    errors.push({ line: metaEnd + 1, message: '@end идёт до @meta' });
+    errors.push({ line: metaStart + 1, message: '@meta идёт после @end' });
+    return errors;
+  }
+
+  // Мета-блок пустой (сразу @meta\n@end)
+  if (metaEnd === metaStart + 1) {
+    errors.push({ line: metaStart + 1, message: 'Пустой мета-блок (@meta сразу за ним @end)' });
+  }
+
+  // Проверяем позицию: @meta должен быть после заголовка (#N Title) и пустой строки
+  if (metaStart > 2) {
+    errors.push({ line: metaStart + 1, message: `@meta должен быть сразу после заголовка и пустой строки (строка 3), а не на строке ${metaStart + 1}` });
+  }
+
+  // Проверяем формат полей мета-блока
+  const foundFields = {};
+  for (let i = 0; i < metaEnd - metaStart - 1; i++) {
+    const line = lines[metaStart + 1 + i].trim();
+    if (!line) {
+      errors.push({ line: metaStart + 1 + i + 1, message: 'Пустая строка внутри мета-блока' });
+      continue;
+    }
+
+    const fieldMatch = line.match(/^(\w+):\s*(.*)$/);
+    if (!fieldMatch) {
+      errors.push({ line: metaStart + 1 + i + 1, message: `Некорректная строка в мета-блоке: "${line}". Ожидается "поле: значение"` });
+      continue;
+    }
+
+    const fieldName = fieldMatch[1];
+    const fieldValue = fieldMatch[2].trim();
+
+    if (!META_FIELDS[fieldName]) {
+      errors.push({ line: metaStart + 1 + i + 1, message: `Неизвестное поле "${fieldName}" в мета-блоке. Допустимые поля: ${Object.keys(META_FIELDS).join(', ')}` });
+      continue;
+    }
+
+    if (!META_FIELDS[fieldName].allowMultiple && foundFields[fieldName]) {
+      errors.push({ line: metaStart + 1 + i + 1, message: `Повторяющееся поле "${fieldName}" в мета-блоке` });
+      continue;
+    }
+
+    if (!fieldValue) {
+      errors.push({ line: metaStart + 1 + i + 1, message: `Пустое значение поля "${fieldName}"` });
+    }
+
+    foundFields[fieldName] = true;
+  }
+
+  return errors;
+}
+
+/**
  * Упрощённое разделение на варианты для линтера
  */
 function splitVariantsForLint(songContent) {
@@ -91,14 +181,17 @@ function lintSongContent(text, fileName) {
     errors.push({ line: 2, message: 'После заголовка должна быть пустая строка' });
   }
 
-  // 5. Нет пустых строк с пробелами (whitespace-only lines)
+  // 5. Проверка мета-блока @meta...@end
+  errors.push(...validateMetaBlock(lines));
+
+  // 6. Нет пустых строк с пробелами (whitespace-only lines)
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].length > 0 && lines[i].trim() === '') {
       errors.push({ line: i + 1, message: 'Строка содержит только пробелы' });
     }
   }
 
-  // 6. Непустое содержание: файл должен содержать хотя бы один куплет или припев
+  // 7. Непустое содержание: файл должен содержать хотя бы один куплет или припев
   const bodyStart = (lines.length > 1 && lines[1].trim() === '') ? 2 : 1;
   const bodyLines = lines.slice(bodyStart);
   const hasVerse = bodyLines.some(l => /^\d+\.\s/.test(l.trim()));
@@ -107,7 +200,7 @@ function lintSongContent(text, fileName) {
     errors.push({ line: 0, message: 'Файл не содержит ни одного куплета или припева' });
   }
 
-  // 7. Нумерация куплетов: должна быть по порядку без пропусков
+  // 8. Нумерация куплетов: должна быть по порядку без пропусков
   //    Проверяем в рамках каждого варианта отдельно
   const bodyText = bodyLines.join('\n');
   const variantChunks = splitVariantsForLint(bodyText);
@@ -140,7 +233,7 @@ function lintSongContent(text, fileName) {
     }
   }
 
-  // 8. Варианты: метка (метка) должна быть перед куплетом или припевом
+  // 9. Варианты: метка (метка) должна быть перед куплетом или припевом
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     const variantMatch = trimmed.match(/^\(([^)]+)\)$/);
