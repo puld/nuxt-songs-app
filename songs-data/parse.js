@@ -145,8 +145,11 @@ function parseSongFile(filePath) {
   }
   const songContent = lines.slice(bodyStart).join('\n').trim();
 
+  // Убираем мета-блок @meta...@end (если есть)
+  const contentWithoutMeta = songContent.replace(/@meta\n[\s\S]*?\n@end\n?/, '');
+
   // Разделяем на варианты
-  const variantChunks = splitVariants(songContent);
+  const variantChunks = splitVariants(contentWithoutMeta);
 
   let globalBodyId = 0;
   const variants = [];
