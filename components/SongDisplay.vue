@@ -138,7 +138,7 @@ const processContent = (content) => {
   }
 
   // Заменяем переносы строк на <br/>
-  result = result.replace(/([^>])\n/g, '$1<br/>')
+  result = result.replace(/\n/g, '<br/>')
 
   return result
 }
