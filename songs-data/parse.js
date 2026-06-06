@@ -129,7 +129,7 @@ function parseSongFile(filePath) {
   const lines = text.split('\n');
 
   // Первая строка: #N Название
-  const headerLine = lines[0];
+  const headerLine = lines[0].trim();
   const headerMatch = headerLine.match(/^#(\d+)\s+(.+)$/);
   if (!headerMatch) {
     throw new Error(`Некорректный заголовок в ${filePath}: "${headerLine}"`);
