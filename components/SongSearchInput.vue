@@ -5,33 +5,13 @@
         ref="searchInput"
         v-model="searchQuery"
         @input="handleInput"
-        @focus="onInputFocus"
-        placeholder="Номер песни или текст для поиска"
-        inputmode="none"
+        placeholder="Номер или текст"
         class="search-input"
       >
       <button type="submit" class="search-btn">
         <Icon name="mingcute:search-line" size="1.2rem"/>
       </button>
     </form>
-
-    <!-- Кастомная цифровая клавиатура (только на мобильных) -->
-    <div v-if="showNumpad" class="numpad">
-      <div class="numpad-row">
-        <button v-for="n in [1, 2, 3]" :key="n" class="numpad-key" @click="numpadInput(String(n))">{{ n }}</button>
-      </div>
-      <div class="numpad-row">
-        <button v-for="n in [4, 5, 6]" :key="n" class="numpad-key" @click="numpadInput(String(n))">{{ n }}</button>
-      </div>
-      <div class="numpad-row">
-        <button v-for="n in [7, 8, 9]" :key="n" class="numpad-key" @click="numpadInput(String(n))">{{ n }}</button>
-      </div>
-      <div class="numpad-row">
-        <button class="numpad-key numpad-key-text" @click="switchToSystemKeyboard">А-я</button>
-        <button class="numpad-key" @click="numpadInput('0')">0</button>
-        <button class="numpad-key numpad-key-delete" @click="numpadBackspace">&larr;</button>
-      </div>
-    </div>
 
     <Transition name="results">
       <div v-if="searchResults.length" class="search-results" :style="{ maxHeight: maxResultsHeight }">
@@ -81,13 +61,9 @@ const emit = defineEmits(['select'])
 const { searchResults, searchQuery, buildIndex, search: lunrSearch } = useSongSearch()
 
 const searchInput = ref(null)
-const showNumpad = ref(false)
-const isTouchDevice = ref(false)
 
 onMounted(() => {
   buildIndex(props.songs)
-  // Определяем тач-устройство сразу при монтировании
-  isTouchDevice.value = 'ontouchstart' in window || navigator.maxTouchPoints > 0
 })
 
 const isNumberQuery = (query) => {
@@ -100,37 +76,6 @@ const handleInput = () => {
     searchResults.value = []
   } else {
     lunrSearch(query, props.limit)
-  }
-}
-
-// Инпут получил фокус — показываем нумпад на мобильных
-const onInputFocus = () => {
-  if (isTouchDevice.value) {
-    // Убираем фокус с инпута, чтобы не открывалась системная клавиатура
-    searchInput.value?.blur()
-    showNumpad.value = true
-  }
-}
-
-// Ввод цифры с нумпада
-const numpadInput = (char) => {
-  searchQuery.value = (searchQuery.value || '') + char
-  handleInput()
-}
-
-// Удаление символа с нумпада
-const numpadBackspace = () => {
-  searchQuery.value = (searchQuery.value || '').slice(0, -1)
-  handleInput()
-}
-
-// Переключение на системную (буквенную) клавиатуру
-const switchToSystemKeyboard = () => {
-  showNumpad.value = false
-  // Убираем inputmode="none", чтобы системная клавиатура открылась
-  if (searchInput.value) {
-    searchInput.value.inputMode = 'text'
-    searchInput.value.focus()
   }
 }
 
@@ -166,19 +111,12 @@ const getVariantLabel = (n, variantIndex) => {
 }
 
 const focus = () => {
-  if (isTouchDevice.value) {
-    // На мобильных показываем numpad без фокуса на инпуте,
-    // чтобы не открывалась системная клавиатура
-    showNumpad.value = true
-  } else {
-    searchInput.value?.focus()
-  }
+  searchInput.value?.focus()
 }
 
 const clear = () => {
   searchQuery.value = ''
   searchResults.value = []
-  showNumpad.value = false
 }
 
 defineExpose({ focus, clear })
@@ -192,6 +130,7 @@ defineExpose({ focus, clear })
 
 .search-input {
   flex: 1;
+  min-width: 150px;
   padding: 0.8rem;
   font-size: 1rem;
   border: 1px solid var(--border-color);
@@ -227,7 +166,7 @@ defineExpose({ focus, clear })
 }
 
 .result-item {
-  padding: 0.6rem 0.8rem;
+  padding: 0.85rem 0.8rem;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   display: flex;
@@ -258,58 +197,6 @@ defineExpose({ focus, clear })
 .variant-label {
   font-size: 0.75rem;
   color: var(--primary);
-}
-
-/* Кастомная цифровая клавиатура */
-.numpad {
-  display: grid;
-  gap: 6px;
-  margin-top: 0.5rem;
-  padding: 8px;
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  max-width: 320px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.numpad-row {
-  display: flex;
-  gap: 6px;
-}
-
-.numpad-key {
-  flex: 1;
-  padding: 14px 0;
-  font-size: 1.3rem;
-  font-weight: 500;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 48px;
-  user-select: none;
-  -webkit-user-select: none;
-  transition: background 0.1s;
-}
-
-.numpad-key:active {
-  background: var(--border-color);
-}
-
-.numpad-key-text {
-  font-size: 1rem;
-  color: var(--primary);
-  font-weight: 600;
-}
-
-.numpad-key-delete {
-  font-size: 1.2rem;
-  color: var(--text-secondary);
 }
 
 /* Results transition */

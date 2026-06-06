@@ -12,7 +12,7 @@ export const createMockDB = async () => {
     }
 
     const indexedDB = new IDBFactory()
-    const dbVersion = 4
+    const dbVersion = 6
 
     return new Promise((resolve, reject) => {
         const request = indexedDB.open('SongsDB', dbVersion)
@@ -29,6 +29,7 @@ export const createMockDB = async () => {
             if (!db.objectStoreNames.contains('collections')) {
                 const collectionsStore = db.createObjectStore('collections', { keyPath: 'id', autoIncrement: true })
                 collectionsStore.createIndex('name', 'name', { unique: false })
+                collectionsStore.createIndex('isFavorite', 'isFavorite', { unique: false })
             }
 
             // Создание object store для связей песен и подборок

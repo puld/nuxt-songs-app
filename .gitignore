@@ -6,4 +6,7 @@
 /.serena
 /dist
 /node_modules
+/songs-data/node_modules
+/public/assets/songs.json
 /tmp
+.DS_Store

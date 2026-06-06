@@ -2,6 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Правила коммитов
+
+- НЕ добавлять `Generated with [Claude Code]` в сообщения коммитов
+- НЕ добавлять `Co-Authored-By: Claude` в сообщения коммитов
+
+## Правила редизайна
+
+- ВСЕ изменения UI проверять визуально через браузер (Playwright screenshot/snapshot) до коммита
+
+## Правила тестирования
+
+- Писать тестопригодный код: выделять чистые функции без Vue-зависимостей в `lib/`, composables — тонкие обёртки
+- Покрывать новый код тестами сразу при реализации, а не после
+- Чистые функции тестировать в `lib/*.test.js`, composables — в `composables/*.test.js`
+
 ## Основные команды
 
 ### Разработка

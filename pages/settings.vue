@@ -1,5 +1,11 @@
 <template>
   <ClientOnly>
+    <Teleport to="#navbar-left">
+      <NavBarBack />
+    </Teleport>
+  </ClientOnly>
+
+  <ClientOnly>
     <Teleport to="#navbar-center">
       <span class="nav-title">Настройки</span>
     </Teleport>
@@ -35,6 +41,20 @@
         <span class="slider"></span>
         <span class="toggle-label">{{ settings.showChords ? 'Вкл' : 'Выкл' }}</span>
       </label>
+    </div>
+
+    <div class="setting-section">
+      <h2>Не гасить экран:</h2>
+      <label class="toggle-switch">
+        <input
+            type="checkbox"
+            :checked="settings.keepScreenOn"
+            @change="handleKeepScreenOnToggle"
+        >
+        <span class="slider"></span>
+        <span class="toggle-label">{{ settings.keepScreenOn ? 'Вкл' : 'Выкл' }}</span>
+      </label>
+      <p class="setting-hint">Экран не будет гаснуть при открытом приложении</p>
     </div>
 
     <div class="setting-section">
@@ -107,6 +127,10 @@ const handleColorModeChange = (mode) => {
 const handleChordsToggle = (e) => {
   settings.setShowChords(e.target.checked)
 }
+
+const handleKeepScreenOnToggle = (e) => {
+  settings.setKeepScreenOn(e.target.checked)
+}
 </script>
 
 <style scoped>
@@ -123,56 +147,11 @@ const handleChordsToggle = (e) => {
 }
 
 .success {
-  color: green;
+  color: var(--primary);
 }
 
 .error {
-  color: red;
-}
-
-.toggle-switch {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.toggle-switch input {
-  display: none;
-}
-
-.slider {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 24px;
-  background-color: #ccc;
-  border-radius: 24px;
-  transition: .4s;
-}
-
-.slider:before {
-  content: "";
-  position: absolute;
-  height: 16px;
-  width: 16px;
-  left: 4px;
-  bottom: 4px;
-  background-color: white;
-  border-radius: 50%;
-  transition: .4s;
-}
-
-input:checked + .slider {
-  background-color: var(--primary);
-}
-
-input:checked + .slider:before {
-  transform: translateX(26px);
-}
-
-.toggle-label {
-  margin-left: 5px;
+  color: var(--danger);
 }
 
 .toggle-switch {
@@ -194,7 +173,7 @@ input:checked + .slider:before {
   display: inline-block;
   width: 50px;
   height: 24px;
-  background-color: #ccc;
+  background-color: var(--toggle-off);
   border-radius: 24px;
   transition: .4s;
 }
@@ -221,5 +200,12 @@ input:checked + .slider:before {
 
 .toggle-label {
   user-select: none;
+}
+
+.setting-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.4rem;
+  margin-bottom: 0;
 }
 </style>

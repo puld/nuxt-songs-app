@@ -1,4 +1,4 @@
-name: Deploy Nuxt to GitHub Pages
+name: Deploy
 
 on:
   push:
@@ -14,12 +14,37 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
-#env:
-#  GITHUB_REPOSITORY: ${{ github.repository }}
-
 jobs:
-  build:
+  # Линтинг текстов песен (только при изменениях в songs-data/)
+  lint-songs:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if songs-data changed
+        id: check
+        run: |
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          if echo "$CHANGED_FILES" | grep -q '^songs-data/'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Lint songs
+        if: steps.check.outputs.changed == 'true'
+        run: node songs-data/lint.js songs-data
+
+  # Сборка и деплой
+  build-deploy:
+    needs: lint-songs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,7 +53,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: ${{ steps.detect-package-manager.outputs.manager }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -36,14 +60,18 @@ jobs:
           static_site_generator: nuxt
 
       - name: Install dependencies
-        run:  |
-          # Удаляем только .nuxt node_modules package-lock.json
-          rm -rf .nuxt node_modules package-lock.json
-          # Стандартная установка с созданием package-lock.json
-          npm install
+        run: |
+          npm ci --ignore-scripts
+          npm install @rollup/rollup-linux-x64-gnu @esbuild/linux-x64 --no-save
+          npm run postinstall
+
+      - name: Generate songs.json
+        run: npm run songs:parse
 
       - name: Static HTML export with Nuxt
         run: |
+          export COMMIT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          export BUILD_DATE=$(date +%d.%m.%Y)
           npm run generate
 
       - name: Upload artifact
@@ -51,13 +79,6 @@ jobs:
         with:
           path: .output/public
 
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

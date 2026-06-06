@@ -1,5 +1,5 @@
 export default defineNuxtPlugin(async (nuxtApp) => {
-    const dbVersion = 4;
+    const dbVersion = 6;
 
     const request = indexedDB.open('SongsDB', dbVersion);
 
@@ -14,6 +14,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
         if (!db.objectStoreNames.contains('collections')) {
             const collectionsStore = db.createObjectStore('collections', { keyPath: 'id', autoIncrement: true });
             collectionsStore.createIndex('name', 'name', { unique: false });
+            collectionsStore.createIndex('isFavorite', 'isFavorite', { unique: false });
         }
 
         if (!db.objectStoreNames.contains('songCollections')) {
@@ -94,12 +95,119 @@ export default defineNuxtPlugin(async (nuxtApp) => {
                 }
             };
         }
+
+        // Миграция v4→v5: добавляем индекс isFavorite и создаём подборку «Избранное»
+        if (oldVersion >= 1 && oldVersion < 5) {
+            const transaction = event.target.transaction;
+            const store = transaction.objectStore('collections');
+
+            // Добавляем индекс isFavorite, если его нет
+            if (!store.indexNames.contains('isFavorite')) {
+                store.createIndex('isFavorite', 'isFavorite', { unique: false });
+            }
+
+            // Создаём подборку «Избранное» с флагом isFavorite
+            const index = store.index('isFavorite');
+            const checkRequest = index.get(1);
+            checkRequest.onsuccess = () => {
+                if (!checkRequest.result) {
+                    store.add({
+                        name: 'Избранное',
+                        isFavorite: 1,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                    });
+                }
+            };
+        }
+
+        // Миграция v5→v6: гарантируем наличие индексов isFavorite и collectionId_songNumber_variantIndex
+        if (oldVersion >= 1 && oldVersion < 6) {
+            const transaction = event.target.transaction;
+
+            // Проверяем/создаём индекс isFavorite в collections
+            const collectionsStore = transaction.objectStore('collections');
+            if (!collectionsStore.indexNames.contains('isFavorite')) {
+                collectionsStore.createIndex('isFavorite', 'isFavorite', { unique: false });
+            }
+
+            // Проверяем/создаём индекс collectionId_songNumber_variantIndex в songCollections
+            const songCollectionsStore = transaction.objectStore('songCollections');
+            if (!songCollectionsStore.indexNames.contains('collectionId_songNumber_variantIndex')) {
+                // Удаляем старый уникальный индекс если есть
+                if (songCollectionsStore.indexNames.contains('collectionId_songNumber_variantLabel')) {
+                    songCollectionsStore.deleteIndex('collectionId_songNumber_variantLabel');
+                }
+                songCollectionsStore.createIndex('collectionId_songNumber_variantIndex', ['collectionId', 'songNumber', 'variantIndex'], { unique: true });
+            }
+
+            // Создаём подборку «Избранное» если не существует
+            const index = collectionsStore.index('isFavorite');
+            const checkRequest = index.get(1);
+            checkRequest.onsuccess = () => {
+                if (!checkRequest.result) {
+                    collectionsStore.add({
+                        name: 'Избранное',
+                        isFavorite: 1,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                    });
+                }
+            };
+        }
     };
 
     const db = await new Promise((resolve, reject) => {
         request.onsuccess = (event) => resolve(event.target.result);
         request.onerror = (event) => reject(event.target.error);
     });
+
+    // Создаём подборку «Избранное» если не существует (для новых установок)
+    await new Promise((resolve) => {
+        try {
+            const transaction = db.transaction(['collections'], 'readwrite');
+            const store = transaction.objectStore('collections');
+            if (!store.indexNames.contains('isFavorite')) {
+                // Индекс отсутствует — пробуем создать (возможно, база повреждена)
+                resolve();
+                return;
+            }
+            const index = store.index('isFavorite');
+            const checkRequest = index.get(1);
+            checkRequest.onsuccess = () => {
+                if (!checkRequest.result) {
+                    store.add({
+                        name: 'Избранное',
+                        isFavorite: 1,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                    });
+                }
+            };
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => resolve(); // не критично
+        } catch (e) {
+            resolve(); // не критично
+        }
+    });
+
+    // Автоматическая загрузка песен при пустой базе данных
+    const songsCount = await new Promise((resolve) => {
+        const transaction = db.transaction(['songs'], 'readonly');
+        const store = transaction.objectStore('songs');
+        const countRequest = store.count();
+        countRequest.onsuccess = () => resolve(countRequest.result);
+        countRequest.onerror = () => resolve(0);
+    });
+
+    if (songsCount === 0) {
+        try {
+            const { fetchSongs } = useSongs();
+            await fetchSongs();
+        } catch (error) {
+            console.error('Ошибка автоматической загрузки песен:', error);
+        }
+    }
 
     nuxtApp.provide('indexedDB', db);
 });

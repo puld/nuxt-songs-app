@@ -12,6 +12,9 @@
     --primary: #3b82f6;
     --danger: #ef4444;
     --chord-color: red;
+    --star-color: #f59e0b;
+    --toggle-off: #ccc;
+    --on-primary: #ffffff;
 }
 
 .dark {
@@ -22,6 +25,16 @@
     --text-secondary: #9ca3af;
     --border-color: #374151;
     --chord-color: orange;
+    --toggle-off: #555;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+#__nuxt {
+    height: 100%;
 }
 
 body {

@@ -1,33 +1,71 @@
 <template>
   <ClientOnly>
-    <Teleport to="#navbar-center">
-      <span class="nav-title">{{ collection.name }}</span>
+    <Teleport to="#navbar-left">
+      <NavBarBack />
     </Teleport>
   </ClientOnly>
 
-  <div>
-    <div v-if="loading">Загрузка...</div>
+  <ClientOnly>
+    <Teleport to="#navbar-center">
+      <span v-if="collection" class="nav-title">{{ collection.name }}</span>
+    </Teleport>
+  </ClientOnly>
+
+  <ClientOnly>
+    <Teleport v-if="collection && songs.length > 0" to="#navbar-right">
+      <button class="nav-btn" @click="editMode = !editMode" :aria-label="editMode ? 'Готово' : 'Редактировать'">
+        <span v-if="editMode" class="edit-done">Готово</span>
+        <Icon v-else name="mingcute:edit-2-line" size="1.5rem"/>
+      </button>
+    </Teleport>
+  </ClientOnly>
+
+  <div class="collection-page">
+    <div v-if="loading">
+      <LoadingText />
+    </div>
     <div v-else-if="!collection">
       <p>Подборка не найдена</p>
-      <NuxtLink to="/collections">Назад к списку</NuxtLink>
+      <NuxtLink to="/">На главную</NuxtLink>
     </div>
     <div v-else>
-      <h2>Подборка: {{ collection.name }}</h2>
-      <p>Количество песен: {{ songs.length }}</p>
-
       <div v-if="songs.length === 0" class="empty">
         <p>В этой подборке пока нет песен</p>
         <NuxtLink to="/">Добавить песни</NuxtLink>
       </div>
 
       <div v-else class="songs-list">
-        <div v-for="song in songs" :key="song.number + '-' + song.variantIndex" class="song-item">
-          {{ song.number }}. <NuxtLink :to="songLink(song)">{{ song.title }}</NuxtLink>
-          <span v-if="getVariantLabel(song) && song.variantIndex > 0" class="variant-badge">{{ getVariantLabel(song) }}</span>
-          <button @click="removeSong(song)" class="remove-btn">
-            Удалить из подборки
+        <div
+          v-for="song in songs"
+          :key="song.number + '-' + song.variantIndex"
+          class="song-item"
+          :class="{ 'edit-mode': editMode }"
+        >
+          <NuxtLink
+            v-if="!editMode"
+            :to="songLink(song)"
+            class="song-link"
+          >
+            <span class="song-number">{{ song.number }}</span>
+            <span class="song-title">{{ song.title }}</span>
+            <span v-if="getVariantLabel(song) && song.variantIndex > 0" class="variant-label">({{ getVariantLabel(song) }})</span>
+          </NuxtLink>
+          <div v-else class="song-link">
+            <span class="song-number">{{ song.number }}</span>
+            <span class="song-title">{{ song.title }}</span>
+            <span v-if="getVariantLabel(song) && song.variantIndex > 0" class="variant-label">({{ getVariantLabel(song) }})</span>
+          </div>
+          <button v-if="editMode" @click="removeSong(song)" class="remove-btn" aria-label="Удалить">
+            <Icon name="mingcute:delete-2-line" size="1.25rem"/>
           </button>
         </div>
+      </div>
+
+      <div v-if="editMode && !collection.isFavorite" class="delete-collection-section">
+        <button @click="deleteCollection" class="delete-collection-btn">
+          <Icon name="mingcute:delete-2-line" size="1.1rem"/>
+          <span>Удалить подборку</span>
+        </button>
       </div>
     </div>
   </div>
@@ -35,11 +73,13 @@
 
 <script setup>
 const route = useRoute()
-const { getSongsInCollection, getCollection, removeSongFromCollection } = useIndexDB()
+const router = useRouter()
+const { getSongsInCollection, getCollection, removeSongFromCollection, deleteCollection: deleteCollectionDB } = useIndexDB()
 
 const collection = ref(null)
 const songs = ref([])
 const loading = ref(true)
+const editMode = ref(false)
 
 const songLink = (song) => {
   const path = `/song/${song.number}`
@@ -63,22 +103,28 @@ const removeSong = async (song) => {
       Number(song.number),
       song.variantIndex ?? 0
     )
-    // Обновляем список песен
     songs.value = songs.value.filter(s => !(s.number === song.number && s.variantIndex === song.variantIndex))
+    if (songs.value.length === 0) editMode.value = false
   } catch (error) {
     console.error('Ошибка удаления:', error)
-    alert('Не удалось удалить песню')
+  }
+}
+
+const deleteCollection = async () => {
+  if (!confirm(`Удалить подборку «${collection.value.name}»?`)) return
+
+  try {
+    await deleteCollectionDB(Number(route.params.id))
+    router.push('/')
+  } catch (error) {
+    console.error('Ошибка удаления подборки:', error)
   }
 }
 
 onMounted(async () => {
   try {
     const collectionId = Number(route.params.id)
-
-    // Загружаем данные подборки
     collection.value = await getCollection(collectionId)
-
-    // Загружаем песни подборки (с variantIndex)
     songs.value = await getSongsInCollection(collectionId)
   } catch (error) {
     console.error('Ошибка загрузки:', error)
@@ -89,54 +135,126 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.collection-page {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
 .songs-list {
-  margin-top: 2rem;
-  display: grid;
-  gap: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 .song-item {
-  padding: 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  transition: transform 0.2s;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
 }
 
-.song-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.song-item:last-child {
+  border-bottom: none;
+}
+
+.song-item.edit-mode {
+  background: var(--bg-secondary);
+}
+
+.song-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0.85rem 0.8rem;
+  text-decoration: none;
+  color: var(--text);
+  min-width: 0;
+}
+
+a.song-link:hover {
+  background-color: var(--bg-secondary);
+}
+
+.song-number {
+  font-weight: bold;
+  min-width: 2.5rem;
+  text-align: right;
+  margin-right: 0.5rem;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.song-title {
+  flex-grow: 1;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variant-label {
+  font-size: 0.75rem;
+  color: var(--primary);
+  margin-left: 0.3rem;
+  flex-shrink: 0;
+}
+
+.remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: none;
+  color: var(--danger);
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 4px;
+  margin-right: 0.25rem;
+}
+
+.remove-btn:hover {
+  background: var(--danger);
+  color: white;
+}
+
+.edit-done {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--primary);
 }
 
 .empty {
-  margin-top: 2rem;
   text-align: center;
   padding: 2rem;
   background: var(--bg-secondary);
   border-radius: 4px;
 }
 
-.variant-badge {
-  display: inline-block;
-  margin-left: 0.3rem;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.75rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  color: var(--text-secondary);
+.delete-collection-section {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
 }
 
-.remove-btn {
-  padding: 0.25rem 0.5rem;
-  background: var(--danger);
-  color: white;
-  border: none;
+.delete-collection-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: none;
+  color: var(--danger);
+  border: 1px solid var(--danger);
   border-radius: 4px;
   cursor: pointer;
-  float: right;
+  font-size: 0.9rem;
 }
 
-.remove-btn:hover {
-  opacity: 0.9;
+.delete-collection-btn:hover {
+  background: var(--danger);
+  color: white;
 }
 </style>
