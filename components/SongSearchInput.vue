@@ -64,7 +64,7 @@ const props = defineProps({
   },
   limit: {
     type: Number,
-    default: 7
+    default: 15
   },
   maxResultsHeight: {
     type: String,

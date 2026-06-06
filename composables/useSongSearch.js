@@ -10,8 +10,8 @@ export const useSongSearch = () => {
         searchIndex.value = buildSearchIndex(songs)
     }
 
-    const search = (query, limit) => {
-        searchResults.value = performSearch(searchIndex.value, query, limit)
+    const search = (query, limit, exact = false) => {
+        searchResults.value = performSearch(searchIndex.value, query, limit, exact)
     }
 
     return {
