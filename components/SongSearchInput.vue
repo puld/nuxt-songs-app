@@ -1,32 +1,66 @@
 <template>
   <div class="song-search" :style="{ maxWidth: maxWidth }">
-    <form @submit.prevent="handleSubmit" class="search-form">
-      <input
-        ref="searchInput"
-        v-model="searchQuery"
-        @input="handleInput"
-        placeholder="Номер или текст"
-        class="search-input"
-      >
-      <button type="submit" class="search-btn">
-        <Icon name="mingcute:search-line" size="1.2rem"/>
-      </button>
-    </form>
-
-    <Transition name="results">
-      <div v-if="searchResults.length" class="search-results" :style="{ maxHeight: maxResultsHeight }">
-        <div
-          v-for="result in searchResults"
-          :key="result.n + '-' + result.variantIndex"
-          class="result-item"
-          @click="handleResultClick(result)"
+    <div class="search-mode">
+      <label class="search-label">Поиск по тексту</label>
+      <form @submit.prevent="handlePartialSubmit" class="search-form">
+        <input
+          ref="partialInput"
+          v-model="partialQuery"
+          @input="handlePartialInput"
+          placeholder="Часть слова или фраза"
+          class="search-input"
         >
-          <span class="song-number">{{ result.n }}</span>
-          <span class="song-title">{{ getSongTitle(result.n) }}</span>
-          <span v-if="getVariantLabel(result.n, result.variantIndex)" class="variant-label">({{ getVariantLabel(result.n, result.variantIndex) }})</span>
+        <button type="submit" class="search-btn">
+          <Icon name="mingcute:search-line" size="1.2rem"/>
+        </button>
+      </form>
+
+      <Transition name="results">
+        <div v-if="partialResults.length" class="search-results" :style="{ maxHeight: maxResultsHeight }">
+          <div
+            v-for="result in partialResults"
+            :key="'p-' + result.n + '-' + result.variantIndex"
+            class="result-item"
+            @click="handleResultClick(result)"
+          >
+            <span class="song-number">{{ result.n }}</span>
+            <span class="song-title">{{ getSongTitle(result.n) }}</span>
+            <span v-if="getVariantLabel(result.n, result.variantIndex)" class="variant-label">({{ getVariantLabel(result.n, result.variantIndex) }})</span>
+          </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </div>
+
+    <div class="search-mode">
+      <label class="search-label">Точный поиск</label>
+      <form @submit.prevent="handleExactSubmit" class="search-form">
+        <input
+          ref="exactInput"
+          v-model="exactQuery"
+          @input="handleExactInput"
+          placeholder="Полное слово или фраза"
+          class="search-input"
+        >
+        <button type="submit" class="search-btn">
+          <Icon name="mingcute:search-line" size="1.2rem"/>
+        </button>
+      </form>
+
+      <Transition name="results">
+        <div v-if="exactResults.length" class="search-results" :style="{ maxHeight: maxResultsHeight }">
+          <div
+            v-for="result in exactResults"
+            :key="'e-' + result.n + '-' + result.variantIndex"
+            class="result-item"
+            @click="handleResultClick(result)"
+          >
+            <span class="song-number">{{ result.n }}</span>
+            <span class="song-title">{{ getSongTitle(result.n) }}</span>
+            <span v-if="getVariantLabel(result.n, result.variantIndex)" class="variant-label">({{ getVariantLabel(result.n, result.variantIndex) }})</span>
+          </div>
+        </div>
+      </Transition>
+    </div>
   </div>
 </template>
 
@@ -58,39 +92,76 @@ const props = defineProps({
 
 const emit = defineEmits(['select'])
 
-const { searchResults, searchQuery, buildIndex, search: lunrSearch } = useSongSearch()
+const partialSearch = useSongSearch()
+const exactSearch = useSongSearch()
 
-const searchInput = ref(null)
+const partialQuery = ref('')
+const exactQuery = ref('')
+const partialResults = ref([])
+const exactResults = ref([])
+
+const partialInput = ref(null)
+const exactInput = ref(null)
 
 onMounted(() => {
-  buildIndex(props.songs)
+  partialSearch.buildIndex(props.songs)
+  exactSearch.buildIndex(props.songs)
 })
 
 const isNumberQuery = (query) => {
   return /^\d+$/.test(query.trim())
 }
 
-const handleInput = () => {
-  const query = searchQuery.value?.trim()
-  if (query && isNumberQuery(query)) {
-    searchResults.value = []
-  } else {
-    lunrSearch(query, props.limit)
+const runNumberSearch = (query) => {
+  if (!query) return
+  const num = parseInt(query)
+  if (num && props.songNumbers.includes(num)) {
+    emit('select', { n: num, variantIndex: 0 })
+    clear()
   }
 }
 
-const handleSubmit = () => {
-  const query = searchQuery.value?.trim()
-  if (!query) return
-
-  if (isNumberQuery(query)) {
-    const num = parseInt(query)
-    if (num && props.songNumbers.includes(num)) {
-      emit('select', { n: num, variantIndex: 0 })
-      clear()
-    }
+const handlePartialInput = () => {
+  const query = partialQuery.value?.trim()
+  if (query && isNumberQuery(query)) {
+    partialResults.value = []
+  } else if (query) {
+    partialSearch.search(query, props.limit, false)
+    partialResults.value = partialSearch.searchResults.value
   } else {
-    lunrSearch(query, props.limit)
+    partialResults.value = []
+  }
+}
+
+const handleExactInput = () => {
+  const query = exactQuery.value?.trim()
+  if (query && isNumberQuery(query)) {
+    exactResults.value = []
+  } else if (query) {
+    exactSearch.search(query, props.limit, true)
+    exactResults.value = exactSearch.searchResults.value
+  } else {
+    exactResults.value = []
+  }
+}
+
+const handlePartialSubmit = () => {
+  const query = partialQuery.value?.trim()
+  if (!query) return
+  if (isNumberQuery(query)) {
+    runNumberSearch(query)
+  } else {
+    handlePartialInput()
+  }
+}
+
+const handleExactSubmit = () => {
+  const query = exactQuery.value?.trim()
+  if (!query) return
+  if (isNumberQuery(query)) {
+    runNumberSearch(query)
+  } else {
+    handleExactInput()
   }
 }
 
@@ -110,19 +181,33 @@ const getVariantLabel = (n, variantIndex) => {
   return song.variants[variantIndex]?.label || ''
 }
 
-const focus = () => {
-  searchInput.value?.focus()
+const focus = (which = 'partial') => {
+  const el = which === 'exact' ? exactInput.value : partialInput.value
+  el?.focus()
 }
 
 const clear = () => {
-  searchQuery.value = ''
-  searchResults.value = []
+  partialQuery.value = ''
+  exactQuery.value = ''
+  partialResults.value = []
+  exactResults.value = []
 }
 
 defineExpose({ focus, clear })
 </script>
 
 <style scoped>
+.search-mode + .search-mode {
+  margin-top: 1rem;
+}
+
+.search-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.35rem;
+}
+
 .search-form {
   display: flex;
   gap: 0.5rem;
