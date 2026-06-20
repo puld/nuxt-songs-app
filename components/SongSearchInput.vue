@@ -82,7 +82,7 @@ const props = defineProps({
   },
   maxResultsHeight: {
     type: String,
-    default: '200px'
+    default: '400px'
   },
   maxWidth: {
     type: String,

@@ -39,7 +39,7 @@
             :songs="allSongs"
             :songNumbers="songNumbers"
             max-width="100%"
-            max-results-height="none"
+            max-results-height="400px"
             @select="onPopoverSelect"
           />
         </div>
