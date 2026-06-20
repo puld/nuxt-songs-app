@@ -2,12 +2,12 @@
   <div class="song-search" :style="{ maxWidth: maxWidth }">
     <div class="search-mode">
       <label class="search-label">Поиск по тексту</label>
-      <form @submit.prevent="handlePartialSubmit" class="search-form">
+      <form @submit.prevent="handleLunrSubmit" class="search-form">
         <input
-          ref="partialInput"
-          v-model="partialQuery"
-          @input="handlePartialInput"
-          placeholder="Часть слова или фраза"
+          ref="lunrInput"
+          v-model="lunrQuery"
+          @input="handleLunrInput"
+          placeholder="Часть слова, фраза, с опечатками"
           class="search-input"
         >
         <button type="submit" class="search-btn">
@@ -16,10 +16,10 @@
       </form>
 
       <Transition name="results">
-        <div v-if="partialResults.length" class="search-results" :style="{ maxHeight: maxResultsHeight }">
+        <div v-if="lunrResults.length" class="search-results" :style="{ maxHeight: maxResultsHeight }">
           <div
-            v-for="result in partialResults"
-            :key="'p-' + result.n + '-' + result.variantIndex"
+            v-for="result in lunrResults"
+            :key="'l-' + result.n + '-' + result.variantIndex"
             class="result-item"
             @click="handleResultClick(result)"
           >
@@ -38,7 +38,7 @@
           ref="exactInput"
           v-model="exactQuery"
           @input="handleExactInput"
-          placeholder="Полное слово или фраза"
+          placeholder="Полное слово или фраза без ошибок"
           class="search-input"
         >
         <button type="submit" class="search-btn">
@@ -92,20 +92,18 @@ const props = defineProps({
 
 const emit = defineEmits(['select'])
 
-const partialSearch = useSongSearch()
-const exactSearch = useSongSearch()
+const { search, searchExact, buildIndex, searchResults, exactResults } = useSongSearch()
 
-const partialQuery = ref('')
+const lunrQuery = ref('')
 const exactQuery = ref('')
-const partialResults = ref([])
-const exactResults = ref([])
+const lunrResults = ref([])
+const exactResultsLocal = ref([])
 
-const partialInput = ref(null)
+const lunrInput = ref(null)
 const exactInput = ref(null)
 
 onMounted(() => {
-  partialSearch.buildIndex(props.songs)
-  exactSearch.buildIndex(props.songs)
+  buildIndex(props.songs)
 })
 
 const isNumberQuery = (query) => {
@@ -121,37 +119,37 @@ const runNumberSearch = (query) => {
   }
 }
 
-const handlePartialInput = () => {
-  const query = partialQuery.value?.trim()
+const handleLunrInput = () => {
+  const query = lunrQuery.value?.trim()
   if (query && isNumberQuery(query)) {
-    partialResults.value = []
+    lunrResults.value = []
   } else if (query) {
-    partialSearch.search(query, props.limit, false)
-    partialResults.value = partialSearch.searchResults.value
+    search(query, props.limit)
+    lunrResults.value = searchResults.value
   } else {
-    partialResults.value = []
+    lunrResults.value = []
   }
 }
 
 const handleExactInput = () => {
   const query = exactQuery.value?.trim()
   if (query && isNumberQuery(query)) {
-    exactResults.value = []
+    exactResultsLocal.value = []
   } else if (query) {
-    exactSearch.search(query, props.limit, true)
-    exactResults.value = exactSearch.searchResults.value
+    searchExact(query, props.limit)
+    exactResultsLocal.value = exactResults.value
   } else {
-    exactResults.value = []
+    exactResultsLocal.value = []
   }
 }
 
-const handlePartialSubmit = () => {
-  const query = partialQuery.value?.trim()
+const handleLunrSubmit = () => {
+  const query = lunrQuery.value?.trim()
   if (!query) return
   if (isNumberQuery(query)) {
     runNumberSearch(query)
   } else {
-    handlePartialInput()
+    handleLunrInput()
   }
 }
 
@@ -181,16 +179,16 @@ const getVariantLabel = (n, variantIndex) => {
   return song.variants[variantIndex]?.label || ''
 }
 
-const focus = (which = 'partial') => {
-  const el = which === 'exact' ? exactInput.value : partialInput.value
+const focus = (which = 'lunr') => {
+  const el = which === 'exact' ? exactInput.value : lunrInput.value
   el?.focus()
 }
 
 const clear = () => {
-  partialQuery.value = ''
+  lunrQuery.value = ''
   exactQuery.value = ''
-  partialResults.value = []
-  exactResults.value = []
+  lunrResults.value = []
+  exactResultsLocal.value = []
 }
 
 defineExpose({ focus, clear })
