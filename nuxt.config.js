@@ -146,6 +146,8 @@ export default defineNuxtConfig({
 
     compatibilityDate: '2025-04-23',
 
+    devtools: { enabled: false },
+
     nitro: {
         static: true,
         experimental: {
@@ -167,8 +169,8 @@ export default defineNuxtConfig({
             force: true
         }
     },
-    server: {
-        host: '0',
+    devServer: {
+        host: '0.0.0.0',
         port: 3000
     },
 });
