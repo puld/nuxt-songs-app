@@ -1,1 +1,1 @@
-npm run songs:lint
+node songs-data/lint.js --staged

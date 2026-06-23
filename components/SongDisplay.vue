@@ -137,6 +137,9 @@ const processContent = (content) => {
     result = result.replace(/\}/g, "</span>")
   }
 
+  // Ремарки-инструкции [текст] — показываются всегда, курсивом
+  result = result.replace(/\[([^\]]*)\]/g, "<span class='stage-direction'>$1</span>")
+
   // Заменяем переносы строк на <br/>
   result = result.replace(/\n/g, '<br/>')
 
@@ -440,6 +443,12 @@ const hasChords = (str) => {
   font-size: 0.85em;
   user-select: none;
   opacity: 0.7;
+}
+
+.content :deep(.stage-direction) {
+  font-style: italic;
+  color: var(--text-secondary);
+  font-size: 0.9em;
 }
 
 /* Табы вариантов */
