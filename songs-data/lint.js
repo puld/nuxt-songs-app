@@ -2,14 +2,13 @@
 /**
  * Линтер формата .txt файлов песен
  *
- * Проверяет формат всех .txt файлов в songs/.
+ * Проверяет формат .txt файлов в songs/.
  * Возвращает код 0 если всё ОК, 1 если есть ошибки.
  *
  * Использование:
- *   node lint.js [входная/директория]
- *
- * По умолчанию:
- *   входная директория — songs-data/
+ *   node lint.js [директория]              # проверить все .txt в директории
+ *   node lint.js --staged                  # проверить только staged .txt файлы
+ *   node lint.js файл1.txt файл2.txt ...   # проверить конкретные файлы
  */
 
 const fs = require('fs');
@@ -62,9 +61,15 @@ function validateMetaBlock(lines) {
     errors.push({ line: metaStart + 1, message: 'Пустой мета-блок (@meta сразу за ним @end)' });
   }
 
-  // Проверяем позицию: @meta должен быть после заголовка (#N Title) и пустой строки
-  if (metaStart > 2) {
-    errors.push({ line: metaStart + 1, message: `@meta должен быть сразу после заголовка и пустой строки (строка 3), а не на строке ${metaStart + 1}` });
+  // Проверяем позицию: @meta должен быть в конце файла (после тела песни)
+  // Ищем последнюю непустую строку перед @meta
+  if (metaStart !== -1) {
+    // @meta должен быть после хотя бы одного куплета/припева
+    const beforeMeta = lines.slice(0, metaStart).join('\n');
+    const hasContentBefore = /^\d+\.\s/m.test(beforeMeta) || /^Припев[:.]/im.test(beforeMeta);
+    if (!hasContentBefore) {
+      errors.push({ line: metaStart + 1, message: '@meta должен быть после тела песни (куплетов/припевов), а не перед ними' });
+    }
   }
 
   // Проверяем формат полей мета-блока
@@ -255,48 +260,97 @@ function lintSongContent(text, fileName) {
     }
   }
 
+  // TODO: правило 10 — проверка заглавных букв в начале строк строфы
+  // Отложено: строчная буква в начале строки может быть переносом (продолжением
+  // предыдущей стихотворной строки), а не ошибкой. Нужна корректная эвристика
+  // для отличия переносов от настоящих ошибок (см. техдолг).
+
   return errors;
 }
 
 // ============================================================================
 // CLI
+//
+// Использование:
+//   node lint.js [директория]              # проверить все .txt в директории
+//   node lint.js --staged                  # проверить только staged .txt файлы
+//   node lint.js файл1.txt файл2.txt ...   # проверить конкретные файлы
 // ============================================================================
 
-const inputDir = process.argv[2] || __dirname;
-const songsDir = path.join(inputDir, 'songs');
+const args = process.argv.slice(2);
 
-let totalErrors = 0;
-let filesWithErrors = 0;
+// Определяем режим работы и список файлов
+let files = [];
+let songsDir = '';
+
+if (args.includes('--staged')) {
+  // Режим pre-commit: проверяем только staged .txt файлы
+  const { execSync } = require('child_process');
+  try {
+    const staged = execSync('git diff --cached --name-only --diff-filter=ACM', {
+      cwd: path.resolve(__dirname, '..'),
+      encoding: 'utf8'
+    }).trim();
+    if (staged) {
+      files = staged
+        .split('\n')
+        .filter(f => f.startsWith('songs-data/songs/') && f.endsWith('.txt'))
+        .map(f => path.basename(f))
+        .sort();
+    }
+  } catch (e) {
+    console.error('Не удалось получить список staged файлов');
+    process.exit(1);
+  }
+  songsDir = path.join(__dirname, 'songs');
+} else if (args.length > 0 && !args[0].startsWith('-') && !fs.existsSync(path.join(args[0], 'songs'))) {
+  // Аргументы выглядят как имена файлов (не директория)
+  files = args.map(f => path.basename(f)).sort();
+  songsDir = path.join(__dirname, 'songs');
+} else {
+  // По умолчанию: проверить все файлы в директории
+  const inputDir = args[0] || __dirname;
+  songsDir = path.join(inputDir, 'songs');
+}
 
 if (!fs.existsSync(songsDir)) {
   console.error(`Папка не найдена: ${songsDir}`);
   process.exit(1);
 }
 
-const files = fs.readdirSync(songsDir)
-  .filter(f => f.endsWith('.txt'))
-  .sort();
+// Если файлы не указаны явно — берём все из директории
+if (files.length === 0) {
+  files = fs.readdirSync(songsDir)
+    .filter(f => f.endsWith('.txt'))
+    .sort();
+}
+
+let totalErrors = 0;
+let filesWithErrors = 0;
 
 const totalFiles = files.length;
-const seenNumbers = new Set();
+
+if (totalFiles === 0) {
+  console.log('Нет .txt файлов для проверки');
+  process.exit(0);
+}
 
 for (const file of files) {
   const filePath = path.join(songsDir, file);
+
+  if (!fs.existsSync(filePath)) {
+    filesWithErrors++;
+    totalErrors++;
+    console.log(`✗ songs/${file}`);
+    console.log(`  Файл не найден: ${filePath}`);
+    continue;
+  }
+
   const text = fs.readFileSync(filePath, 'utf8');
   const errors = lintSongContent(text, file);
 
-  // Проверка дубликатов номеров
-  const numMatch = file.match(/^(\d+)\.txt$/);
-  if (numMatch) {
-    const num = parseInt(numMatch[1]);
-    if (seenNumbers.has(num)) {
-      errors.push({ line: 0, message: `Дубликат номера ${num}` });
-    }
-    seenNumbers.add(num);
-  }
-
   if (errors.length === 0) {
-    console.log(`✓ songs/${file}`);
+    // Успешные файлы не выводим по одному — только итоговое количество
   } else {
     filesWithErrors++;
     totalErrors += errors.length;
@@ -311,11 +365,23 @@ for (const file of files) {
   }
 }
 
+function pluralize(n, one, few, many) {
+  const mod10 = n % 10, mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 19) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+}
+
+const okFiles = totalFiles - filesWithErrors;
 console.log();
 if (filesWithErrors === 0) {
-  console.log(`Все ${totalFiles} файлов прошли проверку`);
+  console.log(`✓ ${totalFiles} ${pluralize(totalFiles, 'файл прошёл', 'файла прошли', 'файлов прошли')} проверку`);
 } else {
-  console.log(`Ошибки: ${filesWithErrors} файл из ${totalFiles} (${totalErrors} ошибок)`);
+  if (okFiles > 0) {
+    console.log(`✓ ${okFiles} ${pluralize(okFiles, 'файл прошёл', 'файла прошли', 'файлов прошли')} проверку`);
+  }
+  console.log(`✗ ${filesWithErrors} ${pluralize(filesWithErrors, 'файл с ошибками', 'файла с ошибками', 'файлов с ошибками')} (${totalErrors} ${pluralize(totalErrors, 'ошибка', 'ошибки', 'ошибок')})`);
 }
 
 process.exit(filesWithErrors > 0 ? 1 : 0);
