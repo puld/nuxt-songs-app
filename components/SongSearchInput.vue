@@ -48,7 +48,7 @@ const props = defineProps({
   },
   maxResultsHeight: {
     type: String,
-    default: '200px'
+    default: null
   },
   maxWidth: {
     type: String,
@@ -163,6 +163,15 @@ defineExpose({ focus, clear })
   overflow-y: auto;
   margin-top: 0.5rem;
   box-sizing: border-box;
+  /* Динамическая высота: доступное место от поля поиска до низа экрана.
+     Смещение ~210px ≈ navbar(56) + page-content padding-top(16) +
+     welcome-screen padding(32) + search-container margin(32) +
+     высота формы(~48) + margin результатов(8) + нижний отступ(16).
+     dvh адаптируется под мобильные браузерные панели (URL-bar);
+     vh — фолбэк для старых браузеров.
+     Если контент меньше max-height — скролла нет; если больше — появляется. */
+  max-height: calc(100vh - 210px);
+  max-height: calc(100dvh - 210px);
 }
 
 .result-item {
