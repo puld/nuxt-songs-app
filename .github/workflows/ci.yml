@@ -1,0 +1,65 @@
+name: CI
+
+# Прогоняется при создании и обновлении PR в main.
+# Branch protection (Settings → Branches) делает эти проверки обязательными.
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+# Отменяем предыдущие запуски для того же PR при новом пуше.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Линтинг текстов песен
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+      - run: npm run songs:lint
+
+  unit-tests:
+    name: Unit-тесты (Vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # Платформо-специфичные бинарники для Linux (lockfile создавался на macOS).
+      - run: npm ci --ignore-scripts
+      - run: npm install @rollup/rollup-linux-x64-gnu @esbuild/linux-x64 --no-save
+      - run: npm run postinstall
+      - run: npx vitest run
+
+  e2e-tests:
+    name: E2E-тесты (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+      - run: npm install @rollup/rollup-linux-x64-gnu @esbuild/linux-x64 --no-save
+      - run: npm run postinstall
+      # Браузер Playwright + системные зависимости.
+      - run: npx playwright install --with-deps chromium
+      # webServer в playwright.config.js сам поднимает npm run dev
+      # (который включает songs:parse → генерация songs.json).
+      - run: npm run test:e2e
+      # Отчёт полезен для отладки упавших тестов.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
