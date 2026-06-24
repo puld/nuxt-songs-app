@@ -58,7 +58,7 @@ const props = defineProps({
 
 const emit = defineEmits(['select'])
 
-const { searchResults, searchQuery, buildIndex, search: lunrSearch } = useSongSearch()
+const { searchResults, searchQuery, buildIndex, search: unifiedSearch } = useSongSearch()
 
 const searchInput = ref(null)
 
@@ -75,7 +75,7 @@ const handleInput = () => {
   if (query && isNumberQuery(query)) {
     searchResults.value = []
   } else {
-    lunrSearch(query, props.limit)
+    unifiedSearch(query, props.limit)
   }
 }
 
@@ -90,7 +90,7 @@ const handleSubmit = () => {
       clear()
     }
   } else {
-    lunrSearch(query, props.limit)
+    unifiedSearch(query, props.limit)
   }
 }
 

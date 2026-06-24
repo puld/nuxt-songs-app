@@ -27,9 +27,10 @@ describe('useSongSearch', () => {
     ]
 
     it('должен возвращать реактивные переменные и методы', () => {
-        const { searchIndex, searchResults, searchQuery, buildIndex, search } = useSongSearch()
+        const { searchIndex, exactIndex, searchResults, searchQuery, buildIndex, search } = useSongSearch()
 
         expect(searchIndex.value).toBe(null)
+        expect(exactIndex.value).toBe(null)
         expect(searchResults.value).toEqual([])
         expect(searchQuery.value).toBe('')
         expect(typeof buildIndex).toBe('function')
@@ -38,12 +39,23 @@ describe('useSongSearch', () => {
 
     describe('buildIndex', () => {
         it('должен создавать поисковый индекс из массива песен', () => {
-            const { buildIndex, searchIndex } = useSongSearch()
+            const { buildIndex, searchIndex, exactIndex } = useSongSearch()
 
             buildIndex(mockSongs)
 
             expect(searchIndex.value).toBeDefined()
             expect(typeof searchIndex.value.search).toBe('function')
+        })
+
+        it('должен создавать exactIndex при buildIndex', () => {
+            const { buildIndex, exactIndex } = useSongSearch()
+
+            expect(exactIndex.value).toBe(null)
+
+            buildIndex(mockSongs)
+
+            expect(Array.isArray(exactIndex.value)).toBe(true)
+            expect(exactIndex.value.length).toBeGreaterThan(0)
         })
 
         it('должен обновлять searchIndex', () => {
@@ -144,7 +156,8 @@ describe('useSongSearch', () => {
                 expect(result).toHaveProperty('n')
                 expect(result).toHaveProperty('score')
                 expect(result).toHaveProperty('title')
-                expect(result.title).toBe('')
+                expect(result).toHaveProperty('matchType')
+                expect(['exact', 'lunr']).toContain(result.matchType)
             })
         })
     })
