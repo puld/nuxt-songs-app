@@ -9,4 +9,8 @@
 /songs-data/node_modules
 /public/assets/songs.json
 /tmp
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
 .DS_Store

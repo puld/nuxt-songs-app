@@ -25,7 +25,6 @@
           ref="searchComponent"
           :songs="allSongs"
           :songNumbers="songNumbers"
-          max-results-height="300px"
           @select="goToSong"
         />
       </div>

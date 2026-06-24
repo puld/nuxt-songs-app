@@ -162,6 +162,11 @@ export default defineNuxtPlugin(async (nuxtApp) => {
         request.onerror = (event) => reject(event.target.error);
     });
 
+    // Предоставляем БД в NuxtApp ДО авто-загрузки песен: fetchSongs() →
+    // useIndexDB().addSongs() обращается к $indexedDB, поэтому provide
+    // должен выполниться раньше. Иначе на свежей установке песни не грузятся.
+    nuxtApp.provide('indexedDB', db);
+
     // Создаём подборку «Избранное» если не существует (для новых установок)
     await new Promise((resolve) => {
         try {
@@ -208,6 +213,4 @@ export default defineNuxtPlugin(async (nuxtApp) => {
             console.error('Ошибка автоматической загрузки песен:', error);
         }
     }
-
-    nuxtApp.provide('indexedDB', db);
 });
