@@ -46,7 +46,9 @@ test.describe('Настройки', () => {
     await expect(page.locator(s.song.container)).toHaveClass(/font-size-small/)
   })
 
-  test('toggle аккордов переключает showChords', async ({ page }) => {
+  // ВРЕМЕННО СКИПНУТО: тумблер аккордов скрыт в UI (showChordsSection = false).
+  // Вернуть вместе с раскомментированием секции в pages/settings.vue.
+  test.skip('toggle аккордов переключает showChords', async ({ page }) => {
     const section = page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
     const checkbox = section.locator('input[type="checkbox"]')
     const before = await checkbox.isChecked()
