@@ -7,7 +7,7 @@
 ## Структура
 
 ```
-e2e/
+test/e2e/
 ├── lib/                          # тестовая инфраструктура
 │   ├── fixtures.js               # перехват assets/songs.json → фикстура
 │   ├── selectors.js              # все CSS-селекторы (единый источник правды)
@@ -68,13 +68,13 @@ npm run test:e2e
 npm run test:e2e:ui
 
 # Запустить конкретный spec
-npx playwright test e2e/specs/home.spec.js
+npx playwright test test/e2e/specs/home.spec.js
 
 # Запустить по имени теста (regex)
 npx playwright test -g "повесть любви"
 
 # Запустить только джорни
-npx playwright test e2e/journeys/
+npx playwright test test/e2e/journeys/
 
 # Посмотреть HTML-отчёт
 npx playwright show-report
@@ -105,7 +105,7 @@ const data = require('./public/assets/songs.json');
 const songs = data.songs || data;
 const multi = [32,235,494,854,1067,1175,1188,1254,1309,1363,1455];
 const subset = songs.filter(s => s.n <= 50 || multi.includes(s.n)).sort((a,b)=>a.n-b.n);
-require('fs').writeFileSync('e2e/data/fixtures/songs.fixture.json', JSON.stringify({songs:subset}, null, 2));
+require('fs').writeFileSync('test/e2e/data/fixtures/songs.fixture.json', JSON.stringify({songs:subset}, null, 2));
 console.log('Updated:', subset.length, 'songs');
 "
 ```

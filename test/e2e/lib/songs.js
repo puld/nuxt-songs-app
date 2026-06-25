@@ -1,6 +1,6 @@
 // Тестовые песни, производные от фикстуры (единственный источник истины).
 //
-// Фикстура: e2e/data/fixtures/songs.fixture.json (снимок 60 песен из реальной БД).
+// Фикстура: test/e2e/data/fixtures/songs.fixture.json (снимок 60 песен из реальной БД).
 // Если фикстура меняется — значения здесь обновляются автоматически,
 // т.к. они вычисляются из неё, а не дублируются руками.
 //
@@ -9,7 +9,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const fixturePath = path.resolve(process.cwd(), 'e2e/data/fixtures/songs.fixture.json')
+const fixturePath = path.resolve(process.cwd(), 'test/e2e/data/fixtures/songs.fixture.json')
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'))
 
 /** Найти песню по номеру в фикстуре. */

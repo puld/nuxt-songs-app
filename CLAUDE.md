@@ -59,7 +59,7 @@ npm run test:coverage # Запуск тестов с покрытием кода
 ### Режим работы Nuxt
 - `target: 'static'` — статическая генерация сайта (SSG)
 - `ssr: true` — server-side rendering включен
-- Режим роутинга: `'hash'` — URL вида `/#song/123` (важно для GitHub Pages)
+- URL песен без хеша: `/song/115` (НЕ `/#/song/115`)
 - `app.baseURL`: `/nuxt-songs-app/` в production, `/` в development
 - Dev-сервер слушает `0.0.0.0:3000`
 
@@ -474,7 +474,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 Файл `songs.json` находится в `public/assets/songs.json`. Этот путь важен для PWA-кэширования. При локальной разработке доступен как `/assets/songs.json`. Загрузка в IndexedDB — через `fetch('assets/songs.json')` в `useSongs.fetchSongs()`.
 
 ### Хеширование в URL
-Роутинг использует hash mode — URL вида `/#/song/123`. Это необходимо для корректной работы на GitHub Pages без серверного роутинга.
+URL песен без хеша: `/song/115`. Используйте этот формат везде — в dev-режиме и в production.
 
 ### Индексация поиска
 Поисковый индекс строится один раз при `onMounted` главной страницы. После обновления БД песен через настройки требуется перезагрузка страницы.

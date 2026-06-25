@@ -1,7 +1,7 @@
 // Playwright-фикстуры для E2E тестов.
 //
 // Главная задача: перехватывать запрос assets/songs.json и отдавать
-// детерминированную копию (e2e/data/fixtures/songs.fixture.json).
+// детерминированную копию (test/e2e/data/fixtures/songs.fixture.json).
 // Тесты не зависят от изменений в реальной БД (public/assets/songs.json) —
 // они работают со стабильным снимком из 60 песен (1–50 + мульти-вариантные).
 //
@@ -17,7 +17,7 @@ import path from 'node:path'
 
 // process.cwd() — корень проекта (где лежит playwright.config.js).
 // Playwright всегда запускается оттуда, поэтому путь к фикстуре стабилен.
-const FIXTURE_PATH = path.resolve(process.cwd(), 'e2e/data/fixtures/songs.fixture.json')
+const FIXTURE_PATH = path.resolve(process.cwd(), 'test/e2e/data/fixtures/songs.fixture.json')
 
 export const test = base.extend({
   // Перехват запроса songs.json на уровне page — работает для всех контекстов

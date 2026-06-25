@@ -419,75 +419,22 @@ const removeFromCollection = async (col) => {
 /* Строка заголовка песни + звёздочка избранного
    Ширина совпадает с .song-content-wrapper в SongDisplay.vue,
    чтобы звезда была прижата к правому краю колонки текста песни.
-   ВНИМАНИЕ: Брейкпоинты ширины синхронизированы с .song-content-wrapper
+   ВНИМАНИЕ: max-width синхронизированы с .song-content-wrapper
    в components/SongDisplay.vue — при рефакторинге менять оба места. */
 .song-title-row {
   margin-bottom: 1.5rem;
   width: 100%;
+  max-width: 45rem;
   margin-left: auto;
   margin-right: auto;
-
-  /* xs: сужаем чтобы «Припев:» не выходил за экран */
-  @media (min-width: 480px) {
-    width: 90%;
-  }
-
-  /* sm: 10/12 = 83.33% */
-  @media (min-width: 640px) {
-    width: 83.33%;
-  }
-
-  /* md: 8/12 = 66.67% */
-  @media (min-width: 768px) {
-    width: 66.67%;
-  }
-
-  /* lg: 6/12 = 50% */
-  @media (min-width: 1024px) {
-    width: 50%;
-  }
 }
 
-/* Средний/крупный шрифт: уже колонка на xs (синхронно с SongDisplay) */
-@media (min-width: 480px) {
-  .song-title-row.font-size-medium {
-    width: 85%;
-  }
-
-  .song-title-row.font-size-large {
-    width: 95%;
-  }
+.song-title-row.font-size-medium {
+  max-width: 40rem;
 }
 
-@media (min-width: 640px) {
-  .song-title-row.font-size-medium {
-    width: 83.33%;
-  }
-
-  .song-title-row.font-size-large {
-    width: 95%;
-  }
-}
-
-@media (min-width: 768px) {
-  .song-title-row.font-size-large {
-    width: 66.67%;
-  }
-}
-
-/* Средний/крупный шрифт: ограничение ширины на широких десктопах */
-@media (min-width: 1024px) {
-  .song-title-row.font-size-small {
-    max-width: 45rem;
-  }
-
-  .song-title-row.font-size-medium {
-    max-width: 40rem;
-  }
-
-  .song-title-row.font-size-large {
-    max-width: 35rem;
-  }
+.song-title-row.font-size-large {
+  max-width: 35rem;
 }
 
 .song-title {
