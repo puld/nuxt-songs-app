@@ -42,19 +42,27 @@ export default {
             start_url: pathHost,
             icons: [
                 {
-                    src: 'favicon.ico',
+                    src: pathHost + 'favicon.ico',
                     sizes: '48x48',
-                    type: 'image/png'
+                    type: 'image/x-icon'
                 },
                 {
-                    src: 'pwa-192x192.png',
+                    src: pathHost + 'pwa-120x120.png',
+                    sizes: '120x120',
+                    type: 'image/png',
+                    purpose: 'any'
+                },
+                {
+                    src: pathHost + 'pwa-192x192.png',
                     sizes: '192x192',
-                    type: 'image/png'
+                    type: 'image/png',
+                    purpose: 'any maskable'
                 },
                 {
-                    src: 'pwa-512x512.png',
+                    src: pathHost + 'pwa-512x512.png',
                     sizes: '512x512',
-                    type: 'image/png'
+                    type: 'image/png',
+                    purpose: 'any maskable'
                 }
             ]
         },
@@ -135,7 +143,7 @@ export default {
                 { rel: 'icon', type: 'image/x-icon', href: pathHost + 'favicon.ico' },
                 { rel: 'icon', type: 'image/png', sizes: '16x16', href: pathHost + 'favicon-96x96.png' },
                 { rel: 'apple-touch-icon', sizes: '180x180', href: pathHost + 'apple-touch-icon.png' },
-                { rel: 'mask-icon', href: pathHost + 'icon.svg', color: '#ffffff' }
+                { rel: 'mask-icon', href: pathHost + 'favicon.svg', color: '#ffffff' }
             ],
             meta: [
                 { name: 'msapplication-TileColor', content: '#ffffff' },
