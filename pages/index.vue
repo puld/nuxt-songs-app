@@ -89,7 +89,7 @@ const installApp = () => {
 }
 
 const showInstallButton = computed(() => {
-  return pwa.showInstallPrompt.value && !pwa.isPWAInstalled.value
+  return pwa.showInstallPrompt && !pwa.isPWAInstalled
 })
 
 </script>

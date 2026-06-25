@@ -105,3 +105,36 @@ export async function ensureFavorite(page, songNumber) {
 export function uniqueCollectionName(prefix = 'E2E') {
   return `${prefix} ${Date.now()}`
 }
+
+/**
+ * Эмулирует событие beforeinstallprompt — браузер (Chromium в Playwright)
+ * не эмитит его автоматически, поэтому для теста install-flow нужно диспатчить
+ * вручную. Возвращает результат prompt() если вызвать install.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {object} opts
+ * @param {string} [opts.outcome='accepted'] — исход диалога ('accepted'|'dismissed')
+ * @returns {Promise<{promptCalled: Promise<boolean>}>} — промис, зарезолвится true,
+ *   если install() вызвал deferredPrompt.prompt()
+ */
+export async function dispatchBeforeInstallPrompt(page, opts = {}) {
+  const outcome = opts.outcome || 'accepted'
+  await page.evaluate(async (outcome) => {
+    const evt = new Event('beforeinstallprompt', { cancelable: true })
+    evt.prompt = () => { window.__promptCalled = true; return Promise.resolve() }
+    evt.userChoice = Promise.resolve({ outcome, platform: 'web' })
+    window.dispatchEvent(evt)
+    // ждём реактивный апдейт
+    await new Promise((r) => setTimeout(r, 50))
+  }, outcome)
+}
+
+/** Сбрасывает маркер вызова prompt() (ставится dispatchBeforeInstallPrompt). */
+export async function resetPromptCalledMarker(page) {
+  await page.evaluate(() => { delete window.__promptCalled })
+}
+
+/** Возвращает true, если install() вызвал deferredPrompt.prompt(). */
+export async function wasPromptCalled(page) {
+  return page.evaluate(() => !!window.__promptCalled)
+}
