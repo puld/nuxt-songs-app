@@ -30,7 +30,9 @@
       />
     </div>
 
-    <div class="setting-section">
+    <!-- ВРЕМЕННО СКРЫТО: тумблер аккордов. Функциональность (settings.showChords,
+         SongDisplay) оставлена. Вернуть через showChordsSection = true. -->
+    <div v-if="showChordsSection" class="setting-section">
       <h2>Отображение аккордов:</h2>
       <label class="toggle-switch">
         <input
@@ -81,6 +83,9 @@ const { fetchSongs } = useSongs();
 const updating = ref(false);
 const updateMessage = ref('');
 const updateSuccess = ref(false);
+
+// Временно скрыто: тумблер аккордов в UI. Функциональность сохранена.
+const showChordsSection = ref(false);
 
 const updateSongs = async () => {
   updating.value = true;
