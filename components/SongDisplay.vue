@@ -156,88 +156,36 @@ const hasChords = (str) => {
   width: 100%;
 }
 
-/* Адаптивная сетка: аналогично v-col cols="12" sm="10" md="8" lg="6"
-   ВНИМАНИЕ: Брейкпоинты ширины синхронизированы с .song-title-row
+/* Адаптивная ширина: width: 100% с max-width гарантирует линейный
+   рост ширины до максимума, без скачков на брейкпоинтах.
+   ВНИМАНИЕ: max-width синхронизированы с .song-title-row
    в pages/song/[number].vue — при рефакторинге менять оба места. */
 .song-content-wrapper {
   width: 100%;
+  max-width: 45rem;
   margin: 0 auto;
   padding: 0;
-
-  /* xs: сужаем чтобы «Припев:» не выходил за экран */
-  @media (min-width: 480px) {
-    width: 90%;
-  }
-
-  /* sm: 10/12 = 83.33% */
-  @media (min-width: 640px) {
-    width: 83.33%;
-  }
-
-  /* md: 8/12 = 66.67% */
-  @media (min-width: 768px) {
-    width: 66.67%;
-  }
-
-  /* lg: 6/12 = 50% */
-  @media (min-width: 1024px) {
-    width: 50%;
-  }
 }
 
-/* Средний шрифт: чуть уже на xs, чтобы «Припев:» не выходил за экран */
-@media (min-width: 480px) {
-  .font-size-medium .song-content-wrapper {
-    width: 85%;
-  }
+.font-size-medium .song-content-wrapper {
+  max-width: 40rem;
 }
 
-@media (min-width: 640px) {
-  .font-size-medium .song-content-wrapper {
-    width: 83.33%;
-  }
-}
-
-/* Крупный шрифт на xs: «Припев:» в режиме «строка сверху», колонка шире */
-@media (min-width: 480px) {
-  .font-size-large .song-content-wrapper {
-    width: 95%;
-  }
-}
-
-@media (min-width: 640px) {
-  .font-size-large .song-content-wrapper {
-    width: 95%;
-  }
-}
-
-/* Крупный шрифт: inline «Припев:» с 768px, стандартная ширина */
-@media (min-width: 768px) {
-  .font-size-large .song-content-wrapper {
-    width: 66.67%;
-  }
-}
-
-/* Средний/крупный шрифт: ограничение ширины на широких десктопах */
-@media (min-width: 1024px) {
-  .font-size-small .song-content-wrapper {
-    max-width: 45rem;
-  }
-
-  .font-size-medium .song-content-wrapper {
-    max-width: 40rem;
-  }
-
-  .font-size-large .song-content-wrapper {
-    max-width: 35rem;
-  }
+.font-size-large .song-content-wrapper {
+  max-width: 35rem;
 }
 
 /* «Лист песни» — CSS переменные для колонок
    --label-col фиксирована по размеру шрифта, чтобы «Припев:»
-   в inline режиме не расширял колонку и не сдвигал текст */
+   в inline режиме не расширял колонку и не сдвигал текст.
+   width: fit-content сжимает лист до самой широкой строки,
+   margin-inline: auto центрирует его — короткие строки песен
+   больше не прижаты к левому краю wrapper'а. */
 .song-sheet {
   --label-col: 1.5rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
 }
 
 .font-size-medium .song-sheet {
@@ -252,8 +200,23 @@ const hasChords = (str) => {
 .song-part {
   display: grid;
   grid-template-columns: var(--label-col) 1fr;
+  margin-bottom: 2rem;
+}
+
+/* Размеры шрифтов */
+.font-size-small .song-part{
   column-gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
+}
+
+.font-size-medium .song-part{
+  column-gap: 0.667rem;
+  margin-bottom: 2.667rem;
+}
+
+.font-size-large .song-part{
+  column-gap: 0.833rem;
+  margin-bottom: 3.333rem;
 }
 
 .song-part:last-child {
@@ -370,13 +333,13 @@ const hasChords = (str) => {
 .font-size-small .content,
 .font-size-small .part-label {
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.7;
 }
 
 .font-size-medium .content,
 .font-size-medium .part-label {
   font-size: 20px;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 .font-size-large .content,
@@ -391,11 +354,11 @@ const hasChords = (str) => {
 }
 
 .font-size-medium .content-withChords {
-  line-height: 2.1;
+  line-height: 2.0;
 }
 
 .font-size-large .content-withChords {
-  line-height: 2.2;
+  line-height: 2.0;
 }
 
 /* Стили для аккордов */

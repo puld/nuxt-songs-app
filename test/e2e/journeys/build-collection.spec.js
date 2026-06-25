@@ -19,6 +19,9 @@ test.describe('Джорни: собрать подборку', () => {
     await expect(page.locator(`${s.chips.chip}:has-text("${name}")`)).toBeVisible()
 
     // 2. Переходим к песне #2 и добавляем в ту же подборку через попап.
+    // Скроллим наверх: после клика по chipAdd (внизу страницы) навбар скрылся.
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await expect(page.locator(s.navbar.bar)).not.toHaveClass(/app-bar-hidden/)
     await page.click(s.navbar.nextBtn)
     await expect(page).toHaveURL(new RegExp(`/song/${SONGS.TWO.n}$`))
     await page.click(s.chips.chipAdd)

@@ -8,7 +8,7 @@ import { defineConfig } from '@playwright/test'
  * данными из public/assets/songs.json.
  */
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './test/e2e',
   testMatch: /.*\.spec\.js$/,
   timeout: 30000,
   expect: {
