@@ -61,7 +61,7 @@ npm run test:e2e:headed / test:e2e:ui
 ## Архитектура приложения
 
 ### Технологический стек
-- **Nuxt 3** (~3.9) — Vue.js фреймворк для SSR/SSG
+- **Nuxt 3** (~3.9) — Vue.js фреймворк, режим SSG без SSR (см. «Режим работы Nuxt»)
 - **Vue 3** (~3.3) — реактивный UI
 - **IndexedDB** — клиентское хранилище для оффлайн-доступа к песням и подборкам
 - **Lunr.js** (~2.3) + **lunr-languages** — полнотекстовый поиск с русским стеммингом
@@ -76,11 +76,10 @@ npm run test:e2e:headed / test:e2e:ui
 - **husky** — git-хуки (`npm run prepare`)
 
 ### Режим работы Nuxt
-- `target: 'static'` — статическая генерация сайта (SSG)
-- `ssr: true` — server-side rendering включен
+- `ssr: false` — SPA-режим: `nuxt generate` выдаёт статику, но страницы рендерятся только в браузере. Ключа `target` в Nuxt 3 нет
 - URL песен без хеша: `/song/115` (НЕ `/#/song/115`)
 - `app.baseURL`: `/nuxt-songs-app/` в production, `/` в development
-- Dev-сервер слушает `0.0.0.0:3000`
+- Dev-сервер слушает `0.0.0.0:3000` (`devServer` в `nuxt.config.js`) — чтобы открывать сборку с телефона по локальной сети
 
 ## Структура проекта
 
@@ -108,6 +107,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   └── default.vue           # Smart Navbar + выдвижной сайдбар + футер
 ├── lib/                      # Чистые функции без Vue (+ тесты рядом)
 │   ├── autoUpdate.js         # ETag-логика автообновления
+│   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
 │   └── wakeLock.js           # Менеджер Wake Lock
@@ -145,6 +145,8 @@ npm run test:e2e:headed / test:e2e:ui
 
 Плагин `plugins/indexedDB.client.js` (client-only) инициализирует БД `SongsDB` **версии 6** с тремя хранилищами. При пустой базе плагин сам вызывает `fetchSongs()` — песни грузятся автоматически при первом запуске.
 
+Имя базы, версия и создание хранилищ/индексов — в `lib/dbSchema.js` (`DB_NAME`, `DB_VERSION`, `createSchema`). Оттуда их берут и плагин, и тесты. Миграции остаются в плагине: они зависят от `oldVersion` и работают с транзакцией апгрейда.
+
 ### songs
 - `number` (keyPath) — номер песни
 - `title` — название песни
@@ -174,7 +176,7 @@ npm run test:e2e:headed / test:e2e:ui
 - v4→v5: индекс `isFavorite` + создание подборки «Избранное»
 - v5→v6: гарантия наличия индексов `isFavorite` и `collectionId_songNumber_variantIndex`
 
-При изменении схемы обновлять `dbVersion` в плагине **и** в `test/helpers/setup.js`, `test/helpers/indexedDB.js`.
+При изменении схемы править `lib/dbSchema.js` — `DB_VERSION` и `createSchema` там в одном месте для приложения и тестов. Миграцию дописывать в плагин.
 
 ## Composables
 
@@ -299,9 +301,9 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 ### Unit (Vitest)
 - Окружение `happy-dom`, `fake-indexeddb` для IndexedDB (включая `IDBKeyRange`)
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
-- Версия БД в тестах: `6` (`test/helpers/setup.js`, `test/helpers/indexedDB.js`)
+- Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useSongs.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useSongs.test.js`
 
 ### E2E (Playwright)
 - `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, settings, song, song-goto, search-layout, responsive, width-linear, pwa-install
@@ -313,7 +315,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 
 1. Пуш в `main` триггерит GitHub Actions (`.github/workflows/nuxtjs.yml`)
 2. Workflow: checkout → Node 20 → npm install → `npm run generate` → deploy
-3. `app.baseURL` и `router.base` настроены на `/nuxt-songs-app/`
+3. `app.baseURL` настроен на `/nuxt-songs-app/`
 4. Результат: `.output/public/` деплоится на GitHub Pages
 5. В Settings → Pages: Deploy from branch `gh-pages`, folder `/ (root)`
 

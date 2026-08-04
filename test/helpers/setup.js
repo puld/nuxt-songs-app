@@ -1,8 +1,10 @@
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb'
+import { DB_NAME, DB_VERSION, createSchema } from '../../lib/dbSchema'
 
 /**
- * Создает mock-экземпляр IndexedDB для тестов
- * Инициализирует схему базы данных (songs, collections, songCollections)
+ * Создает mock-экземпляр IndexedDB для тестов.
+ * Схему берём из lib/dbSchema.js — та же, что использует боевой плагин,
+ * иначе тесты проверяли бы структуру, отличную от реальной.
  * @returns {Promise<IDBDatabase>} Mock-экземпляр базы данных
  */
 export const createMockDB = async () => {
@@ -12,34 +14,12 @@ export const createMockDB = async () => {
     }
 
     const indexedDB = new IDBFactory()
-    const dbVersion = 6
 
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('SongsDB', dbVersion)
+        const request = indexedDB.open(DB_NAME, DB_VERSION)
 
         request.onupgradeneeded = (event) => {
-            const db = event.target.result
-
-            // Создание object store для песен
-            if (!db.objectStoreNames.contains('songs')) {
-                db.createObjectStore('songs', { keyPath: 'number' })
-            }
-
-            // Создание object store для подборок
-            if (!db.objectStoreNames.contains('collections')) {
-                const collectionsStore = db.createObjectStore('collections', { keyPath: 'id', autoIncrement: true })
-                collectionsStore.createIndex('name', 'name', { unique: false })
-                collectionsStore.createIndex('isFavorite', 'isFavorite', { unique: false })
-            }
-
-            // Создание object store для связей песен и подборок
-            if (!db.objectStoreNames.contains('songCollections')) {
-                const songCollectionsStore = db.createObjectStore('songCollections', { keyPath: 'id', autoIncrement: true })
-                songCollectionsStore.createIndex('collectionId', 'collectionId', { unique: false })
-                songCollectionsStore.createIndex('songNumber', 'songNumber', { unique: false })
-                songCollectionsStore.createIndex('collectionId_songNumber', ['collectionId', 'songNumber'], { unique: false })
-                songCollectionsStore.createIndex('collectionId_songNumber_variantIndex', ['collectionId', 'songNumber', 'variantIndex'], { unique: true })
-            }
+            createSchema(event.target.result)
         }
 
         request.onsuccess = () => resolve(request.result)

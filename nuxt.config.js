@@ -4,26 +4,12 @@ import { readFileSync } from 'fs'
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'))
 
 export default {
-    target: 'static',
     ssr: false,
 
     appConfig: {
         appVersion: pkg.version,
         appCommit: process.env.COMMIT_SHA || 'dev',
         appBuildDate: new Date().toISOString().slice(0, 10),
-    },
-
-    head: {
-        title: 'Сборник текстов песен',
-        meta: [
-            {charset: 'utf-8'},
-            {name: 'viewport', content: 'width=device-width, initial-scale=1'},
-            {name: 'description', content: 'Оффлайн сборник текстов песен'},
-            { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no' }
-        ],
-        link: [
-            {rel: 'icon', type: 'image/x-icon', href: pathHost + 'favicon.ico'}
-        ]
     },
 
     pwa: {
@@ -97,10 +83,6 @@ export default {
         '@/assets/css/main.css'
     ],
 
-    buildModules: [
-        '@nuxtjs/color-mode'
-    ],
-
     modules: [
         '@nuxtjs/color-mode',
         '@nuxt/icon',
@@ -139,6 +121,7 @@ export default {
         baseURL: pathHost,
         buildAssetsDir: '/_nuxt/',
         head: {
+            title: 'Сборник текстов песен',
             link: [
                 { rel: 'icon', type: 'image/x-icon', href: pathHost + 'favicon.ico' },
                 { rel: 'icon', type: 'image/png', sizes: '16x16', href: pathHost + 'favicon-96x96.png' },
@@ -146,6 +129,7 @@ export default {
                 { rel: 'mask-icon', href: pathHost + 'favicon.svg', color: '#ffffff' }
             ],
             meta: [
+                { name: 'description', content: 'Оффлайн сборник текстов песен' },
                 { name: 'msapplication-TileColor', content: '#ffffff' },
                 { name: 'theme-color', content: '#ffffff' }
             ]
@@ -165,8 +149,12 @@ export default {
             }
         }
     },
-    server: {
-        host: '0',
+
+    // Слушаем все интерфейсы, чтобы открывать dev-сборку с телефона по локальной
+    // сети (проверка PWA, ориентации экрана). Ключ `server` из Nuxt 2 здесь не
+    // работал — в Nuxt 3 это `devServer`.
+    devServer: {
+        host: '0.0.0.0',
         port: 3000
     },
 };
