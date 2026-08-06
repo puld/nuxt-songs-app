@@ -71,6 +71,7 @@ export const s = {
     instructions: '.instructions',
     instructionExtended: '.instruction-extended',
     instructionText: '.instruction-text',
+    instructionMore: '.instruction-more',
     installBtn: '.install-btn',
     loadingText: '.loading-text',
     updateLink: 'a:has-text("Обновить в настройках")',

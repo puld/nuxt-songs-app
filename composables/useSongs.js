@@ -1,4 +1,6 @@
 import { useIndexDB } from './useIndexDB'
+import { invalidateSongsCache } from './useSongsCache'
+import { resetSearchIndex } from './useSongSearch'
 
 /**
  * Composable для загрузки песен из JSON файла.
@@ -30,6 +32,10 @@ export const useSongs = () => {
 
             const data = await response.json()
             await addSongs(data.songs)
+
+            // База изменилась — кэш песен и поисковые индексы устарели.
+            invalidateSongsCache()
+            resetSearchIndex()
 
             // Сохраняем ETag для автообновления
             const etag = response.headers.get('etag')

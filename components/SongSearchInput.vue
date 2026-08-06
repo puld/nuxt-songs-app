@@ -22,8 +22,8 @@
           @click="handleResultClick(result)"
         >
           <span class="song-number">{{ result.n }}</span>
-          <span class="song-title">{{ getSongTitle(result.n) }}</span>
-          <span v-if="getVariantLabel(result.n, result.variantIndex)" class="variant-label">({{ getVariantLabel(result.n, result.variantIndex) }})</span>
+          <span class="song-title">{{ titleOf(result.n) }}</span>
+          <span v-if="variantLabelOf(result.n, result.variantIndex)" class="variant-label">({{ variantLabelOf(result.n, result.variantIndex) }})</span>
         </div>
       </div>
     </Transition>
@@ -31,7 +31,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { buildSongsMap, getSongTitle, getVariantLabel } from '~/lib/songsIndex'
 
 const props = defineProps({
   songs: {
@@ -99,16 +100,13 @@ const handleResultClick = (result) => {
   clear()
 }
 
-const getSongTitle = (n) => {
-  const song = props.songs.find(s => Number(s.number) === Number(n))
-  return song ? song.title : 'Неизвестная песня'
-}
+// Карта «номер → песня» строится один раз на инстанс: без неё каждый
+// результат выдачи искал песню линейным find по 1565 записям.
+const songsMap = computed(() => buildSongsMap(props.songs))
 
-const getVariantLabel = (n, variantIndex) => {
-  const song = props.songs.find(s => Number(s.number) === Number(n))
-  if (!song?.variants || song.variants.length <= 1) return ''
-  return song.variants[variantIndex]?.label || ''
-}
+const titleOf = (n) => getSongTitle(songsMap.value, n)
+
+const variantLabelOf = (n, variantIndex) => getVariantLabel(songsMap.value, n, variantIndex)
 
 const focus = () => {
   searchInput.value?.focus()

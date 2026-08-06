@@ -99,7 +99,8 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── useIndexDB.js         # IndexedDB: песни, подборки, связи, избранное
 │   ├── useLayoutCommon.js    # Общая логика layout: навбар, wake lock, автообновление
 │   ├── useSongs.js           # Загрузка songs.json в IndexedDB
-│   ├── useSongSearch.js      # Vue-обёртка для поиска (реактивность)
+│   ├── useSongsCache.js      # Модульный кэш песен: allSongs, songNumbers, songsMap
+│   ├── useSongSearch.js      # Vue-обёртка для поиска (индексы — синглтон)
 │   ├── useWakeLock.js        # Обёртка над Wake Lock API
 │   └── utils.js              # pluralize для русского языка
 ├── layouts/
@@ -110,6 +111,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── devMode.js            # Активация режима разработчика тапами по версии
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
+│   ├── songsIndex.js         # Карта «номер → песня», названия и метки вариантов
 │   └── wakeLock.js           # Менеджер Wake Lock
 ├── pages/
 │   ├── index.vue             # Главная: поиск + подсказки
@@ -193,10 +195,19 @@ npm run test:e2e:headed / test:e2e:ui
 **Избранное:** `getFavoriteCollection()`, `isSongInFavorite(songNumber, variantIndex)`, `addToFavorite(...)`, `removeFromFavorite(...)` — обёртки над подборкой с `isFavorite: 1`; бросают ошибку, если её нет
 
 ### `useSongSearch` (composables/useSongSearch.js)
-Vue-обёртка над `lib/search.js`: `buildIndex(songs)`, `search(query, limit)`, реактивные `searchIndex`, `searchResults`, `searchQuery`.
+Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `search(query, limit)`, реактивные `searchIndex`, `exactIndex`, `searchResults`, `searchQuery`.
+
+**Индексы — синглтон на уровне модуля.** `searchIndex`/`exactIndex` объявлены вне фабричной функции, поэтому построение переиспользуется всеми инстансами: поле на главной и попап «Перейти к песне» индексируют 1565 песен один раз на сессию. Повторный `buildIndex` — no-op, перестроить можно через `{ force: true }` или `resetSearchIndex()`.
+
+`searchQuery` и `searchResults` остаются локальными для каждого инстанса — иначе поле на главной и попап поделили бы ввод и выдачу.
+
+### `useSongsCache` (composables/useSongsCache.js)
+Модульный кэш песен: `loadSongs()` один раз читает `getAllSongs()` и наполняет реактивные `allSongs`, `songNumbers`, `songsMap` (карта «номер → песня» из `lib/songsIndex.js`). Конкурентные вызовы дедуплицируются через закэшированный промис; при ошибке промис сбрасывается, чтобы неудача не залипла на сессию. `invalidateSongsCache()` сбрасывает кэш — вызывается из `useSongs().fetchSongs()` после обновления базы.
+
+Страницы главной и песни берут песни и номера отсюда, а не из `useIndexDB()` напрямую.
 
 ### `useSongs` (composables/useSongs.js)
-- `fetchSongs()` — загружает `assets/songs.json` через `fetch()`, сохраняет в IndexedDB через `addSongs()` и запоминает ETag. Единая точка входа для обновления базы. Возвращает `true/false`.
+- `fetchSongs()` — загружает `assets/songs.json` через `fetch()`, сохраняет в IndexedDB через `addSongs()` и запоминает ETag. Единая точка входа для обновления базы. После записи вызывает `invalidateSongsCache()` и `resetSearchIndex()` — кэш песен и поисковые индексы устарели. Возвращает `true/false`.
 
 ### `useAutoUpdate` (composables/useAutoUpdate.js)
 Проверка обновлений базы по ETag: HEAD-запрос к `songs.json`, сравнение с сохранённым ETag, при расхождении — `settings.updateAvailable = true`. Коулдаун 30 минут (`lib/autoUpdate.js`). Применение обновления делегируется в `useSongs().fetchSongs()`.
@@ -215,6 +226,8 @@ Vue-обёртка над `lib/search.js`: `buildIndex(songs)`, `search(query, l
 Чистые функции в `lib/search.js`: `cleanText`, `prepareSongForIndexing`, `prepareVariantsForIndexing`, `buildSearchIndex`, `performSearch`, `parseSearchRef`. Индексируется каждый вариант песни отдельно, ref формата `"number:variantIndex"`; `title` boost 10, стоп-слова отключены, последний терм запроса ищется с fuzzy `~2`.
 
 Детали ранжирования, ограничения Lunr и разбор известных промахов — `docs/reference/search-lunr.md`.
+
+Вспомогательные чистые функции в `lib/songsIndex.js`: `buildSongsMap`, `songNumbersFrom`, `getSongTitle`, `getVariantLabel` — выдача поиска берёт название и метку варианта из карты по номеру, а не линейным `find` по всем песням.
 
 ## Хранилище настроек (stores/settings.js)
 
@@ -249,11 +262,11 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 
 ### `pages/index.vue` — Главная
 - `SongSearchInput`: полнотекстовый поиск и переход по номеру (лимит 7 результатов)
-- Подсказки: расширенные, пока в «Избранном» пусто
+- Подсказки: расширенные, пока в «Избранном» пусто; в обоих вариантах последняя строка плашки — ссылка «Подробнее» на `/about`
 - При пустой БД — ссылка на настройки
 
 ### `pages/song/[number].vue` — Страница песни
-- Навигация предыдущая/следующая (по списку номеров из IndexedDB)
+- Навигация предыдущая/следующая (по списку номеров из `useSongsCache`)
 - `SongDisplay` — текст с табами вариантов
 - Звезда «в Избранное» и секция подборок: просмотр/добавление/удаление, создание подборки со страницы песни
 
@@ -312,7 +325,8 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/devMode.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useSongs.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`
+- Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
 - `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install
@@ -340,7 +354,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 URL песен без хеша: `/song/115`. Использовать этот формат везде — и в dev, и в production.
 
 ### Индексация поиска
-Поисковый индекс строится при `onMounted` (`SongSearchInput`). После обновления базы через настройки нужна перезагрузка страницы.
+Поисковый индекс строится при `onMounted` (`SongSearchInput`) и живёт синглтоном в `useSongSearch` — второе и последующие монтирования его не перестраивают. `fetchSongs()` сбрасывает индекс и кэш песен, но смонтированные компоненты перечитают данные только при следующем монтировании: после принудительного обновления базы из настроек надёжнее перезагрузить страницу.
 
 ### Плагин IndexedDB — client-only
 `plugins/indexedDB.client.js` работает только на клиенте (суффикс `.client.js`). SSR доступа к IndexedDB не имеет. `provide('indexedDB')` выполняется **до** авто-загрузки песен: `fetchSongs()` обращается к `$indexedDB`, иначе на свежей установке песни не загрузятся.

@@ -30,14 +30,18 @@
       </div>
 
       <div class="instructions">
-        <ul v-if="favoriteCount === 0" class="instruction-text instruction-extended">
-          <li>Ищите песни по номеру или тексту</li>
-          <li>Нажмите <Icon name="mingcute:star-line" size="0.95rem" class="instruction-icon" /> на странице песни, чтобы добавить в «Избранное»</li>
-          <li>Ваши подборки доступны через меню ☰</li>
-        </ul>
+        <div v-if="favoriteCount === 0" class="instruction-text instruction-extended">
+          <ul class="instruction-list">
+            <li>Ищите песни по номеру или тексту</li>
+            <li>Нажмите <Icon name="mingcute:star-line" size="0.95rem" class="instruction-icon" /> на странице песни, чтобы добавить в «Избранное»</li>
+            <li>Ваши подборки доступны через меню ☰</li>
+          </ul>
+          <NuxtLink to="/about" class="instruction-more">Подробнее</NuxtLink>
+        </div>
         <div v-else class="instruction-text">
           Ищите песни по номеру или тексту<br>
           Подборки — через меню ☰
+          <NuxtLink to="/about" class="instruction-more">Подробнее</NuxtLink>
         </div>
       </div>
 
@@ -53,19 +57,17 @@
 
 <script setup>
 
-const {getAllSongs, getSongNumbers, getFavoriteCollection, getSongsCountInCollection} = useIndexDB()
+const {getFavoriteCollection, getSongsCountInCollection} = useIndexDB()
+const {allSongs, songNumbers, loadSongs} = useSongsCache()
 const pwa = usePWA()
 
-const allSongs = ref([])
-const songNumbers = ref([])
 const favoriteCount = ref(0)
 const loading = ref(true)
 const searchComponent = ref(null)
 const router = useRouter()
 
 onMounted(async () => {
-  allSongs.value = await getAllSongs()
-  songNumbers.value = await getSongNumbers()
+  await loadSongs()
   loading.value = false
 
   const favorite = await getFavoriteCollection()
@@ -124,16 +126,20 @@ const showInstallButton = computed(() => {
   padding: 0.75rem 1rem;
   background: var(--bg-secondary);
   border-radius: 0.5rem;
-  list-style: none;
-  padding-left: 1rem;
 }
 
-.instruction-extended li {
+.instruction-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.instruction-list li {
   position: relative;
   padding-left: 1rem;
 }
 
-.instruction-extended li::before {
+.instruction-list li::before {
   content: "•";
   position: absolute;
   left: 0;
@@ -142,6 +148,15 @@ const showInstallButton = computed(() => {
 
 .instruction-icon {
   vertical-align: text-top;
+}
+
+/* Ссылка на шпаргалку — последняя строка плашки с краткой инструкцией */
+.instruction-more {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--primary);
+  text-decoration: none;
 }
 
 .install-btn {

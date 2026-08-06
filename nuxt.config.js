@@ -23,7 +23,10 @@ export default {
             background_color: '#ffffff',
             display: 'standalone',
             display_override: ['fullscreen', 'minimal-ui'],
-            orientation: 'portrait',
+            // 'any', а не 'portrait': в установленном PWA манифест блокировал
+            // ландшафт. Установленное приложение перечитывает манифест с
+            // задержкой — эффект сразу виден в браузере и на свежей установке.
+            orientation: 'any',
             scope: pathHost,
             start_url: pathHost,
             icons: [
