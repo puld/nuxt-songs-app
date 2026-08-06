@@ -104,6 +104,7 @@ export default {
                 'mingcute:star-fill',
                 'mingcute:star-line',
                 'mingcute:download-2-line',
+                'mingcute:information-line',
             ],
             scan: true,
             sizeLimitKb: 256,

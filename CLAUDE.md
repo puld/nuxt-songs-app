@@ -86,7 +86,6 @@ npm run test:e2e:headed / test:e2e:ui
 ```
 ├── assets/css/main.css       # CSS переменные тем + Tailwind imports
 ├── components/
-│   ├── AppFooter.vue         # Футер (использует useAppConfig)
 │   ├── LoadingText.vue       # Индикатор загрузки с текстом
 │   ├── NavBarBack.vue        # Кнопка «назад» в навбаре
 │   ├── NavBarHamburger.vue   # Кнопка меню (inject toggleSidebar/updateAvailable)
@@ -104,15 +103,17 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── useWakeLock.js        # Обёртка над Wake Lock API
 │   └── utils.js              # pluralize для русского языка
 ├── layouts/
-│   └── default.vue           # Smart Navbar + выдвижной сайдбар + футер
+│   └── default.vue           # Smart Navbar + выдвижной сайдбар
 ├── lib/                      # Чистые функции без Vue (+ тесты рядом)
 │   ├── autoUpdate.js         # ETag-логика автообновления
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
+│   ├── devMode.js            # Активация режима разработчика тапами по версии
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
 │   └── wakeLock.js           # Менеджер Wake Lock
 ├── pages/
 │   ├── index.vue             # Главная: поиск + подсказки
+│   ├── about.vue             # О приложении: шпаргалка, версия, активация dev-режима
 │   ├── settings.vue          # Настройки
 │   ├── song/[number].vue     # Страница песни
 │   └── collections/[id].vue  # Подборка: список песен
@@ -226,19 +227,21 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 | `keepScreenOn` | Boolean | `true` / `false` | `true` |
 | `songsEtag` | String | ETag последней загрузки `songs.json` | `''` |
 | `lastUpdateCheck` | Number | timestamp последней проверки (ms) | `0` |
+| `devMode` | Boolean | режим разработчика — гейт экспериментальных функций | `false` |
 | `updateAvailable` | Boolean | **не персистентно** — пересчитывается при запуске | `false` |
 
-Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setUpdateAvailable`.
+Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`.
 
 ## Layout и навигация
 
 `layouts/default.vue`:
 - Фиксированная панель 56px сверху (`app-bar` в Tailwind), скрывается при скролле вниз, появляется при скролле вверх (порог 100px)
 - Три Teleport-слота: `#navbar-left`, `#navbar-center`, `#navbar-right`
-- Выдвижной сайдбар с оверлеем: ссылка на главную + список подборок с количеством песен; «Избранное» всегда первым, остальные — по дате создания
+- Выдвижной сайдбар с оверлеем: ссылка на главную + список подборок с количеством песен; «Избранное» всегда первым, остальные — по дате создания; внизу «О приложении» и «Настройки»
 - `provide('toggleSidebar')` и `provide('updateAvailable')` — для `NavBarHamburger` / `NavBarBack`
 - `UpdateToast` — предложение обновить базу песен
-- Футер внизу страницы
+
+Футера нет: описание и версия/сборка (`appVersion`, `appCommit`, `appBuildDate`) переехали на `/about`, где они не дублируются на каждом экране.
 
 Страницы используют `<ClientOnly><Teleport to="#navbar-...">` для наполнения навбара.
 
@@ -259,6 +262,12 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 - «Не гасить экран» (`keepScreenOn`)
 - Принудительное обновление базы данных песен
 - Тумблер аккордов **временно скрыт** флагом `showChordsSection`; функциональность (`settings.showChords`, `SongDisplay`) сохранена — план возврата в `docs/restore-chords-toggle.md`
+- Секция «Экспериментальные функции» показывается только при `settings.devMode`; там же тумблер, которым режим выключается
+
+### `pages/about.vue` — О приложении
+- Краткое описание приложения и шпаргалка «Как пользоваться» по экранам (поиск, страница песни, избранное, подборки, настройки, установка)
+- Блок версии/сборки из `useAppConfig()` (`appVersion`, `appCommit`, `appBuildDate`)
+- **Режим разработчика**: 7 тапов по блоку версии включают `settings.devMode` (подсказка об остатке с 3 тапов до порога). Логика подсчёта — чистая, в `lib/devMode.js` (`registerTap`, окно сброса 2 сек); страница только отображает результат
 
 ### `pages/collections/[id].vue` — Подборка
 - Список песен в подборке, удаление песни из подборки
@@ -303,10 +312,10 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useSongs.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/devMode.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useSongs.test.js`
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, settings, song, song-goto, search-layout, responsive, width-linear, pwa-install
+- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия

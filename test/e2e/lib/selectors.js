@@ -11,6 +11,7 @@
 //   goto       — popover «Перейти к песне»
 //   popup      — попап добавления в подборку
 //   settings   — страница настроек
+//   about      — страница «О приложении» (шпаргалка + версия + dev-режим)
 //   collection — страница подборки
 //   layout     — корневой контейнер
 
@@ -140,6 +141,19 @@ export const s = {
     updateBtn: 'button:has-text("Обновить")',
     success: '.success',
     error: '.error',
+  },
+
+  // === Страница «О приложении» ===
+  about: {
+    page: '.about',
+    section: '.about-section',
+    guideItem: '.guide-item',
+    guideTitle: '.guide-title',
+    guideText: '.guide-text',
+    versionBtn: '.version-btn',
+    versionValue: '.version-value',
+    devModeMessage: '.dev-mode-message',
+    devModeStatus: '.dev-mode-status',
   },
 
   // === Страница подборки ===
