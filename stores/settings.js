@@ -7,6 +7,7 @@ export const useSettingsStore = defineStore('settings', {
         keepScreenOn: useStorage('keepScreenOn', true),
         songsEtag: useStorage('songsEtag', ''),
         lastUpdateCheck: useStorage('lastUpdateCheck', 0),
+        devMode: useStorage('devMode', false), // режим разработчика: гейт экспериментальных функций
         updateAvailable: false // не персистентно — пересчитывается при каждом запуске
     }),
     actions: {
@@ -27,6 +28,9 @@ export const useSettingsStore = defineStore('settings', {
         },
         setUpdateAvailable(value) {
             this.updateAvailable = value
+        },
+        setDevMode(value) {
+            this.devMode = value
         }
     },
     persist: true // Для сохранения настроек между сессиями

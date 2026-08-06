@@ -98,6 +98,18 @@ test.describe('Главная: инструкции и пустое состоя
     expect(count).toBeGreaterThanOrEqual(3)
   })
 
+  test('ссылка «Подробнее» внутри плашки ведёт на /about', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForSelector(s.search.input, { timeout: 30000 })
+
+    // Ссылка должна быть частью плашки инструкции, а не висеть отдельно
+    const more = page.locator(`${s.home.instructionExtended} ${s.home.instructionMore}`)
+    await expect(more).toBeVisible()
+
+    await more.click()
+    await expect(page).toHaveURL(/\/about$/, { timeout: 10000 })
+  })
+
   test('фикстура загрузилась: поиск находит песни', async ({ page }) => {
     // Sanity-проверка, что фикстура перехватилась и индекс построился.
     await page.goto('/')

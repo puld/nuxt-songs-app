@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { useSongSearch } from './useSongSearch'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { useSongSearch, resetSearchIndex } from './useSongSearch'
 
 describe('useSongSearch', () => {
     const mockSongs = [
@@ -25,6 +25,11 @@ describe('useSongSearch', () => {
             ]
         }
     ]
+
+    // Индексы — синглтон на уровне модуля, между тестами их надо сбрасывать
+    beforeEach(() => {
+        resetSearchIndex()
+    })
 
     it('должен возвращать реактивные переменные и методы', () => {
         const { searchIndex, exactIndex, searchResults, searchQuery, buildIndex, search } = useSongSearch()
@@ -195,6 +200,83 @@ describe('useSongSearch', () => {
             expect(rainResultsCount).toBeGreaterThan(0)
             expect(birdResultsCount).toBeGreaterThan(0)
             expect(rainResultsCount).not.toBe(birdResultsCount)
+        })
+    })
+
+    describe('синглтон индексов', () => {
+        const otherSongs = [
+            {
+                number: 42,
+                title: 'Зимняя дорога',
+                variants: [
+                    { label: '', body: [{ type: 'verse', content: 'Снег скрипит под полозьями' }] }
+                ]
+            }
+        ]
+
+        it('индексы общие: второй инстанс ищет без своего buildIndex', () => {
+            useSongSearch().buildIndex(mockSongs)
+
+            // Второй инстанс индекс не строил
+            const { search, searchResults } = useSongSearch()
+            search('дождь')
+
+            expect(searchResults.value.length).toBeGreaterThan(0)
+        })
+
+        it('повторный buildIndex не перестраивает индекс', () => {
+            const { buildIndex, search, searchResults } = useSongSearch()
+
+            buildIndex(mockSongs)
+            // Второй набор песен должен быть проигнорирован
+            buildIndex(otherSongs)
+
+            search('зимняя')
+            expect(searchResults.value).toEqual([])
+
+            search('дождь')
+            expect(searchResults.value.length).toBeGreaterThan(0)
+        })
+
+        it('force: true перестраивает индекс по новым песням', () => {
+            const { buildIndex, search, searchResults } = useSongSearch()
+
+            buildIndex(mockSongs)
+            buildIndex(otherSongs, { force: true })
+
+            search('зимняя')
+            expect(searchResults.value.length).toBeGreaterThan(0)
+
+            search('дождь')
+            expect(searchResults.value).toEqual([])
+        })
+
+        it('resetSearchIndex обнуляет индексы и разрешает построить заново', () => {
+            const { buildIndex, searchIndex, exactIndex } = useSongSearch()
+
+            buildIndex(mockSongs)
+            expect(searchIndex.value).not.toBe(null)
+
+            resetSearchIndex()
+            expect(searchIndex.value).toBe(null)
+            expect(exactIndex.value).toBe(null)
+
+            buildIndex(otherSongs)
+            expect(searchIndex.value).not.toBe(null)
+        })
+
+        it('запрос и выдача остаются локальными для каждого инстанса', () => {
+            const first = useSongSearch()
+            const second = useSongSearch()
+
+            first.buildIndex(mockSongs)
+
+            first.searchQuery.value = 'дождь'
+            first.search('дождь')
+
+            expect(first.searchResults.value.length).toBeGreaterThan(0)
+            expect(second.searchQuery.value).toBe('')
+            expect(second.searchResults.value).toEqual([])
         })
     })
 })

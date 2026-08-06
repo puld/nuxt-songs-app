@@ -128,26 +128,24 @@ const router = useRouter()
 const settings = useSettingsStore()
 const {
   getSong,
-  getSongNumbers,
   createCollection,
   getCollectionsForSong,
   addSongToCollection,
   getAvailableCollections,
   getSongsCountInCollection,
   removeSongFromCollection,
-  getAllSongs,
   isSongInFavorite,
   addToFavorite,
   removeFromFavorite
 } = useIndexDB();
+
+const {allSongs, songNumbers, loadSongs} = useSongsCache();
 
 const song = ref(null);
 const loading = ref(true);
 const availableCollections = ref([]);
 const songCollections = ref([]);
 const newCollectionName = ref('');
-const songNumbers = ref([]);
-const allSongs = ref([]);
 const currentIndex = ref(-1);
 const currentVariantIndex = ref(0);
 const showGoToPopover = ref(false);
@@ -244,8 +242,7 @@ onMounted(async () => {
     const songNumber = parseInt(route.params.number);
     currentVariantIndex.value = route.query.v !== undefined ? parseInt(route.query.v) || 0 : 0
 
-    songNumbers.value = await getSongNumbers()
-    allSongs.value = await getAllSongs()
+    await loadSongs()
     song.value = await getSong(songNumber);
     currentIndex.value = songNumbers.value.indexOf(songNumber)
 

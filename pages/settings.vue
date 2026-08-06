@@ -72,6 +72,25 @@
         {{ updateMessage }}
       </p>
     </div>
+
+    <!-- Секция появляется только при включённом режиме разработчика
+         (включается семью тапами по версии на странице «О приложении»). -->
+    <div v-if="settings.devMode" class="setting-section experimental-section">
+      <h2>Экспериментальные функции</h2>
+      <p class="setting-hint experimental-hint">
+        Функции в разработке: могут работать нестабильно и меняться без предупреждения.
+      </p>
+      <label class="toggle-switch">
+        <input
+            type="checkbox"
+            :checked="settings.devMode"
+            @change="handleDevModeToggle"
+        >
+        <span class="slider"></span>
+        <span class="toggle-label">Режим разработчика</span>
+      </label>
+      <p class="setting-hint">Выключение скроет экспериментальные функции и эту секцию</p>
+    </div>
   </div>
 </template>
 
@@ -135,6 +154,10 @@ const handleChordsToggle = (e) => {
 
 const handleKeepScreenOnToggle = (e) => {
   settings.setKeepScreenOn(e.target.checked)
+}
+
+const handleDevModeToggle = (e) => {
+  settings.setDevMode(e.target.checked)
 }
 </script>
 
@@ -212,5 +235,10 @@ input:checked + .slider:before {
   color: var(--text-secondary);
   margin-top: 0.4rem;
   margin-bottom: 0;
+}
+
+.experimental-hint {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
 }
 </style>

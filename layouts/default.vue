@@ -95,6 +95,10 @@ provide('updateAvailable', autoUpdate.updateAvailable)
         </nav>
 
         <div class="sidebar-bottom">
+          <NuxtLink to="/about" class="sidebar-link" @click="closeSidebar">
+            <Icon name="mingcute:information-line" size="1.25rem"/>
+            <span>О приложении</span>
+          </NuxtLink>
           <NuxtLink to="/settings" class="sidebar-link" @click="closeSidebar">
             <span class="sidebar-link-icon-wrap">
               <Icon name="mingcute:settings-3-line" size="1.25rem"/>
@@ -116,8 +120,6 @@ provide('updateAvailable', autoUpdate.updateAvailable)
     <div class="page-content">
       <slot/>
     </div>
-
-    <AppFooter />
 
     <UpdateToast v-model="showToast" @applied="onUpdateApplied"/>
   </div>

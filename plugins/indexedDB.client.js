@@ -1,29 +1,14 @@
-export default defineNuxtPlugin(async (nuxtApp) => {
-    const dbVersion = 6;
+import { DB_NAME, DB_VERSION, createSchema } from '~/lib/dbSchema'
 
-    const request = indexedDB.open('SongsDB', dbVersion);
+export default defineNuxtPlugin(async (nuxtApp) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = (event) => {
         const db = event.target.result;
         const oldVersion = event.oldVersion;
 
-        if (!db.objectStoreNames.contains('songs')) {
-            db.createObjectStore('songs', { keyPath: 'number' });
-        }
-
-        if (!db.objectStoreNames.contains('collections')) {
-            const collectionsStore = db.createObjectStore('collections', { keyPath: 'id', autoIncrement: true });
-            collectionsStore.createIndex('name', 'name', { unique: false });
-            collectionsStore.createIndex('isFavorite', 'isFavorite', { unique: false });
-        }
-
-        if (!db.objectStoreNames.contains('songCollections')) {
-            const songCollectionsStore = db.createObjectStore('songCollections', { keyPath: 'id', autoIncrement: true });
-            songCollectionsStore.createIndex('collectionId', 'collectionId', { unique: false });
-            songCollectionsStore.createIndex('songNumber', 'songNumber', { unique: false });
-            songCollectionsStore.createIndex('collectionId_songNumber', ['collectionId', 'songNumber'], { unique: false });
-            songCollectionsStore.createIndex('collectionId_songNumber_variantIndex', ['collectionId', 'songNumber', 'variantIndex'], { unique: true });
-        }
+        // Схема (хранилища + индексы) — в lib/dbSchema.js, общая с тестами
+        createSchema(db);
 
         // Миграция v1→v2: body → variants
         if (oldVersion > 0 && oldVersion < 2) {
