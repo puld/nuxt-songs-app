@@ -44,7 +44,6 @@ provide('updateAvailable', autoUpdate.updateAvailable)
 
 <template>
   <Head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#ffffff">
   </Head>
   <div class="layout" :class="colorMode.value">
@@ -127,7 +126,9 @@ provide('updateAvailable', autoUpdate.updateAvailable)
 
 <style>
 .layout {
-  min-height: 100%;
+  /* dvh, а не 100% — причина в комментарии к html/body в assets/css/main.css */
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg);

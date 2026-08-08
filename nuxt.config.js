@@ -126,6 +126,15 @@ export default {
         buildAssetsDir: '/_nuxt/',
         head: {
             title: 'Сборник текстов песен',
+            /* interactive-widget=overlays-content: экранная клавиатура накрывает
+               страницу, а не ужимает вьюпорт. По умолчанию Chrome на Android при
+               фокусе в поиске уменьшает окно, содержимое переверстывается и на
+               короткой странице появляется скролл. Поля ввода у нас в верхней части
+               экрана — клавиатура их не перекрывает, а если перекроет, браузер сам
+               подкрутит visual viewport.
+               Задаём здесь, а не тегом в layout: Nuxt всё равно выводит свой
+               viewport по умолчанию, и в разметке оказывалось два тега. */
+            viewport: 'width=device-width, initial-scale=1, interactive-widget=overlays-content',
             link: [
                 { rel: 'icon', type: 'image/x-icon', href: pathHost + 'favicon.ico' },
                 { rel: 'icon', type: 'image/png', sizes: '16x16', href: pathHost + 'favicon-96x96.png' },
