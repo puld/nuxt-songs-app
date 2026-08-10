@@ -165,11 +165,11 @@ defineExpose({ focus, clear })
      Смещение ~210px ≈ navbar(56) + page-content padding-top(16) +
      welcome-screen padding(32) + search-container margin(32) +
      высота формы(~48) + margin результатов(8) + нижний отступ(16).
-     dvh адаптируется под мобильные браузерные панели (URL-bar);
-     vh — фолбэк для старых браузеров.
+     svh, а не vh/dvh — та же причина, что у .layout в layouts/default.vue:
+     это высота вьюпорта при показанном системном UI, поэтому выдача не
+     вылезает за экран, когда на Android появляется системная навигация.
      Если контент меньше max-height — скролла нет; если больше — появляется. */
-  max-height: calc(100vh - 210px);
-  max-height: calc(100dvh - 210px);
+  max-height: calc(100svh - 210px);
 }
 
 .result-item {
