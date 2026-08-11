@@ -1,201 +1,119 @@
 import { DB_NAME, DB_VERSION, createSchema } from '~/lib/dbSchema'
+import { runMigrations } from '~/lib/dbMigrations'
 
-export default defineNuxtPlugin(async (nuxtApp) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+/**
+ * Открывает базу, применяя схему и миграции.
+ *
+ * Никогда не реджектится: ошибку возвращает значением. Прежняя версия
+ * реджектила промис, из-за чего плагин падал целиком и `provide('indexedDB')`
+ * не выполнялся — приложение выглядело так, будто данных нет вообще, а причина
+ * оставалась только в консоли.
+ *
+ * @returns {Promise<{db: IDBDatabase|null, error: string, blocked: boolean}>}
+ */
+const openDatabase = () => new Promise((resolve) => {
+    let blocked = false
+
+    let request
+    try {
+        request = indexedDB.open(DB_NAME, DB_VERSION)
+    } catch (error) {
+        // Приватный режим и жёсткие настройки приватности могут запретить IndexedDB
+        resolve({ db: null, error: error?.message || String(error), blocked: false })
+        return
+    }
 
     request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        const oldVersion = event.oldVersion;
+        createSchema(event.target.result)
+        runMigrations(event.target.result, event.target.transaction, event.oldVersion)
+    }
 
-        // Схема (хранилища + индексы) — в lib/dbSchema.js, общая с тестами
-        createSchema(db);
+    // Транзакция апгрейда может откатиться (например, из-за нарушения
+    // уникальности) — тогда `onerror` придёт без внятного текста, а причина
+    // видна именно здесь
+    request.onblocked = () => {
+        blocked = true
+    }
 
-        // Миграция v1→v2: body → variants
-        if (oldVersion > 0 && oldVersion < 2) {
-            const transaction = event.target.transaction;
-            const store = transaction.objectStore('songs');
-            const getAllRequest = store.getAll();
+    request.onsuccess = (event) => resolve({ db: event.target.result, error: '', blocked })
+    request.onerror = (event) => resolve({
+        db: null,
+        error: event.target.error?.message || 'Не удалось открыть базу данных',
+        blocked
+    })
+})
 
-            getAllRequest.onsuccess = () => {
-                const songs = getAllRequest.result;
-                store.clear();
-                for (const song of songs) {
-                    if (song.body && !song.variants) {
-                        store.put({
-                            number: song.number,
-                            title: song.title,
-                            variants: [{ label: '', body: song.body }]
-                        });
-                    } else if (song.variants) {
-                        store.put(song);
-                    }
-                }
-            };
+/** Создаёт подборку «Избранное», если её нет (для новых установок). */
+const ensureFavoriteCollection = (db) => new Promise((resolve) => {
+    try {
+        const transaction = db.transaction(['collections'], 'readwrite')
+        const store = transaction.objectStore('collections')
+        if (!store.indexNames.contains('isFavorite')) {
+            resolve()
+            return
         }
-
-        // Миграция v2→v3 (промежуточная — добавляла variantLabel)
-        if (oldVersion >= 2 && oldVersion < 3) {
-            const transaction = event.target.transaction;
-            const store = transaction.objectStore('songCollections');
-            store.deleteIndex('collectionId_songNumber');
-            store.createIndex('collectionId_songNumber', ['collectionId', 'songNumber'], { unique: false });
-            store.createIndex('collectionId_songNumber_variantLabel', ['collectionId', 'songNumber', 'variantLabel'], { unique: true });
-
-            const getAllRequest = store.getAll();
-            getAllRequest.onsuccess = () => {
-                const links = getAllRequest.result;
-                store.clear();
-                for (const link of links) {
-                    store.put({
-                        id: link.id,
-                        collectionId: link.collectionId,
-                        songNumber: link.songNumber,
-                        variantLabel: '',
-                        addedAt: link.addedAt
-                    });
-                }
-            };
-        }
-
-        // Миграция v3→v4: variantLabel → variantIndex (число)
-        if (oldVersion >= 3 && oldVersion < 4) {
-            const transaction = event.target.transaction;
-            const store = transaction.objectStore('songCollections');
-
-            store.deleteIndex('collectionId_songNumber_variantLabel');
-            store.createIndex('collectionId_songNumber_variantIndex', ['collectionId', 'songNumber', 'variantIndex'], { unique: true });
-
-            const getAllRequest = store.getAll();
-            getAllRequest.onsuccess = () => {
-                const links = getAllRequest.result;
-                store.clear();
-                for (const link of links) {
-                    store.put({
-                        id: link.id,
-                        collectionId: link.collectionId,
-                        songNumber: link.songNumber,
-                        variantIndex: 0,
-                        addedAt: link.addedAt
-                    });
-                }
-            };
-        }
-
-        // Миграция v4→v5: добавляем индекс isFavorite и создаём подборку «Избранное»
-        if (oldVersion >= 1 && oldVersion < 5) {
-            const transaction = event.target.transaction;
-            const store = transaction.objectStore('collections');
-
-            // Добавляем индекс isFavorite, если его нет
-            if (!store.indexNames.contains('isFavorite')) {
-                store.createIndex('isFavorite', 'isFavorite', { unique: false });
+        const checkRequest = store.index('isFavorite').get(1)
+        checkRequest.onsuccess = () => {
+            if (!checkRequest.result) {
+                const now = new Date().toISOString()
+                store.add({ name: 'Избранное', isFavorite: 1, createdAt: now, updatedAt: now })
             }
-
-            // Создаём подборку «Избранное» с флагом isFavorite
-            const index = store.index('isFavorite');
-            const checkRequest = index.get(1);
-            checkRequest.onsuccess = () => {
-                if (!checkRequest.result) {
-                    store.add({
-                        name: 'Избранное',
-                        isFavorite: 1,
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                    });
-                }
-            };
         }
+        transaction.oncomplete = () => resolve()
+        transaction.onerror = () => resolve() // не критично
+    } catch (e) {
+        resolve() // не критично
+    }
+})
 
-        // Миграция v5→v6: гарантируем наличие индексов isFavorite и collectionId_songNumber_variantIndex
-        if (oldVersion >= 1 && oldVersion < 6) {
-            const transaction = event.target.transaction;
+/** Количество песен в базе; 0 при любой ошибке. */
+const countSongs = (db) => new Promise((resolve) => {
+    try {
+        const request = db.transaction(['songs'], 'readonly').objectStore('songs').count()
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = () => resolve(0)
+    } catch (e) {
+        resolve(0)
+    }
+})
 
-            // Проверяем/создаём индекс isFavorite в collections
-            const collectionsStore = transaction.objectStore('collections');
-            if (!collectionsStore.indexNames.contains('isFavorite')) {
-                collectionsStore.createIndex('isFavorite', 'isFavorite', { unique: false });
-            }
+export default defineNuxtPlugin(async (nuxtApp) => {
+    const { setDbError, setDbAvailable, setDbBlocked } = useDbStatus()
 
-            // Проверяем/создаём индекс collectionId_songNumber_variantIndex в songCollections
-            const songCollectionsStore = transaction.objectStore('songCollections');
-            if (!songCollectionsStore.indexNames.contains('collectionId_songNumber_variantIndex')) {
-                // Удаляем старый уникальный индекс если есть
-                if (songCollectionsStore.indexNames.contains('collectionId_songNumber_variantLabel')) {
-                    songCollectionsStore.deleteIndex('collectionId_songNumber_variantLabel');
-                }
-                songCollectionsStore.createIndex('collectionId_songNumber_variantIndex', ['collectionId', 'songNumber', 'variantIndex'], { unique: true });
-            }
+    const { db, error, blocked } = await openDatabase()
 
-            // Создаём подборку «Избранное» если не существует
-            const index = collectionsStore.index('isFavorite');
-            const checkRequest = index.get(1);
-            checkRequest.onsuccess = () => {
-                if (!checkRequest.result) {
-                    collectionsStore.add({
-                        name: 'Избранное',
-                        isFavorite: 1,
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                    });
-                }
-            };
-        }
-    };
-
-    const db = await new Promise((resolve, reject) => {
-        request.onsuccess = (event) => resolve(event.target.result);
-        request.onerror = (event) => reject(event.target.error);
-    });
+    if (blocked) {
+        setDbBlocked()
+    }
 
     // Предоставляем БД в NuxtApp ДО авто-загрузки песен: fetchSongs() →
     // useIndexDB().addSongs() обращается к $indexedDB, поэтому provide
     // должен выполниться раньше. Иначе на свежей установке песни не грузятся.
-    nuxtApp.provide('indexedDB', db);
+    // При отказе базы провайдим null: useIndexDB это переживает, страницы
+    // покажут пустые данные, а причина будет видна в диагностике на /about.
+    nuxtApp.provide('indexedDB', db)
 
-    // Создаём подборку «Избранное» если не существует (для новых установок)
-    await new Promise((resolve) => {
-        try {
-            const transaction = db.transaction(['collections'], 'readwrite');
-            const store = transaction.objectStore('collections');
-            if (!store.indexNames.contains('isFavorite')) {
-                // Индекс отсутствует — пробуем создать (возможно, база повреждена)
-                resolve();
-                return;
-            }
-            const index = store.index('isFavorite');
-            const checkRequest = index.get(1);
-            checkRequest.onsuccess = () => {
-                if (!checkRequest.result) {
-                    store.add({
-                        name: 'Избранное',
-                        isFavorite: 1,
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                    });
-                }
-            };
-            transaction.oncomplete = () => resolve();
-            transaction.onerror = () => resolve(); // не критично
-        } catch (e) {
-            resolve(); // не критично
-        }
-    });
+    if (!db) {
+        setDbError(error)
+        console.error('Не удалось открыть IndexedDB:', error)
+        return
+    }
+
+    setDbAvailable()
+
+    // Дальше база может закрыться (eviction, повреждение) — фиксируем причину
+    db.onerror = (event) => setDbError(event.target?.error?.message || 'Ошибка базы данных')
+    db.onclose = () => setDbError('База данных неожиданно закрыта')
+
+    await ensureFavoriteCollection(db)
 
     // Автоматическая загрузка песен при пустой базе данных
-    const songsCount = await new Promise((resolve) => {
-        const transaction = db.transaction(['songs'], 'readonly');
-        const store = transaction.objectStore('songs');
-        const countRequest = store.count();
-        countRequest.onsuccess = () => resolve(countRequest.result);
-        countRequest.onerror = () => resolve(0);
-    });
-
-    if (songsCount === 0) {
+    if (await countSongs(db) === 0) {
         try {
-            const { fetchSongs } = useSongs();
-            await fetchSongs();
+            const { fetchSongs } = useSongs()
+            await fetchSongs()
         } catch (error) {
-            console.error('Ошибка автоматической загрузки песен:', error);
+            console.error('Ошибка автоматической загрузки песен:', error)
         }
     }
-});
+})

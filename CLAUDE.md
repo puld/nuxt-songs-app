@@ -103,6 +103,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   └── UpdateToast.vue       # Тост «доступно обновление базы»
 ├── composables/
 │   ├── useAutoUpdate.js      # Проверка обновления songs.json по ETag
+│   ├── useDbStatus.js        # Состояние БД: ошибка открытия, persistent-хранилище
 │   ├── useIndexDB.js         # IndexedDB: песни, подборки, связи, избранное
 │   ├── useLayoutCommon.js    # Общая логика layout: навбар, wake lock, автообновление
 │   ├── useSongs.js           # Загрузка songs.json в IndexedDB
@@ -114,6 +115,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   └── default.vue           # Smart Navbar + выдвижной сайдбар
 ├── lib/                      # Чистые функции без Vue (+ тесты рядом)
 │   ├── autoUpdate.js         # ETag-логика автообновления
+│   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
 │   ├── devMode.js            # Активация режима разработчика тапами по версии
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
@@ -155,7 +157,7 @@ npm run test:e2e:headed / test:e2e:ui
 
 Плагин `plugins/indexedDB.client.js` (client-only) инициализирует БД `SongsDB` **версии 6** с тремя хранилищами. При пустой базе плагин сам вызывает `fetchSongs()` — песни грузятся автоматически при первом запуске.
 
-Имя базы, версия и создание хранилищ/индексов — в `lib/dbSchema.js` (`DB_NAME`, `DB_VERSION`, `createSchema`). Оттуда их берут и плагин, и тесты. Миграции остаются в плагине: они зависят от `oldVersion` и работают с транзакцией апгрейда.
+Имя базы, версия и создание хранилищ/индексов — в `lib/dbSchema.js` (`DB_NAME`, `DB_VERSION`, `createSchema`). Оттуда их берут и плагин, и тесты. Миграции — в `lib/dbMigrations.js`: они зависят от `oldVersion` и работают с транзакцией апгрейда, но вынесены из плагина, чтобы прогоняться в тестах.
 
 ### songs
 - `number` (keyPath) — номер песни
@@ -179,14 +181,22 @@ npm run test:e2e:headed / test:e2e:ui
 
 В подборку добавляется конкретный **вариант** песни — ключ связи включает `variantIndex`.
 
-### Миграции (в `onupgradeneeded`)
-- v1→v2: `body` → `variants: [{ label: '', body }]`
-- v2→v3: добавлен составной индекс с `variantLabel`
-- v3→v4: `variantLabel` → `variantIndex` (число)
-- v4→v5: индекс `isFavorite` + создание подборки «Избранное»
-- v5→v6: гарантия наличия индексов `isFavorite` и `collectionId_songNumber_variantIndex`
+### Миграции (`lib/dbMigrations.js`)
 
-При изменении схемы править `lib/dbSchema.js` — `DB_VERSION` и `createSchema` там в одном месте для приложения и тестов. Миграцию дописывать в плагин.
+`runMigrations(db, transaction, oldVersion)` вызывается из `onupgradeneeded` после `createSchema(db)`. Шаги описывают **целевое состояние** и идемпотентны, а не образуют лестницу «v3→v4, v4→v5»: прежняя лестница пересекалась сама с собой (v3→v4 создавал уникальный индекс в асинхронном колбэке, v5→v6 синхронно видел, что индекса нет, и создавал второй — апгрейд падал).
+
+Шаги: `body` → `variants` (только с v1); снятие уникальности с `collectionId_songNumber`; удаление устаревших индексов связей; нормализация связей; создание уникального `collectionId_songNumber_variantIndex`; индекс `isFavorite`; создание «Избранного».
+
+Правила, которые нельзя нарушать при доработке:
+- **Сначала нормализация связей, потом уникальный индекс.** До v4 ключ включал `variantLabel`, поэтому песня легально лежала в подборке в двух вариантах. Дубли не удаляются, а сдвигаются на свободный `variantIndex` — иначе `ConstraintError` откатывает транзакцию апгрейда, и приложение выглядит так, будто данных нет вообще.
+- **Никаких `await` между шагами** — пауза без активных запросов закрывает транзакцию апгрейда. Шаги связаны колбэками (`runSteps`).
+- **Никаких `clear()` перед повторной записью** — обход курсором с `update`, иначе сбой в середине оставляет хранилище пустым.
+
+При изменении схемы править `lib/dbSchema.js` — `DB_VERSION` и `createSchema` там в одном месте для приложения и тестов; шаг миграции дописывать в `lib/dbMigrations.js` и покрывать в `lib/dbMigrations.test.js` (там апгрейд прогоняется с каждой из версий 1–5).
+
+### Отказ базы не роняет приложение
+
+`plugins/indexedDB.client.js` никогда не реджектится: при неудачном открытии он провайдит `$indexedDB = null`, пишет причину в `useDbStatus()` и продолжает. `useIndexDB` это переживает — чтения возвращают пустой результат, записи бросают «База данных недоступна». Раньше единственная ошибка апгрейда обнуляла всё приложение, а причина уходила только в консоль, до которой на телефоне не добраться.
 
 ## Composables
 
@@ -332,7 +342,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)

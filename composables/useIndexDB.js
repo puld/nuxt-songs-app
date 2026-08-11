@@ -3,6 +3,21 @@ import { useNuxtApp } from 'nuxt/app'
 export const useIndexDB = () => {
     const {$indexedDB} = useNuxtApp();
 
+    /**
+     * База может быть недоступна: плагин провайдит `null`, если открыть её не
+     * удалось (см. `plugins/indexedDB.client.js`). Раньше такого состояния не
+     * существовало — плагин просто падал вместе со всем приложением.
+     *
+     * Чтения в этом случае отдают пустой результат: экраны показывают «пусто»
+     * вместо белого экрана, а причина видна в диагностике на `/about`.
+     */
+    const guardRead = (fn, fallback) => (...args) =>
+        $indexedDB ? fn(...args) : Promise.resolve(fallback)
+
+    /** Записи молча не проглатываем: пользователь должен увидеть отказ. */
+    const guardWrite = (fn) => (...args) =>
+        $indexedDB ? fn(...args) : Promise.reject(new Error('База данных недоступна'))
+
     const addSongs = async (songs) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['songs'], 'readwrite');
@@ -345,11 +360,24 @@ export const useIndexDB = () => {
     }
 
     return {
-        addSongs, getSong, createCollection, getCollections,
-        addSongToCollection, removeSongFromCollection,
-        getSongsInCollection, getCollectionsForSong,
-        getCollection, getAvailableCollections, deleteCollection,
-        getSongsCount, getSongNumbers, getSongsCountInCollection, getAllSongs,
-        getFavoriteCollection, isSongInFavorite, addToFavorite, removeFromFavorite
+        addSongs: guardWrite(addSongs),
+        getSong: guardRead(getSong, null),
+        createCollection: guardWrite(createCollection),
+        getCollections: guardRead(getCollections, []),
+        addSongToCollection: guardWrite(addSongToCollection),
+        removeSongFromCollection: guardWrite(removeSongFromCollection),
+        getSongsInCollection: guardRead(getSongsInCollection, []),
+        getCollectionsForSong: guardRead(getCollectionsForSong, []),
+        getCollection: guardRead(getCollection, null),
+        getAvailableCollections: guardRead(getAvailableCollections, []),
+        deleteCollection: guardWrite(deleteCollection),
+        getSongsCount: guardRead(getSongsCount, 0),
+        getSongNumbers: guardRead(getSongNumbers, []),
+        getSongsCountInCollection: guardRead(getSongsCountInCollection, 0),
+        getAllSongs: guardRead(getAllSongs, []),
+        getFavoriteCollection: guardRead(getFavoriteCollection, null),
+        isSongInFavorite: guardRead(isSongInFavorite, false),
+        addToFavorite: guardWrite(addToFavorite),
+        removeFromFavorite: guardWrite(removeFromFavorite)
     };
 };
