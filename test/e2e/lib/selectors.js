@@ -190,5 +190,11 @@ export const s = {
     toast: '[data-testid="restore-backup-toast"]',
     apply: '[data-testid="restore-backup-apply"]',
     dismiss: '[data-testid="restore-backup-dismiss"]',
+    // Секция «Резервная копия подборок» на странице настроек
+    section: '[data-testid="backup-section"]',
+    exportBtn: '[data-testid="backup-export"]',
+    importBtn: '[data-testid="backup-import"]',
+    fileInput: '[data-testid="backup-file-input"]',
+    message: '[data-testid="backup-message"]',
   },
 }

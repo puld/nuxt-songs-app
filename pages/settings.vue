@@ -73,6 +73,49 @@
       </p>
     </div>
 
+    <div class="setting-section" data-testid="backup-section">
+      <h2>Резервная копия подборок</h2>
+      <p v-if="settings.devMode">
+        Сохраните подборки в файл, чтобы перенести их на другое устройство или вернуть после переустановки
+      </p>
+      <p v-else>
+        Сохраните подборки в файл — копия пригодится, если данные пропадут
+      </p>
+      <div class="backup-actions">
+        <button :disabled="backupBusy" data-testid="backup-export" @click="exportCollections">
+          Сохранить в файл
+        </button>
+        <!-- Импорт — за режимом разработчика: он меняет содержимое базы,
+             и ошибиться файлом проще, чем кажется -->
+        <button
+            v-if="settings.devMode"
+            :disabled="backupBusy"
+            data-testid="backup-import"
+            @click="pickBackupFile"
+        >
+          Загрузить из файла
+        </button>
+      </div>
+      <input
+          v-if="settings.devMode"
+          ref="backupFileInput"
+          type="file"
+          accept="application/json,.json"
+          class="backup-file-input"
+          data-testid="backup-file-input"
+          @change="importCollections"
+      >
+      <p v-if="backupMessage" :class="backupSuccess ? 'success' : 'error'" data-testid="backup-message">
+        {{ backupMessage }}
+      </p>
+      <p class="setting-hint">
+        Копия содержит только названия подборок и номера песен — тексты в неё не входят.
+        <template v-if="settings.devMode">
+          Загрузка ничего не удаляет: недостающие подборки добавятся к текущим.
+        </template>
+      </p>
+    </div>
+
     <!-- Секция появляется только при включённом режиме разработчика
          (включается семью тапами по версии на странице «О приложении»). -->
     <div v-if="settings.devMode" class="setting-section experimental-section">
@@ -159,6 +202,96 @@ const handleKeepScreenOnToggle = (e) => {
 const handleDevModeToggle = (e) => {
   settings.setDevMode(e.target.checked)
 }
+
+// === Резервная копия подборок ===
+import { backupFileName, isTrivialBackup } from '~/lib/collectionsBackup'
+
+const { exportToText, importFromText } = useCollectionsBackup()
+const { pluralize } = useUtils()
+
+const backupFileInput = ref(null)
+const backupBusy = ref(false)
+const backupMessage = ref('')
+const backupSuccess = ref(false)
+
+/** Отдаёт текст файлом: в PWA это единственный способ «сохранить наружу». */
+const downloadText = (text, fileName) => {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+const exportCollections = async () => {
+  backupBusy.value = true
+  backupMessage.value = ''
+
+  try {
+    const { text, backup, stats } = await exportToText()
+
+    // «Избранное» есть всегда — пустая база даёт файл с одной пустой
+    // подборкой, скачивать который бессмысленно
+    if (isTrivialBackup(backup)) {
+      backupSuccess.value = false
+      backupMessage.value = 'Подборок пока нет — сохранять нечего'
+      return
+    }
+
+    downloadText(text, backupFileName(backup.savedAt))
+    backupSuccess.value = true
+    backupMessage.value = `Сохранено: ${stats.collections} ${pluralizeCollections(stats.collections)}, `
+        + `${stats.links} ${pluralizeSongs(stats.links)}`
+  } catch (error) {
+    backupSuccess.value = false
+    backupMessage.value = 'Не удалось сохранить: ' + error.message
+  } finally {
+    backupBusy.value = false
+  }
+}
+
+const pickBackupFile = () => {
+  backupMessage.value = ''
+  backupFileInput.value?.click()
+}
+
+const importCollections = async (event) => {
+  const file = event.target.files?.[0]
+  // Диалог закрыли без выбора
+  if (!file) return
+
+  backupBusy.value = true
+  backupMessage.value = ''
+
+  try {
+    const imported = await importFromText(await file.text())
+
+    if (!imported.ok) {
+      backupSuccess.value = false
+      backupMessage.value = imported.error
+      return
+    }
+
+    const { collections, songs, skipped } = imported.result
+    backupSuccess.value = true
+    backupMessage.value = `Добавлено: ${collections} ${pluralizeCollections(collections)}, `
+        + `${songs} ${pluralizeSongs(songs)}`
+        + (skipped ? `; уже были: ${skipped}` : '')
+  } catch (error) {
+    backupSuccess.value = false
+    backupMessage.value = 'Не удалось прочитать файл: ' + error.message
+  } finally {
+    backupBusy.value = false
+    // Иначе повторный выбор того же файла не вызовет change
+    event.target.value = ''
+  }
+}
+
+const pluralizeCollections = (n) => pluralize(n, 'подборка', 'подборки', 'подборок') || 'подборок'
+const pluralizeSongs = (n) => pluralize(n, 'песня', 'песни', 'песен') || 'песен'
 </script>
 
 <style scoped>
@@ -240,5 +373,16 @@ input:checked + .slider:before {
 .experimental-hint {
   margin-top: 0;
   margin-bottom: 0.75rem;
+}
+
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Скрытый input: диалог выбора файла открывает кнопка рядом */
+.backup-file-input {
+  display: none;
 }
 </style>
