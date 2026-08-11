@@ -155,6 +155,11 @@ export const s = {
     versionValue: '.version-value',
     devModeMessage: '.dev-mode-message',
     devModeStatus: '.dev-mode-status',
+    // Блок диагностики «Состояние хранилища»
+    diagnostics: '[data-testid="diagnostics-section"]',
+    diagnosticsRow: '[data-testid="diagnostics-row"]',
+    diagnosticsValue: '.diagnostics-value',
+    diagnosticsError: '[data-testid="diagnostics-error"]',
   },
 
   // === Страница подборки ===
