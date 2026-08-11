@@ -121,6 +121,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
 │   ├── songsIndex.js         # Карта «номер → песня», названия и метки вариантов
+│   ├── storagePersist.js     # navigator.storage: постоянное хранилище и оценка места
 │   └── wakeLock.js           # Менеджер Wake Lock
 ├── pages/
 │   ├── index.vue             # Главная: поиск + подсказки
@@ -230,7 +231,11 @@ Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `sear
 Проверка обновлений базы по ETag: HEAD-запрос к `songs.json`, сравнение с сохранённым ETag, при расхождении — `settings.updateAvailable = true`. Коулдаун 30 минут (`lib/autoUpdate.js`). Применение обновления делегируется в `useSongs().fetchSongs()`.
 
 ### `useLayoutCommon` (composables/useLayoutCommon.js)
-Общая логика layout'ов: скрытие навбара при скролле, wake lock, автообновление, синхронизация класса размера шрифта.
+Общая логика layout'ов: скрытие навбара при скролле, wake lock, автообновление, синхронизация класса размера шрифта, запрос постоянного хранилища.
+
+Постоянное хранилище (`lib/storagePersist.js`) запрашивается **при первом взаимодействии**, а не при загрузке: браузеры охотнее выдают флаг приложению, которым реально пользуются. Слушатели `pointerdown`/`keydown` одноразовые — повторный запрос бесполезен и может показать лишний промпт. Без флага IndexedDB остаётся best-effort, и система может освободить её вместе с подборками при нехватке места.
+
+Отказ — нормальный сценарий, а не ошибка: desktop-Chromium без установки флаг не даёт, установленному PWA на Android выдаёт. Результат виден в блоке диагностики на `/about`.
 
 ### `useWakeLock` (composables/useWakeLock.js)
 Обёртка над `lib/wakeLock.js` — не даёт экрану гаснуть, если включена настройка `keepScreenOn`.
@@ -342,7 +347,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
