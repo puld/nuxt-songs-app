@@ -27,14 +27,17 @@ test.describe('Адаптивность (мобильный 375×667)', () => {
     expect(info.scrollHeight).toBeLessThanOrEqual(info.clientHeight)
   })
 
-  test('высота страницы привязана к динамическому вьюпорту (dvh)', async ({ page }) => {
-    // Регрессия: высота тянулась по цепочке 100% от layout-вьюпорта. В PWA на
+  test('высота страницы привязана к наименьшему вьюпорту (svh), и только у .layout', async ({ page }) => {
+    // Регрессия: высота тянулась сначала по 100%, потом по 100dvh. В PWA на
     // Android системная навигация вызывается свайпом снизу и уменьшает окно,
-    // но layout-вьюпорт (а с ним 100% и vh) остаётся прежним — на пустой
-    // странице появлялся вертикальный скролл, содержимое уезжало вверх.
+    // а vh/проценты остаются от прежнего размера; dvh на устройстве тоже
+    // не выручил — оставался скролл ровно на высоту навигации.
+    // Теперь высоту задаёт единственное правило `.layout { min-height: 100svh }`
+    // (наименьший вьюпорт, с показанным системным UI), а html/body/#__nuxt
+    // высоту не трогают вовсе — фон на весь экран даёт background у body.
     //
-    // Проверяем именно объявление, а не поведение: в desktop-Chromium
-    // large-вьюпорт всегда равен окну, расхождение large/small там не
+    // Проверяем объявления в CSSOM, а не поведение: в desktop-Chromium
+    // large/small/dynamic вьюпорты всегда равны окну, расхождение там не
     // воспроизводится, и поведенческая проверка была бы зелёной и без фикса.
     await waitForHomeReady(page)
     const declared = await page.evaluate(() => {
@@ -56,9 +59,12 @@ test.describe('Адаптивность (мобильный 375×667)', () => {
       return found
     })
 
-    for (const sel of ['html', 'body', '#__nuxt', '.layout']) {
-      expect(declared[sel], `нет объявления высоты для ${sel}`).toBeTruthy()
-      expect(declared[sel], `${sel} должен тянуться по dvh`).toContain('dvh')
+    expect(declared['.layout'], 'нет объявления высоты для .layout').toBeTruthy()
+    expect(declared['.layout'], '.layout должен тянуться по svh').toContain('svh')
+
+    // Ни один другой уровень цепочки высоту к вьюпорту не привязывает.
+    for (const sel of ['html', 'body', '#__nuxt']) {
+      expect(declared[sel], `${sel} не должен задавать высоту`).toBeFalsy()
     }
   })
 
