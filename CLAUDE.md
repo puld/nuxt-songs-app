@@ -96,6 +96,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── LoadingText.vue       # Индикатор загрузки с текстом
 │   ├── NavBarBack.vue        # Кнопка «назад» в навбаре
 │   ├── NavBarHamburger.vue   # Кнопка меню (inject toggleSidebar/updateAvailable)
+│   ├── RestoreBackupToast.vue # Предложение восстановить подборки из копии
 │   ├── SettingToggle.vue     # Кнопка-переключатель настроек
 │   ├── SongCard.vue          # Карточка песни (не используется в страницах)
 │   ├── SongDisplay.vue       # Текст песни с аккордами, повторами и табами вариантов
@@ -103,6 +104,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   └── UpdateToast.vue       # Тост «доступно обновление базы»
 ├── composables/
 │   ├── useAutoUpdate.js      # Проверка обновления songs.json по ETag
+│   ├── useCollectionsBackup.js # Восстановление подборок из копии, экспорт/импорт
 │   ├── useDbStatus.js        # Состояние БД: ошибка открытия, persistent-хранилище
 │   ├── useIndexDB.js         # IndexedDB: песни, подборки, связи, избранное
 │   ├── useLayoutCommon.js    # Общая логика layout: навбар, wake lock, автообновление
@@ -115,6 +117,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   └── default.vue           # Smart Navbar + выдвижной сайдбар
 ├── lib/                      # Чистые функции без Vue (+ тесты рядом)
 │   ├── autoUpdate.js         # ETag-логика автообновления
+│   ├── collectionsBackup.js  # Копия подборок: сборка, разбор, план импорта
 │   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
 │   ├── devMode.js            # Активация режима разработчика тапами по версии
@@ -199,6 +202,17 @@ npm run test:e2e:headed / test:e2e:ui
 
 `plugins/indexedDB.client.js` никогда не реджектится: при неудачном открытии он провайдит `$indexedDB = null`, пишет причину в `useDbStatus()` и продолжает. `useIndexDB` это переживает — чтения возвращают пустой результат, записи бросают «База данных недоступна». Раньше единственная ошибка апгрейда обнуляла всё приложение, а причина уходила только в консоль, до которой на телефоне не добраться.
 
+### Резервная копия подборок (localStorage)
+
+Подборки живут только в IndexedDB, которую браузер вправе освободить. Копия (имена подборок + связи «подборка — песня», без текстов) лежит в localStorage под ключом `collectionsBackup` — отдельном хранилище, которое обычно переживает eviction IndexedDB.
+
+- Снимается автоматически после каждой мутации подборок — в `useIndexDB` (`withBackup`), а не на страницах: мест вызова полдюжины, и любое забытое означало бы устаревшую копию
+- Чистые функции — `lib/collectionsBackup.js`; в composable только обращения к базе и хранилищу
+- **Осмысленная копия не затирается пустой** (`shouldReplaceBackup`): после потери данных «Избранное» пересоздаётся, и первое же изменение стёрло бы единственный след прежних подборок
+- Восстановление предлагается (`RestoreBackupToast`) только когда копия содержательна, а в базе нет ни связей, ни пользовательских подборок — то есть после реальной потери, а не когда пользователь сам всё удалил
+- Отказ от восстановления удаляет копию: иначе предложение возвращалось бы каждую сессию
+- Проверка выполняется один раз за сессию (модульный флаг в `useCollectionsBackup`)
+
 ## Composables
 
 ### `useIndexDB` (composables/useIndexDB.js)
@@ -211,6 +225,13 @@ npm run test:e2e:headed / test:e2e:ui
 **Связи** (везде `variantIndex = 0` по умолчанию): `addSongToCollection(collectionId, songNumber, variantIndex)` (с проверкой дубликата), `removeSongFromCollection(...)`, `getSongsInCollection(collectionId)` (сортировка по номеру), `getCollectionsForSong(songNumber)`, `getAvailableCollections(songNumber)`, `getSongsCountInCollection(collectionId)`
 
 **Избранное:** `getFavoriteCollection()`, `isSongInFavorite(songNumber, variantIndex)`, `addToFavorite(...)`, `removeFromFavorite(...)` — обёртки над подборкой с `isFavorite: 1`; бросают ошибку, если её нет
+
+**Копия:** `getAllLinks()` (все связи), `backupCollections()` — снимает копию подборок в localStorage. Мутации (`createCollection`, `deleteCollection`, `addSongToCollection`, `removeSongFromCollection`, `addToFavorite`, `removeFromFavorite`) обёрнуты `withBackup` и снимают копию сами; сбой копирования не срывает саму операцию.
+
+### `useCollectionsBackup` (composables/useCollectionsBackup.js)
+Пользовательская сторона копии: `checkRestorable()` (предлагать ли восстановление), `restoreFromAutoBackup()`, `dismissRestore()`, `applyBackup(backup)`, `exportToText()`, `importFromText(text)`.
+
+Импорт **только добавляет**: существующие подборки дополняются, лишнее не удаляется. Дубликаты связей считаются пропущенными, а не ошибкой. `resetCollectionsBackupState()` сбрасывает модульное состояние в тестах.
 
 ### `useSongSearch` (composables/useSongSearch.js)
 Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `search(query, limit)`, реактивные `searchIndex`, `exactIndex`, `searchResults`, `searchQuery`.
@@ -347,11 +368,11 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install
+- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия

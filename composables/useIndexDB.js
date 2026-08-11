@@ -1,4 +1,5 @@
 import { useNuxtApp } from 'nuxt/app'
+import { buildBackup, saveBackupTo } from '~/lib/collectionsBackup'
 
 export const useIndexDB = () => {
     const {$indexedDB} = useNuxtApp();
@@ -359,25 +360,70 @@ export const useIndexDB = () => {
         return removeSongFromCollection(favorite.id, songNumber, variantIndex)
     }
 
+    /** Все связи «подборка — песня»: для копии и для диагностики. */
+    const getAllLinks = async () => {
+        return new Promise((resolve) => {
+            const transaction = $indexedDB.transaction(['songCollections'], 'readonly')
+            const store = transaction.objectStore('songCollections')
+            const request = store.getAll()
+            request.onsuccess = () => resolve(request.result || [])
+            request.onerror = () => resolve([])
+        })
+    }
+
+    /**
+     * Снимает копию подборок в localStorage.
+     *
+     * Копия хранится отдельно от IndexedDB именно потому, что IndexedDB может
+     * быть освобождена браузером — а localStorage при этом обычно уцелеет.
+     */
+    const backupCollections = async () => {
+        const [collections, links] = await Promise.all([getCollections(), getAllLinks()])
+        const backup = buildBackup(collections, links, new Date().toISOString())
+
+        return saveBackupTo(typeof localStorage === 'undefined' ? null : localStorage, backup)
+    }
+
+    /**
+     * Снимает копию после успешной мутации.
+     *
+     * Сбой копирования не должен превращаться в сбой самой операции: песня
+     * добавлена в подборку — значит операция удалась, даже если хранилище
+     * копий переполнено.
+     */
+    const withBackup = (fn) => async (...args) => {
+        const result = await fn(...args)
+
+        try {
+            await backupCollections()
+        } catch (e) {
+            console.warn('Не удалось обновить резервную копию подборок:', e)
+        }
+
+        return result
+    }
+
     return {
         addSongs: guardWrite(addSongs),
         getSong: guardRead(getSong, null),
-        createCollection: guardWrite(createCollection),
+        createCollection: guardWrite(withBackup(createCollection)),
         getCollections: guardRead(getCollections, []),
-        addSongToCollection: guardWrite(addSongToCollection),
-        removeSongFromCollection: guardWrite(removeSongFromCollection),
+        addSongToCollection: guardWrite(withBackup(addSongToCollection)),
+        removeSongFromCollection: guardWrite(withBackup(removeSongFromCollection)),
         getSongsInCollection: guardRead(getSongsInCollection, []),
         getCollectionsForSong: guardRead(getCollectionsForSong, []),
         getCollection: guardRead(getCollection, null),
         getAvailableCollections: guardRead(getAvailableCollections, []),
-        deleteCollection: guardWrite(deleteCollection),
+        deleteCollection: guardWrite(withBackup(deleteCollection)),
         getSongsCount: guardRead(getSongsCount, 0),
         getSongNumbers: guardRead(getSongNumbers, []),
         getSongsCountInCollection: guardRead(getSongsCountInCollection, 0),
         getAllSongs: guardRead(getAllSongs, []),
+        getAllLinks: guardRead(getAllLinks, []),
         getFavoriteCollection: guardRead(getFavoriteCollection, null),
         isSongInFavorite: guardRead(isSongInFavorite, false),
-        addToFavorite: guardWrite(addToFavorite),
-        removeFromFavorite: guardWrite(removeFromFavorite)
+        addToFavorite: guardWrite(withBackup(addToFavorite)),
+        removeFromFavorite: guardWrite(withBackup(removeFromFavorite)),
+        backupCollections: guardRead(backupCollections, { saved: false, reason: 'База данных недоступна' })
     };
 };

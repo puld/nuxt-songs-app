@@ -184,4 +184,11 @@ export const s = {
     root: '.layout',
     pageContent: '.page-content',
   },
+
+  // === Предложение восстановить подборки из резервной копии ===
+  backup: {
+    toast: '[data-testid="restore-backup-toast"]',
+    apply: '[data-testid="restore-backup-apply"]',
+    dismiss: '[data-testid="restore-backup-dismiss"]',
+  },
 }

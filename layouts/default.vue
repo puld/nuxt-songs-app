@@ -121,6 +121,9 @@ provide('updateAvailable', autoUpdate.updateAvailable)
     </div>
 
     <UpdateToast v-model="showToast" @applied="onUpdateApplied"/>
+    <ClientOnly>
+      <RestoreBackupToast/>
+    </ClientOnly>
   </div>
 </template>
 
