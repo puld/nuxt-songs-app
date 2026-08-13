@@ -155,6 +155,11 @@ export const s = {
     versionValue: '.version-value',
     devModeMessage: '.dev-mode-message',
     devModeStatus: '.dev-mode-status',
+    // Блок диагностики «Состояние хранилища»
+    diagnostics: '[data-testid="diagnostics-section"]',
+    diagnosticsRow: '[data-testid="diagnostics-row"]',
+    diagnosticsValue: '.diagnostics-value',
+    diagnosticsError: '[data-testid="diagnostics-error"]',
   },
 
   // === Страница подборки ===
@@ -183,5 +188,18 @@ export const s = {
   layout: {
     root: '.layout',
     pageContent: '.page-content',
+  },
+
+  // === Предложение восстановить подборки из резервной копии ===
+  backup: {
+    toast: '[data-testid="restore-backup-toast"]',
+    apply: '[data-testid="restore-backup-apply"]',
+    dismiss: '[data-testid="restore-backup-dismiss"]',
+    // Секция «Резервная копия подборок» на странице настроек
+    section: '[data-testid="backup-section"]',
+    exportBtn: '[data-testid="backup-export"]',
+    importBtn: '[data-testid="backup-import"]',
+    fileInput: '[data-testid="backup-file-input"]',
+    message: '[data-testid="backup-message"]',
   },
 }

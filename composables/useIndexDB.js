@@ -1,7 +1,23 @@
 import { useNuxtApp } from 'nuxt/app'
+import { buildBackup, saveBackupTo } from '~/lib/collectionsBackup'
 
 export const useIndexDB = () => {
     const {$indexedDB} = useNuxtApp();
+
+    /**
+     * База может быть недоступна: плагин провайдит `null`, если открыть её не
+     * удалось (см. `plugins/indexedDB.client.js`). Раньше такого состояния не
+     * существовало — плагин просто падал вместе со всем приложением.
+     *
+     * Чтения в этом случае отдают пустой результат: экраны показывают «пусто»
+     * вместо белого экрана, а причина видна в диагностике на `/about`.
+     */
+    const guardRead = (fn, fallback) => (...args) =>
+        $indexedDB ? fn(...args) : Promise.resolve(fallback)
+
+    /** Записи молча не проглатываем: пользователь должен увидеть отказ. */
+    const guardWrite = (fn) => (...args) =>
+        $indexedDB ? fn(...args) : Promise.reject(new Error('База данных недоступна'))
 
     const addSongs = async (songs) => {
         return new Promise((resolve, reject) => {
@@ -344,12 +360,70 @@ export const useIndexDB = () => {
         return removeSongFromCollection(favorite.id, songNumber, variantIndex)
     }
 
+    /** Все связи «подборка — песня»: для копии и для диагностики. */
+    const getAllLinks = async () => {
+        return new Promise((resolve) => {
+            const transaction = $indexedDB.transaction(['songCollections'], 'readonly')
+            const store = transaction.objectStore('songCollections')
+            const request = store.getAll()
+            request.onsuccess = () => resolve(request.result || [])
+            request.onerror = () => resolve([])
+        })
+    }
+
+    /**
+     * Снимает копию подборок в localStorage.
+     *
+     * Копия хранится отдельно от IndexedDB именно потому, что IndexedDB может
+     * быть освобождена браузером — а localStorage при этом обычно уцелеет.
+     */
+    const backupCollections = async () => {
+        const [collections, links] = await Promise.all([getCollections(), getAllLinks()])
+        const backup = buildBackup(collections, links, new Date().toISOString())
+
+        return saveBackupTo(typeof localStorage === 'undefined' ? null : localStorage, backup)
+    }
+
+    /**
+     * Снимает копию после успешной мутации.
+     *
+     * Сбой копирования не должен превращаться в сбой самой операции: песня
+     * добавлена в подборку — значит операция удалась, даже если хранилище
+     * копий переполнено.
+     */
+    const withBackup = (fn) => async (...args) => {
+        const result = await fn(...args)
+
+        try {
+            await backupCollections()
+        } catch (e) {
+            console.warn('Не удалось обновить резервную копию подборок:', e)
+        }
+
+        return result
+    }
+
     return {
-        addSongs, getSong, createCollection, getCollections,
-        addSongToCollection, removeSongFromCollection,
-        getSongsInCollection, getCollectionsForSong,
-        getCollection, getAvailableCollections, deleteCollection,
-        getSongsCount, getSongNumbers, getSongsCountInCollection, getAllSongs,
-        getFavoriteCollection, isSongInFavorite, addToFavorite, removeFromFavorite
+        addSongs: guardWrite(addSongs),
+        getSong: guardRead(getSong, null),
+        createCollection: guardWrite(withBackup(createCollection)),
+        getCollections: guardRead(getCollections, []),
+        addSongToCollection: guardWrite(withBackup(addSongToCollection)),
+        removeSongFromCollection: guardWrite(withBackup(removeSongFromCollection)),
+        getSongsInCollection: guardRead(getSongsInCollection, []),
+        getCollectionsForSong: guardRead(getCollectionsForSong, []),
+        getCollection: guardRead(getCollection, null),
+        getAvailableCollections: guardRead(getAvailableCollections, []),
+        deleteCollection: guardWrite(withBackup(deleteCollection)),
+        getSongsCount: guardRead(getSongsCount, 0),
+        getSongNumbers: guardRead(getSongNumbers, []),
+        getSongsCountInCollection: guardRead(getSongsCountInCollection, 0),
+        getAllSongs: guardRead(getAllSongs, []),
+        getAllLinks: guardRead(getAllLinks, []),
+        getFavoriteCollection: guardRead(getFavoriteCollection, null),
+        isSongInFavorite: guardRead(isSongInFavorite, false),
+        addToFavorite: guardWrite(withBackup(addToFavorite)),
+        removeFromFavorite: guardWrite(withBackup(removeFromFavorite)),
+        backupCollections: guardRead(backupCollections, { saved: false, reason: 'База данных недоступна' })
     };
 };

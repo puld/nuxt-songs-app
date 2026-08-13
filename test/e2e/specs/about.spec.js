@@ -1,6 +1,7 @@
 import { test, expect } from '../lib/fixtures'
 import { s } from '../lib/selectors'
-import { openSidebar, waitForHomeReady } from '../lib/flows'
+import { openSidebar, waitForHomeReady, gotoSong } from '../lib/flows'
+import { SONGS } from '../lib/songs'
 import { TAPS_REQUIRED } from '../../../lib/devMode'
 
 // Страница «О приложении»: шпаргалка по экранам, блок версии,
@@ -130,5 +131,63 @@ test.describe('О приложении: активация режима разр
     await tapVersion(page, 1)
 
     await expect(page.locator(s.about.devModeMessage)).toContainText('уже включён')
+  })
+})
+
+// Блок диагностики: делает видимым то, что раньше уходило только в консоль —
+// сколько песен и подборок в базе, выдано ли постоянное хранилище, есть ли
+// резервная копия и почему база не открылась.
+test.describe('О приложении: состояние хранилища', () => {
+  const row = (page, label) =>
+    page.locator(s.about.diagnosticsRow).filter({ hasText: label })
+
+  const value = (page, label) => row(page, label).locator(s.about.diagnosticsValue)
+
+  test('показывает счётчики базы', async ({ page }) => {
+    await page.goto('/about')
+
+    await expect(page.locator(s.about.diagnostics)).toBeVisible()
+    // Песни грузятся при первом запуске — ждём ненулевого счётчика
+    await expect
+      .poll(async () => Number(await value(page, 'Песен в базе').textContent()), { timeout: 30000 })
+      .toBeGreaterThan(0)
+    await expect(row(page, 'Постоянное хранилище')).toBeVisible()
+  })
+
+  test('технические строки скрыты без режима разработчика', async ({ page }) => {
+    await page.goto('/about')
+    await expect(page.locator(s.about.diagnostics)).toBeVisible()
+
+    await expect(row(page, 'Версия базы')).toHaveCount(0)
+    await expect(row(page, 'Занято места')).toHaveCount(0)
+  })
+
+  test('в режиме разработчика видны версия базы и занятое место', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
+    await page.goto('/about')
+
+    await expect(row(page, 'Версия базы')).toBeVisible()
+    await expect(row(page, 'Занято места')).toBeVisible()
+  })
+
+  test('добавленная песня видна в счётчиках', async ({ page }) => {
+    await gotoSong(page, SONGS.ONE.n)
+    await page.click(s.navbar.favoriteStar)
+    await expect(page.locator(s.navbar.favoriteStarActive)).toBeVisible()
+
+    await page.goto('/about')
+    await expect(value(page, 'Песен в подборках')).toHaveText('1')
+    await expect(value(page, 'Резервная копия')).toContainText('подборок / песен')
+  })
+
+  test('отказ базы виден на странице, а не только в консоли', async ({ page }) => {
+    // Так выглядит запрет IndexedDB настройками приватности
+    await page.addInitScript(() => {
+      indexedDB.open = () => { throw new Error('IndexedDB запрещён настройками') }
+    })
+    await page.goto('/about')
+
+    await expect(page.locator(s.about.diagnosticsError)).toBeVisible()
+    await expect(page.locator(s.about.diagnosticsError)).toContainText('IndexedDB запрещён настройками')
   })
 })

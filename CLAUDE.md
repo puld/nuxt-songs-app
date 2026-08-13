@@ -96,6 +96,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── LoadingText.vue       # Индикатор загрузки с текстом
 │   ├── NavBarBack.vue        # Кнопка «назад» в навбаре
 │   ├── NavBarHamburger.vue   # Кнопка меню (inject toggleSidebar/updateAvailable)
+│   ├── RestoreBackupToast.vue # Предложение восстановить подборки из копии
 │   ├── SettingToggle.vue     # Кнопка-переключатель настроек
 │   ├── SongCard.vue          # Карточка песни (не используется в страницах)
 │   ├── SongDisplay.vue       # Текст песни с аккордами, повторами и табами вариантов
@@ -103,6 +104,8 @@ npm run test:e2e:headed / test:e2e:ui
 │   └── UpdateToast.vue       # Тост «доступно обновление базы»
 ├── composables/
 │   ├── useAutoUpdate.js      # Проверка обновления songs.json по ETag
+│   ├── useCollectionsBackup.js # Восстановление подборок из копии, экспорт/импорт
+│   ├── useDbStatus.js        # Состояние БД: ошибка открытия, persistent-хранилище
 │   ├── useIndexDB.js         # IndexedDB: песни, подборки, связи, избранное
 │   ├── useLayoutCommon.js    # Общая логика layout: навбар, wake lock, автообновление
 │   ├── useSongs.js           # Загрузка songs.json в IndexedDB
@@ -114,15 +117,19 @@ npm run test:e2e:headed / test:e2e:ui
 │   └── default.vue           # Smart Navbar + выдвижной сайдбар
 ├── lib/                      # Чистые функции без Vue (+ тесты рядом)
 │   ├── autoUpdate.js         # ETag-логика автообновления
+│   ├── collectionsBackup.js  # Копия подборок: сборка, разбор, план импорта
+│   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
 │   ├── devMode.js            # Активация режима разработчика тапами по версии
+│   ├── diagnostics.js        # Строки блока «Состояние хранилища» на /about
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
 │   ├── songsIndex.js         # Карта «номер → песня», названия и метки вариантов
+│   ├── storagePersist.js     # navigator.storage: постоянное хранилище и оценка места
 │   └── wakeLock.js           # Менеджер Wake Lock
 ├── pages/
 │   ├── index.vue             # Главная: поиск + подсказки
-│   ├── about.vue             # О приложении: шпаргалка, версия, активация dev-режима
+│   ├── about.vue             # О приложении: шпаргалка, версия, dev-режим, диагностика
 │   ├── settings.vue          # Настройки
 │   ├── song/[number].vue     # Страница песни
 │   └── collections/[id].vue  # Подборка: список песен
@@ -155,7 +162,7 @@ npm run test:e2e:headed / test:e2e:ui
 
 Плагин `plugins/indexedDB.client.js` (client-only) инициализирует БД `SongsDB` **версии 6** с тремя хранилищами. При пустой базе плагин сам вызывает `fetchSongs()` — песни грузятся автоматически при первом запуске.
 
-Имя базы, версия и создание хранилищ/индексов — в `lib/dbSchema.js` (`DB_NAME`, `DB_VERSION`, `createSchema`). Оттуда их берут и плагин, и тесты. Миграции остаются в плагине: они зависят от `oldVersion` и работают с транзакцией апгрейда.
+Имя базы, версия и создание хранилищ/индексов — в `lib/dbSchema.js` (`DB_NAME`, `DB_VERSION`, `createSchema`). Оттуда их берут и плагин, и тесты. Миграции — в `lib/dbMigrations.js`: они зависят от `oldVersion` и работают с транзакцией апгрейда, но вынесены из плагина, чтобы прогоняться в тестах.
 
 ### songs
 - `number` (keyPath) — номер песни
@@ -179,14 +186,34 @@ npm run test:e2e:headed / test:e2e:ui
 
 В подборку добавляется конкретный **вариант** песни — ключ связи включает `variantIndex`.
 
-### Миграции (в `onupgradeneeded`)
-- v1→v2: `body` → `variants: [{ label: '', body }]`
-- v2→v3: добавлен составной индекс с `variantLabel`
-- v3→v4: `variantLabel` → `variantIndex` (число)
-- v4→v5: индекс `isFavorite` + создание подборки «Избранное»
-- v5→v6: гарантия наличия индексов `isFavorite` и `collectionId_songNumber_variantIndex`
+### Миграции (`lib/dbMigrations.js`)
 
-При изменении схемы править `lib/dbSchema.js` — `DB_VERSION` и `createSchema` там в одном месте для приложения и тестов. Миграцию дописывать в плагин.
+`runMigrations(db, transaction, oldVersion)` вызывается из `onupgradeneeded` после `createSchema(db)`. Шаги описывают **целевое состояние** и идемпотентны, а не образуют лестницу «v3→v4, v4→v5»: прежняя лестница пересекалась сама с собой (v3→v4 создавал уникальный индекс в асинхронном колбэке, v5→v6 синхронно видел, что индекса нет, и создавал второй — апгрейд падал).
+
+Шаги: `body` → `variants` (только с v1); снятие уникальности с `collectionId_songNumber`; удаление устаревших индексов связей; нормализация связей; создание уникального `collectionId_songNumber_variantIndex`; индекс `isFavorite`; создание «Избранного».
+
+Правила, которые нельзя нарушать при доработке:
+- **Сначала нормализация связей, потом уникальный индекс.** До v4 ключ включал `variantLabel`, поэтому песня легально лежала в подборке в двух вариантах. Дубли не удаляются, а сдвигаются на свободный `variantIndex` — иначе `ConstraintError` откатывает транзакцию апгрейда, и приложение выглядит так, будто данных нет вообще.
+- **Никаких `await` между шагами** — пауза без активных запросов закрывает транзакцию апгрейда. Шаги связаны колбэками (`runSteps`).
+- **Никаких `clear()` перед повторной записью** — обход курсором с `update`, иначе сбой в середине оставляет хранилище пустым.
+
+При изменении схемы править `lib/dbSchema.js` — `DB_VERSION` и `createSchema` там в одном месте для приложения и тестов; шаг миграции дописывать в `lib/dbMigrations.js` и покрывать в `lib/dbMigrations.test.js` (там апгрейд прогоняется с каждой из версий 1–5).
+
+### Отказ базы не роняет приложение
+
+`plugins/indexedDB.client.js` никогда не реджектится: при неудачном открытии он провайдит `$indexedDB = null`, пишет причину в `useDbStatus()` и продолжает. `useIndexDB` это переживает — чтения возвращают пустой результат, записи бросают «База данных недоступна». Раньше единственная ошибка апгрейда обнуляла всё приложение, а причина уходила только в консоль, до которой на телефоне не добраться.
+
+### Резервная копия подборок (localStorage)
+
+Подборки живут только в IndexedDB, которую браузер вправе освободить. Копия (имена подборок + связи «подборка — песня», без текстов) лежит в localStorage под ключом `collectionsBackup` — отдельном хранилище, которое обычно переживает eviction IndexedDB.
+
+- Снимается автоматически после каждой мутации подборок — в `useIndexDB` (`withBackup`), а не на страницах: мест вызова полдюжины, и любое забытое означало бы устаревшую копию
+- Чистые функции — `lib/collectionsBackup.js`; в composable только обращения к базе и хранилищу
+- **Осмысленная копия не затирается пустой** (`shouldReplaceBackup`): после потери данных «Избранное» пересоздаётся, и первое же изменение стёрло бы единственный след прежних подборок
+- Восстановление предлагается (`RestoreBackupToast`) только когда копия содержательна, а в базе нет ни связей, ни пользовательских подборок — то есть после реальной потери, а не когда пользователь сам всё удалил
+- Отказ от восстановления удаляет копию: иначе предложение возвращалось бы каждую сессию
+- Проверка выполняется один раз за сессию (модульный флаг в `useCollectionsBackup`)
+- Ручной перенос — в настройках: экспорт в файл открыт всем, импорт спрятан за режимом разработчика. Импорт только добавляет, так что «не тот файл» данные не уничтожит, но чинить последствия всё равно пришлось бы вручную
 
 ## Composables
 
@@ -200,6 +227,13 @@ npm run test:e2e:headed / test:e2e:ui
 **Связи** (везде `variantIndex = 0` по умолчанию): `addSongToCollection(collectionId, songNumber, variantIndex)` (с проверкой дубликата), `removeSongFromCollection(...)`, `getSongsInCollection(collectionId)` (сортировка по номеру), `getCollectionsForSong(songNumber)`, `getAvailableCollections(songNumber)`, `getSongsCountInCollection(collectionId)`
 
 **Избранное:** `getFavoriteCollection()`, `isSongInFavorite(songNumber, variantIndex)`, `addToFavorite(...)`, `removeFromFavorite(...)` — обёртки над подборкой с `isFavorite: 1`; бросают ошибку, если её нет
+
+**Копия:** `getAllLinks()` (все связи), `backupCollections()` — снимает копию подборок в localStorage. Мутации (`createCollection`, `deleteCollection`, `addSongToCollection`, `removeSongFromCollection`, `addToFavorite`, `removeFromFavorite`) обёрнуты `withBackup` и снимают копию сами; сбой копирования не срывает саму операцию.
+
+### `useCollectionsBackup` (composables/useCollectionsBackup.js)
+Пользовательская сторона копии: `checkRestorable()` (предлагать ли восстановление), `restoreFromAutoBackup()`, `dismissRestore()`, `applyBackup(backup)`, `exportToText()`, `importFromText(text)`.
+
+Импорт **только добавляет**: существующие подборки дополняются, лишнее не удаляется. Дубликаты связей считаются пропущенными, а не ошибкой. `resetCollectionsBackupState()` сбрасывает модульное состояние в тестах.
 
 ### `useSongSearch` (composables/useSongSearch.js)
 Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `search(query, limit)`, реактивные `searchIndex`, `exactIndex`, `searchResults`, `searchQuery`.
@@ -220,7 +254,11 @@ Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `sear
 Проверка обновлений базы по ETag: HEAD-запрос к `songs.json`, сравнение с сохранённым ETag, при расхождении — `settings.updateAvailable = true`. Коулдаун 30 минут (`lib/autoUpdate.js`). Применение обновления делегируется в `useSongs().fetchSongs()`.
 
 ### `useLayoutCommon` (composables/useLayoutCommon.js)
-Общая логика layout'ов: скрытие навбара при скролле, wake lock, автообновление, синхронизация класса размера шрифта.
+Общая логика layout'ов: скрытие навбара при скролле, wake lock, автообновление, синхронизация класса размера шрифта, запрос постоянного хранилища.
+
+Постоянное хранилище (`lib/storagePersist.js`) запрашивается **при первом взаимодействии**, а не при загрузке: браузеры охотнее выдают флаг приложению, которым реально пользуются. Слушатели `pointerdown`/`keydown` одноразовые — повторный запрос бесполезен и может показать лишний промпт. Без флага IndexedDB остаётся best-effort, и система может освободить её вместе с подборками при нехватке места.
+
+Отказ — нормальный сценарий, а не ошибка: desktop-Chromium без установки флаг не даёт, установленному PWA на Android выдаёт. Результат виден в блоке диагностики на `/about`.
 
 ### `useWakeLock` (composables/useWakeLock.js)
 Обёртка над `lib/wakeLock.js` — не даёт экрану гаснуть, если включена настройка `keepScreenOn`.
@@ -281,6 +319,7 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 - Тема (light/dark/system), размер шрифта (small/medium/large)
 - «Не гасить экран» (`keepScreenOn`)
 - Принудительное обновление базы данных песен
+- Секция «Резервная копия подборок»: экспорт в файл `podborki-YYYY-MM-DD.json` доступен всем; **импорт закрыт `settings.devMode`** — он меняет содержимое базы, и ошибиться файлом легко. Пустая база (одно пустое «Избранное») не экспортируется — `isTrivialBackup`
 - Тумблер аккордов **временно скрыт** флагом `showChordsSection`; функциональность (`settings.showChords`, `SongDisplay`) сохранена — план возврата в `docs/restore-chords-toggle.md`
 - Секция «Экспериментальные функции» показывается только при `settings.devMode`; там же тумблер, которым режим выключается
 
@@ -288,6 +327,7 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 - Краткое описание приложения и шпаргалка «Как пользоваться» по экранам (поиск, страница песни, избранное, подборки, настройки, установка)
 - Блок версии/сборки из `useAppConfig()` (`appVersion`, `appCommit`, `appBuildDate`)
 - **Режим разработчика**: 7 тапов по блоку версии включают `settings.devMode` (подсказка об остатке с 3 тапов до порога). Логика подсчёта — чистая, в `lib/devMode.js` (`registerTap`, окно сброса 2 сек); страница только отображает результат
+- **Блок «Состояние хранилища»** (диагностика): песен в базе, подборок, песен в подборках, постоянное хранилище, резервная копия; версия базы и занятое место — только при `devMode`. Ошибка открытия базы из `useDbStatus()` показывается **всегда и всем**: ради неё блок и сделан — на телефоне до консоли не добраться. Строки собирает `lib/diagnostics.js`; дата форматируется вручную, а не через локаль устройства, потому что эту строку пользователь пересылает как есть
 
 ### `pages/collections/[id].vue` — Подборка
 - Список песен в подборке, удаление песни из подборки
@@ -332,11 +372,11 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install
+- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия

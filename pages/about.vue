@@ -27,6 +27,29 @@
       </dl>
     </section>
 
+    <section class="about-section" data-testid="diagnostics-section">
+      <h2>Состояние хранилища</h2>
+
+      <!-- Ошибка базы показывается всем и всегда: без неё «данные пропали»
+           выглядит как поломка приложения, а причина видна только в консоли. -->
+      <p v-if="dbError" class="diagnostics-error" data-testid="diagnostics-error">
+        <Icon name="mingcute:alert-line" size="1rem" />
+        <span>База данных недоступна: {{ dbError }}</span>
+      </p>
+
+      <dl class="diagnostics">
+        <div v-for="row in visibleDiagnostics" :key="row.label" class="diagnostics-row" data-testid="diagnostics-row">
+          <dt class="diagnostics-label">{{ row.label }}</dt>
+          <dd class="diagnostics-value">{{ row.value }}</dd>
+        </div>
+      </dl>
+
+      <p class="diagnostics-hint">
+        «Постоянное хранилище» — обещание браузера не удалять данные при нехватке места.
+        Если стоит «нет», подборки стоит время от времени сохранять в файл в настройках.
+      </p>
+    </section>
+
     <div class="version-block">
       <!-- Тап по версии — активация режима разработчика (7 нажатий).
            Обычному пользователю это просто строка с версией. -->
@@ -59,6 +82,9 @@
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
 import { initialTapState, registerTap, shouldHint } from '~/lib/devMode'
+import { buildDiagnostics } from '~/lib/diagnostics'
+import { readPersisted, getStorageEstimate } from '~/lib/storagePersist'
+import { backupStats, readBackupFrom } from '~/lib/collectionsBackup'
 
 const appConfig = useAppConfig()
 const settings = useSettingsStore()
@@ -97,8 +123,46 @@ const guide = [
   }
 ]
 
-// Состояние счётчика тапов держим вне реактивности: в шаблон попадает
-// только сообщение. Логика подсчёта — в lib/devMode.js.
+// === Диагностика хранилища ===
+const { getSongsCount, getCollections, getAllLinks } = useIndexDB()
+const { dbError } = useDbStatus()
+
+const diagnosticsData = ref({})
+
+const visibleDiagnostics = computed(() =>
+  buildDiagnostics(diagnosticsData.value).filter((row) => settings.devMode || !row.dev)
+)
+
+// Собираем всё разом: страница открывается редко, а частичные данные
+// («песен 0», потому что запрос не дошёл) хуже отсутствия блока.
+const loadDiagnostics = async () => {
+  const storage = typeof navigator === 'undefined' ? null : navigator.storage
+  const { $indexedDB } = useNuxtApp()
+
+  const [songs, collections, links, persisted, estimate] = await Promise.all([
+    getSongsCount(),
+    getCollections(),
+    getAllLinks(),
+    readPersisted(storage),
+    getStorageEstimate(storage)
+  ])
+
+  const stored = readBackupFrom(typeof localStorage === 'undefined' ? null : localStorage)
+
+  diagnosticsData.value = {
+    songs,
+    collections: collections.length,
+    links: links.length,
+    dbVersion: $indexedDB?.version || null,
+    persisted,
+    estimate,
+    backup: stored.ok ? backupStats(stored.backup) : null
+  }
+}
+
+onMounted(loadDiagnostics)
+
+// Состояние счётчика тапов держим вне реактивности: в шаблон попадает// только сообщение. Логика подсчёта — в lib/devMode.js.
 let tapState = initialTapState()
 const tapMessage = ref('')
 
@@ -178,6 +242,48 @@ const onVersionTap = () => {
   font-size: 0.9rem;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+.diagnostics {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.diagnostics-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.diagnostics-label {
+  color: var(--text-secondary);
+}
+
+.diagnostics-value {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.diagnostics-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--danger);
+  line-height: 1.4;
+}
+
+.diagnostics-hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .version-block {
