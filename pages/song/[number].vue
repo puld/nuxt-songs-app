@@ -251,6 +251,10 @@ onMounted(async () => {
       return;
     }
 
+    // Песня открылась — запоминаем в истории просмотров. Именно здесь, после
+    // проверки: «Песня не найдена» в историю попадать не должна.
+    settings.addRecentSong(songNumber);
+
     // Загружаем коллекции, в которые входит песня
     songCollections.value = await getCollectionsForSong(songNumber);
 

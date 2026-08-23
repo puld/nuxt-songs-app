@@ -29,6 +29,21 @@
         />
       </div>
 
+      <!-- Недавно открытые песни. Функция экспериментальная, поэтому за тем же
+           гейтом, что и «Все песни». Пустой список блок не рисует. -->
+      <div v-if="settings.devMode && recentSongs.length" class="recent">
+        <div class="recent-title">Недавние</div>
+        <NuxtLink
+          v-for="item in recentSongs"
+          :key="item.number"
+          :to="`/song/${item.number}`"
+          class="recent-item"
+        >
+          <span class="recent-number">{{ item.number }}</span>
+          <span class="recent-name">{{ item.title }}</span>
+        </NuxtLink>
+      </div>
+
       <!-- Вход в список всех песен: пока экран экспериментальный, показываем
            его только в режиме разработчика — как и пункт меню. -->
       <NuxtLink v-if="settings.devMode" to="/songs" class="songs-link">
@@ -68,7 +83,7 @@
 import { useSettingsStore } from '~/stores/settings'
 
 const {getFavoriteCollection, getSongsCountInCollection} = useIndexDB()
-const {allSongs, songNumbers, loadSongs} = useSongsCache()
+const {allSongs, songNumbers, songsMap, loadSongs} = useSongsCache()
 const pwa = usePWA()
 const settings = useSettingsStore()
 
@@ -89,6 +104,16 @@ onMounted(async () => {
   // Фокус на поле поиска
   searchComponent.value?.focus()
 })
+
+// История просмотров: номера храним в настройках, название берём из карты
+// песен. Номера, которых нет в базе, отбрасываем — песня могла исчезнуть при
+// обновлении, и ссылка «Неизвестная песня» пользователю ничего не даёт.
+const recentSongs = computed(() =>
+  settings.recentSongNumbers
+    .map(number => ({ number, song: songsMap.value.get(number) }))
+    .filter(item => item.song)
+    .map(item => ({ number: item.number, title: item.song.title }))
+)
 
 const goToSong = ({ n, variantIndex }) => {
   if (n) {
@@ -122,6 +147,49 @@ const showInstallButton = computed(() => {
 
 .instructions {
   margin-bottom: 2rem;
+}
+
+.recent {
+  margin-bottom: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.recent-title {
+  padding: 0.5rem 1rem 0.25rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.recent-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.recent-item:last-child {
+  padding-bottom: 0.75rem;
+}
+
+/* Номер фиксированной ширины: названия выстраиваются в колонку */
+.recent-number {
+  flex: 0 0 2.5rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* Длинное название обрезается, а не переносит блок на вторую строку */
+.recent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .songs-link {

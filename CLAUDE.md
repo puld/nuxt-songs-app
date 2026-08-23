@@ -127,6 +127,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── devMode.js            # Активация режима разработчика тапами по версии
 │   ├── diagnostics.js        # Строки блока «Состояние хранилища» на /about
 │   ├── popupOffset.js        # Смещение попапа над экранной клавиатурой
+│   ├── recentSongs.js        # История просмотров: нормализация и добавление
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
 │   ├── songsIndex.js         # Карта «номер → песня», названия и метки вариантов
@@ -339,9 +340,12 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 | `lastUpdateCheck` | Number | timestamp последней проверки (ms) | `0` |
 | `devMode` | Boolean | режим разработчика — гейт экспериментальных функций | `false` |
 | `songsListMode` | String | режим группировки на «Все песни»: `'number'`, `'alphabet'`, `'sections'` | `'number'` |
+| `recentSongs` | Array | номера недавно открытых песен, свежая первой (не более `RECENT_LIMIT`) | `[]` |
 | `updateAvailable` | Boolean | **не персистентно** — пересчитывается при запуске | `false` |
 
-Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`).
+Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`), `addRecentSong`, `clearRecentSongs`.
+
+Геттер `recentSongNumbers` нормализует историю при чтении (`normalizeRecent`): значение приходит из localStorage, где может оказаться что угодно, а мусор ушёл бы прямо в шаблон пустыми ссылками.
 
 ## Layout и навигация
 
@@ -361,8 +365,11 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 ### `pages/index.vue` — Главная
 - `SongSearchInput`: полнотекстовый поиск и переход по номеру (лимит 7 результатов)
 - Подсказки: расширенные, пока в «Избранном» пусто; в обоих вариантах последняя строка плашки — ссылка «Подробнее» на `/about`
+- Блок «Недавние» под полем поиска — до `RECENT_LIMIT` последних открытых песен, за `settings.devMode`. Номера хранятся в настройках (`recentSongs`), название берётся из карты песен; номер, которого нет в базе, из списка выпадает — после обновления базы песня могла исчезнуть, а ссылка «Неизвестная песня» бесполезна. Пустой список блок не рисует. Показ **только здесь**: дублировать историю ещё и в сайдбаре незачем
 - Ссылка «Все песни» под полем поиска — только при `settings.devMode`, как и пункт в сайдбаре
 - При пустой БД — ссылка на настройки
+
+История пишется на странице песни (`pages/song/[number].vue`) после успешной загрузки — «Песня не найдена» в неё не попадает. Запись идёт независимо от `devMode`: включив режим, пользователь сразу видит осмысленный список, а не пустой блок. При навигации стрелками страница пересоздаётся, поэтому `onMounted` достаточно — отдельного watch на `route.params.number` не нужно.
 
 ### `pages/song/[number].vue` — Страница песни
 - Навигация предыдущая/следующая (по списку номеров из `useSongsCache`)
@@ -437,11 +444,11 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, songs, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
+- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar, favorites, collections, add-to-collection, songs, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия
