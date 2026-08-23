@@ -135,6 +135,31 @@ test.describe('Все песни: режимы группировки', () => {
     await expect(page.locator(s.songsList.groupHeader).first())
       .toHaveAttribute('aria-expanded', 'true')
   })
+
+  test('выбранный режим сохраняется до следующего открытия страницы', async ({ page }) => {
+    await gotoSongsList(page)
+    await page.locator(s.songsList.modeBtn, { hasText: 'По разделам' }).click()
+    await expect(page.locator(s.songsList.modeActive)).toHaveText('По разделам')
+
+    // Уход со страницы и возврат — режим не сбрасывается на «По номеру».
+    await page.goto('/')
+    await gotoSongsList(page)
+    await expect(page.locator(s.songsList.modeActive)).toHaveText('По разделам')
+
+    // И переживает перезапуск приложения (значение лежит в localStorage).
+    await page.reload()
+    await page.waitForSelector(s.songsList.group, { timeout: 30000 })
+    await expect(page.locator(s.songsList.modeActive)).toHaveText('По разделам')
+  })
+
+  test('мусор в сохранённом режиме не оставляет страницу без активной кнопки', async ({ page }) => {
+    // useStorage хранит строку плоско, без JSON-кавычек — так же пишем и мусор.
+    await page.addInitScript(() => window.localStorage.setItem('songsListMode', 'по разделам'))
+    await gotoSongsList(page)
+
+    await expect(page.locator(s.songsList.modeActive)).toHaveText('По номеру')
+    await expect(page.locator(s.songsList.groupTitle).first()).toHaveText('1–100')
+  })
 })
 
 test.describe('Все песни: переходы', () => {

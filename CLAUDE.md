@@ -305,9 +305,10 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 | `songsEtag` | String | ETag последней загрузки `songs.json` | `''` |
 | `lastUpdateCheck` | Number | timestamp последней проверки (ms) | `0` |
 | `devMode` | Boolean | режим разработчика — гейт экспериментальных функций | `false` |
+| `songsListMode` | String | режим группировки на «Все песни»: `'number'`, `'alphabet'`, `'sections'` | `'number'` |
 | `updateAvailable` | Boolean | **не персистентно** — пересчитывается при запуске | `false` |
 
-Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`.
+Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`).
 
 ## Layout и навигация
 
@@ -351,6 +352,8 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 
 ### `pages/songs.vue` — Все песни
 Список всех песен с тремя режимами группировки: по номеру (группы по сотням), по алфавиту (первая буква названия, внутри — по алфавиту), по разделам сборника. Группы сворачиваемые: раскрыта только первая, иначе страница рендерила бы 1565 ссылок сразу. Смена режима заново раскрывает первую группу.
+
+Выбранный режим хранится в настройках (`settings.songsListMode`, localStorage), а не в локальном `ref`: у каждого свой способ искать песню, и выбирать его заново при каждом заходе незачем. Значение из хранилища проходит через `normalizeSongsListMode` — иначе мусор или режим от будущей версии дал бы группировку по номеру при неподсвеченных кнопках, что выглядит как поломка.
 
 Группировка — чистые функции в `lib/songsList.js` (`groupSongs`, `groupByNumber`, `groupByAlphabet`, `groupBySections`); все режимы возвращают одну структуру `{ key, title, songs }`, поэтому шаблон не разветвляется по режиму. Ключ группы разделов — `id`, а не название: в сборнике есть разделы с одинаковыми названиями. Песня, не попавшая ни в один раздел, уходит в группу «Вне разделов» — сейчас разделы покрывают сборник целиком, но молча терять песню нельзя.
 

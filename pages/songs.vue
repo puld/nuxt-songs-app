@@ -103,13 +103,15 @@
 
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
-import { groupSongs } from '~/lib/songsList'
+import { groupSongs, normalizeSongsListMode } from '~/lib/songsList'
 
-const MODES = [
-  { value: 'number', label: 'По номеру' },
-  { value: 'alphabet', label: 'По алфавиту' },
-  { value: 'sections', label: 'По разделам' }
-]
+const MODE_LABELS = {
+  number: 'По номеру',
+  alphabet: 'По алфавиту',
+  sections: 'По разделам'
+}
+
+const MODES = Object.entries(MODE_LABELS).map(([value, label]) => ({ value, label }))
 
 const router = useRouter()
 const settings = useSettingsStore()
@@ -118,8 +120,11 @@ const { allSongs, songNumbers, loadSongs } = useSongsCache()
 
 const sections = ref([])
 const loading = ref(true)
-const activeMode = ref('number')
 const openKeys = ref(new Set())
+
+// Режим живёт в настройках, а не в локальном ref: выбранная группировка
+// переживает уход со страницы и перезапуск приложения.
+const activeMode = computed(() => normalizeSongsListMode(settings.songsListMode))
 
 const showSearch = ref(false)
 const searchPopoverEl = ref(null)
@@ -147,7 +152,7 @@ const resetOpenGroups = () => {
 
 const setMode = (mode) => {
   if (activeMode.value === mode) return
-  activeMode.value = mode
+  settings.setSongsListMode(mode)
   resetOpenGroups()
 }
 
