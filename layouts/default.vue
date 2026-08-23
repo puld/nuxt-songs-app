@@ -67,6 +67,11 @@ provide('updateAvailable', autoUpdate.updateAvailable)
             <span>Главная</span>
           </NuxtLink>
 
+          <NuxtLink v-if="settings.devMode" to="/songs" class="sidebar-link" @click="closeSidebar">
+            <Icon name="mingcute:list-check-line" size="1.25rem"/>
+            <span>Все песни</span>
+          </NuxtLink>
+
           <div class="sidebar-divider"></div>
 
           <div class="sidebar-section-header">

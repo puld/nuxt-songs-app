@@ -29,6 +29,14 @@
         />
       </div>
 
+      <!-- Вход в список всех песен: пока экран экспериментальный, показываем
+           его только в режиме разработчика — как и пункт меню. -->
+      <NuxtLink v-if="settings.devMode" to="/songs" class="songs-link">
+        <Icon name="mingcute:list-check-line" size="1.1rem" />
+        <span>Все песни</span>
+        <Icon name="mingcute:right-line" size="1.1rem" class="songs-link-arrow" />
+      </NuxtLink>
+
       <div class="instructions">
         <div v-if="favoriteCount === 0" class="instruction-text instruction-extended">
           <ul class="instruction-list">
@@ -57,9 +65,12 @@
 
 <script setup>
 
+import { useSettingsStore } from '~/stores/settings'
+
 const {getFavoriteCollection, getSongsCountInCollection} = useIndexDB()
 const {allSongs, songNumbers, loadSongs} = useSongsCache()
 const pwa = usePWA()
+const settings = useSettingsStore()
 
 const favoriteCount = ref(0)
 const loading = ref(true)
@@ -111,6 +122,24 @@ const showInstallButton = computed(() => {
 
 .instructions {
   margin-bottom: 2rem;
+}
+
+.songs-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 0.5rem;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.songs-link-arrow {
+  margin-left: auto;
+  color: var(--text-secondary);
 }
 
 .instruction-text {

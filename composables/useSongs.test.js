@@ -44,6 +44,30 @@ describe('useSongs', () => {
             mockFetchRestore()
         })
 
+        it('сохраняет разделы сборника вместе с песнями', async () => {
+            const sections = [{ id: 0, title: 'Перед началом собрания', song_ns: [1, 2] }]
+            const mockFetchRestore = mockFetchResponse({ songs: songsData, sections })
+
+            await useSongs().fetchSongs()
+
+            const saved = await new Promise((resolve) => {
+                const request = db.transaction(['sections'], 'readonly').objectStore('sections').getAll()
+                request.onsuccess = () => resolve(request.result)
+            })
+
+            expect(saved).toEqual([{ id: 0, title: 'Перед началом собрания', songNumbers: [1, 2] }])
+
+            mockFetchRestore()
+        })
+
+        it('файл без разделов не срывает загрузку песен', async () => {
+            const mockFetchRestore = mockFetchResponse({ songs: songsData })
+
+            await expect(useSongs().fetchSongs()).resolves.toBe(true)
+
+            mockFetchRestore()
+        })
+
         it('должен обрабатывать ошибку сети 404', async () => {
             const mockFetchRestore = mockFetchError(404)
             const consoleErrorSpy = vi.spyOn(console, 'error')

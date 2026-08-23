@@ -16,7 +16,7 @@ test/e2e/
 ├── data/
 │   ├── search-cases.js           # тест-кейсы поиска (редактируемые без знания Playwright)
 │   └── fixtures/
-│       └── songs.fixture.json    # снимок 60 песен из реальной БД
+│       └── songs.fixture.json    # снимок 60 песен + разделы сборника из реальной БД
 ├── specs/                        # тесты по страницам/областям приложения
 │   ├── home.spec.js              # главная: поиск, инструкции
 │   ├── search-layout.spec.js     # адаптивная высота dropdown
@@ -25,6 +25,7 @@ test/e2e/
 │   ├── favorites.spec.js         # звезда избранного
 │   ├── add-to-collection.spec.js # попап добавления в подборку
 │   ├── collections.spec.js       # страница подборки, редактирование
+│   ├── songs.spec.js             # «Все песни»: гейт devMode, три режима группировки
 │   ├── settings.spec.js          # тема, шрифт, аккорды
 │   ├── sidebar.spec.js           # сайдбар
 │   ├── navbar.spec.js            # навбар
@@ -96,7 +97,9 @@ npx playwright show-report
 
 ## Обновление фикстуры
 
-Фикстура — снимок 60 песен (1–50 + 11 мульти-вариантных) из реальной БД.
+Фикстура — снимок 60 песен (1–50 + 11 мульти-вариантных) из реальной БД
+плюс разделы сборника, суженные до этих песен: без них режим «по разделам»
+на странице «Все песни» показал бы всё одной группой «Вне разделов».
 Чтобы обновить снимок (если изменились форматы или нужны другие песни):
 
 ```bash
@@ -105,8 +108,12 @@ const data = require('./public/assets/songs.json');
 const songs = data.songs || data;
 const multi = [32,235,494,854,1067,1175,1188,1254,1309,1363,1455];
 const subset = songs.filter(s => s.n <= 50 || multi.includes(s.n)).sort((a,b)=>a.n-b.n);
-require('fs').writeFileSync('test/e2e/data/fixtures/songs.fixture.json', JSON.stringify({songs:subset}, null, 2));
-console.log('Updated:', subset.length, 'songs');
+const numbers = new Set(subset.map(s => s.n));
+const sections = (data.sections || [])
+  .map(sec => ({...sec, song_ns: sec.song_ns.filter(n => numbers.has(n))}))
+  .filter(sec => sec.song_ns.length > 0);
+require('fs').writeFileSync('test/e2e/data/fixtures/songs.fixture.json', JSON.stringify({songs:subset, sections}, null, 2));
+console.log('Updated:', subset.length, 'songs,', sections.length, 'sections');
 "
 ```
 

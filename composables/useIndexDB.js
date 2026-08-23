@@ -308,6 +308,49 @@ export const useIndexDB = () => {
         })
     }
 
+    /**
+     * Перезаписывает разделы сборника. Как и песни, разделы приходят целиком
+     * из `songs.json`, поэтому старые записи чистим: раздел мог исчезнуть.
+     */
+    const addSections = async (sections) => {
+        return new Promise((resolve, reject) => {
+            const transaction = $indexedDB.transaction(['sections'], 'readwrite')
+            const store = transaction.objectStore('sections')
+            store.clear()
+            sections.forEach((section) => {
+                store.put({
+                    id: Number(section.id),
+                    title: String(section.title),
+                    songNumbers: (section.song_ns || section.songNumbers || []).map(Number)
+                })
+            })
+            transaction.oncomplete = () => resolve()
+            transaction.onerror = (event) => reject(event.target.error)
+        })
+    }
+
+    /** Разделы сборника по порядку `id`. */
+    const getSections = async () => {
+        return new Promise((resolve) => {
+            const transaction = $indexedDB.transaction(['sections'], 'readonly')
+            const store = transaction.objectStore('sections')
+            const request = store.getAll()
+            request.onsuccess = () => resolve(request.result || [])
+            request.onerror = () => resolve([])
+        })
+    }
+
+    /** Сколько разделов в базе; 0 при любой ошибке. */
+    const getSectionsCount = async () => {
+        return new Promise((resolve) => {
+            const transaction = $indexedDB.transaction(['sections'], 'readonly')
+            const store = transaction.objectStore('sections')
+            const request = store.count()
+            request.onsuccess = () => resolve(request.result || 0)
+            request.onerror = () => resolve(0)
+        })
+    }
+
     const getFavoriteCollection = async () => {
         return new Promise((resolve) => {
             try {
@@ -419,6 +462,9 @@ export const useIndexDB = () => {
         getSongNumbers: guardRead(getSongNumbers, []),
         getSongsCountInCollection: guardRead(getSongsCountInCollection, 0),
         getAllSongs: guardRead(getAllSongs, []),
+        addSections: guardWrite(addSections),
+        getSections: guardRead(getSections, []),
+        getSectionsCount: guardRead(getSectionsCount, 0),
         getAllLinks: guardRead(getAllLinks, []),
         getFavoriteCollection: guardRead(getFavoriteCollection, null),
         isSongInFavorite: guardRead(isSongInFavorite, false),
