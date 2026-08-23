@@ -47,3 +47,27 @@ export const FIXTURE_SONGS_COUNT = fixture.songs.length
 
 // Все номера песен в фикстуре (возрастающий порядок).
 export const FIXTURE_SONG_NUMBERS = fixture.songs.map((s) => s.n).sort((a, b) => a - b)
+
+/**
+ * Раздел сборника, в котором лежит песня.
+ *
+ * Разделы фикстуры покрывают все её песни (как и в реальном сборнике),
+ * поэтому отсутствие раздела — сломанная фикстура, а не рядовой случай.
+ */
+export const sectionOfSong = (n) => {
+  const section = fixture.sections.find((sec) => (sec.song_ns || []).includes(n))
+  if (!section) throw new Error(`Песня ${n} вне разделов фикстуры`)
+
+  return { id: section.id, title: section.title, songNumbers: section.song_ns }
+}
+
+// ID раздела, которого в фикстуре нет — проверка деградации `?section=`.
+export const NONEXISTENT_SECTION = 999
+
+// Последний раздел фикстуры — самый дальний от начала списка,
+// до него без прокрутки не добраться даже при свёрнутых группах.
+export const LAST_SECTION = (() => {
+  const section = fixture.sections[fixture.sections.length - 1]
+
+  return { id: section.id, title: section.title, songNumbers: section.song_ns }
+})()

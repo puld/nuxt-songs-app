@@ -1,6 +1,6 @@
 import { test, expect } from '../lib/fixtures'
 import { s } from '../lib/selectors'
-import { SONGS } from '../lib/songs'
+import { LAST_SECTION, NONEXISTENT_SECTION, SONGS, sectionOfSong } from '../lib/songs'
 
 // Страница «Все песни»: гейт режима разработчика, три режима группировки,
 // сворачивание групп, переход к песне и попап поиска.
@@ -189,5 +189,59 @@ test.describe('Все песни: переходы', () => {
 
     await expect(page.locator(s.goto.overlay)).toHaveCount(0)
     await expect(page).toHaveURL(/\/song\/\d+/)
+  })
+})
+
+test.describe('Все песни: переход к разделу по якорю', () => {
+  test.beforeEach(async ({ page }) => {
+    await enableDevMode(page)
+  })
+
+  test('нужный раздел раскрыт, остальные свёрнуты', async ({ page }) => {
+    const section = sectionOfSong(SONGS.ONE.n)
+    await page.goto(`/songs#section-${section.id}`)
+    await page.waitForSelector(s.songsList.group, { timeout: 30000 })
+
+    await expect(page.locator(s.songsList.modeActive)).toHaveText('По разделам')
+
+    const group = page.locator(s.songsList.groupByKey(`section-${section.id}`))
+    await expect(group.locator('.group-header')).toHaveAttribute('aria-expanded', 'true')
+    await expect(group.locator('.song-link')).toHaveCount(section.songNumbers.length)
+    // Раскрыт ровно один раздел: иначе страница снова рисует весь сборник.
+    await expect(page.locator(`${s.songsList.groupHeader}[aria-expanded="true"]`)).toHaveCount(1)
+  })
+
+  test('дальний раздел прокручен в видимую область', async ({ page }) => {
+    // Низкий экран: заголовки свёрнутых групп не помещаются целиком, и без
+    // прокрутки раскрытый раздел остался бы ниже экрана.
+    await page.setViewportSize({ width: 375, height: 500 })
+    await page.goto(`/songs#section-${LAST_SECTION.id}`)
+    await page.waitForSelector(s.songsList.group, { timeout: 30000 })
+
+    const group = page.locator(s.songsList.groupByKey(`section-${LAST_SECTION.id}`))
+    await expect(group.locator('.group-header')).toBeInViewport()
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  })
+
+  test('режим «по разделам» остаётся выбранным при следующем заходе', async ({ page }) => {
+    const section = sectionOfSong(SONGS.ONE.n)
+    await page.goto(`/songs#section-${section.id}`)
+    await page.waitForSelector(s.songsList.group, { timeout: 30000 })
+
+    // Приход за разделом меняет группировку насовсем — заход без якоря
+    // возвращает разделы, а не прежний режим «по номеру».
+    await gotoSongsList(page)
+    await expect(page.locator(s.songsList.modeActive)).toHaveText('По разделам')
+  })
+
+  test('несуществующий раздел не ломает экран', async ({ page }) => {
+    await page.goto(`/songs#section-${NONEXISTENT_SECTION}`)
+    await page.waitForSelector(s.songsList.group, { timeout: 30000 })
+
+    // Деградация до обычного захода: список на месте, раскрыта первая группа.
+    await expect(page.locator(s.songsList.modeActive)).toHaveText('По разделам')
+    await expect(page.locator(`${s.songsList.groupHeader}[aria-expanded="true"]`)).toHaveCount(1)
+    await expect(page.locator(s.songsList.groupHeader).first())
+      .toHaveAttribute('aria-expanded', 'true')
   })
 })

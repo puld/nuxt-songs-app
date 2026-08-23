@@ -89,6 +89,20 @@
     <!-- Название песни -->
     <div class="song-title-row" :class="fontSizeClass">
       <h1 class="song-title" :class="fontSizeClass">{{ song.title }}</h1>
+
+      <!-- Раздел сборника. За тем же гейтом, что и «Все песни»: ссылка ведёт
+           именно туда, и без devMode привела бы на закрытый экран.
+           Под заголовком, а не в навбаре: рядом со стрелками «предыдущая» и
+           «следующая» по ней промахивались бы. -->
+      <NuxtLink
+        v-if="settings.devMode && songSection"
+        :to="{ path: '/songs', hash: sectionAnchor(songSection.id) }"
+        class="section-link"
+      >
+        <Icon name="mingcute:book-2-line" size="1rem" />
+        <span class="section-link-title">{{ songSection.title }}</span>
+        <Icon name="mingcute:right-line" size="1rem" class="section-link-arrow" />
+      </NuxtLink>
     </div>
 
     <SongDisplay
@@ -122,6 +136,8 @@
 
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
+import { buildSectionIndex, getSongSection } from '~/lib/songsIndex'
+import { sectionAnchor } from '~/lib/songsList'
 
 const route = useRoute();
 const router = useRouter()
@@ -136,7 +152,8 @@ const {
   removeSongFromCollection,
   isSongInFavorite,
   addToFavorite,
-  removeFromFavorite
+  removeFromFavorite,
+  getSections
 } = useIndexDB();
 
 const {allSongs, songNumbers, loadSongs} = useSongsCache();
@@ -152,6 +169,7 @@ const showGoToPopover = ref(false);
 const showAddPopup = ref(false);
 const searchComponent = ref(null);
 const isSongFavorite = ref(false);
+const sectionIndex = ref(new Map());
 const popupContentEl = ref(null);
 const gotoPopoverEl = ref(null);
 
@@ -237,6 +255,12 @@ const currentVariantLabel = computed(() => {
   return label || ''
 })
 
+// Раздел сборника, в который входит песня. Карта строится из хранилища
+// `sections`, а не поиском по разделам на каждый рендер.
+const songSection = computed(() => (
+  song.value ? getSongSection(sectionIndex.value, song.value.number) : null
+));
+
 onMounted(async () => {
   try {
     const songNumber = parseInt(route.params.number);
@@ -263,6 +287,12 @@ onMounted(async () => {
 
     // Проверяем, в избранном ли песня
     isSongFavorite.value = await isSongInFavorite(songNumber, currentVariantIndex.value);
+
+    // Разделы читаем только когда ссылка на раздел вообще показывается:
+    // без dev-режима это была бы лишняя транзакция на каждое открытие песни.
+    if (settings.devMode) {
+      sectionIndex.value = buildSectionIndex(await getSections());
+    }
   } catch (error) {
     console.error('Ошибка загрузки песни:', error);
   } finally {
@@ -666,6 +696,35 @@ const removeFromCollection = async (col) => {
   margin-top: 2rem;
   padding: 1rem;
   border-top: 1px solid var(--border-color);
+}
+
+/* Раздел сборника: отдельной строкой под названием песни — это метаданные,
+   а не действие, поэтому строка приглушена и не тянет на себя внимание. */
+.section-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* По содержимому и по центру: во всю ширину колонки строка читалась бы
+     панелью, а это подпись к названию песни. */
+  width: fit-content;
+  max-width: 100%;
+  margin: 0.75rem auto 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 0.5rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.section-link-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-link-arrow {
+  margin-left: auto;
 }
 
 .collections-chips {

@@ -69,7 +69,16 @@
       </p>
 
       <div v-else class="groups">
-        <section v-for="group in groups" :key="group.key" class="group">
+        <!-- `id` нужен роутеру: по якорю `#section-<id>` он сам прокручивает
+             страницу к группе. `data-group-key` — для нашего querySelector:
+             ключи групп по номеру («1-100») в CSS-селекторе `#…` невалидны. -->
+        <section
+          v-for="group in groups"
+          :id="group.key"
+          :key="group.key"
+          class="group"
+          :data-group-key="group.key"
+        >
           <button
             class="group-header"
             :aria-expanded="isOpen(group.key)"
@@ -103,7 +112,13 @@
 
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
-import { groupSongs, normalizeSongsListMode } from '~/lib/songsList'
+import { groupSongs, normalizeSongsListMode, sectionKeyFromHash } from '~/lib/songsList'
+
+// Прокруткой распоряжается страница: список появляется только после чтения
+// базы, и до раздела её доводит `scrollToGroup` ниже. Флаг разбирает
+// `app/router.options.js` — там же объяснено, почему одного дефолта Nuxt для
+// этого не хватает.
+definePageMeta({ scrollToTop: false })
 
 const MODE_LABELS = {
   number: 'По номеру',
@@ -113,6 +128,7 @@ const MODE_LABELS = {
 
 const MODES = Object.entries(MODE_LABELS).map(([value, label]) => ({ value, label }))
 
+const route = useRoute()
 const router = useRouter()
 const settings = useSettingsStore()
 const { getSections } = useIndexDB()
@@ -150,6 +166,24 @@ const resetOpenGroups = () => {
   openKeys.value = new Set(first ? [first.key] : [])
 }
 
+/**
+ * Раскрывает группу раздела, к которому пришли по ссылке со страницы песни.
+ * Возвращает ключ группы или null, если такой группы нет: раздел мог исчезнуть
+ * после обновления базы, и оставлять экран без единой раскрытой группы нельзя.
+ */
+const openRequestedSection = (key) => {
+  if (!groups.value.some((group) => group.key === key)) return null
+
+  openKeys.value = new Set([key])
+
+  return key
+}
+
+/** Прокрутка к группе. Заголовок не уезжает под навбар — см. scroll-margin-top. */
+const scrollToGroup = (key) => {
+  document.querySelector(`[data-group-key="${key}"]`)?.scrollIntoView({ block: 'start' })
+}
+
 const setMode = (mode) => {
   if (activeMode.value === mode) return
   settings.setSongsListMode(mode)
@@ -173,14 +207,40 @@ const onSearchSelect = ({ n, variantIndex }) => {
 }
 
 onMounted(async () => {
+  let openedKey = null
+
   try {
     const [, loadedSections] = await Promise.all([loadSongs(), getSections()])
     sections.value = loadedSections
-    resetOpenGroups()
+
+    // Переход со страницы песни: якорь `#section-<id>` показывает разделы и
+    // раскрывает нужный. Режим меняется насовсем, а не на один заход:
+    // вернуть пользователя к прежней группировке при следующем открытии
+    // «Все песни» было бы неожиданно — он пришёл смотреть разделы.
+    //
+    // Якорь, а не query: ссылка указывает на место в списке, и её можно
+    // переслать — при повторном заходе раздел снова раскроется.
+    const requestedKey = sectionKeyFromHash(route.hash)
+    if (requestedKey) {
+      settings.setSongsListMode('sections')
+      await nextTick()
+      openedKey = openRequestedSection(requestedKey)
+    }
+
+    if (!openedKey) resetOpenGroups()
   } catch (error) {
     console.error('Ошибка загрузки списка песен:', error)
   } finally {
     loading.value = false
+  }
+
+  // Прокрутка только после снятия `loading`: пока грузились песни, на странице
+  // был индикатор, а не список, и прокручивать было не к чему.
+  await nextTick()
+  if (openedKey) {
+    scrollToGroup(openedKey)
+  } else {
+    window.scrollTo({ top: 0 })
   }
 })
 </script>
@@ -219,6 +279,9 @@ onMounted(async () => {
 }
 
 .group {
+  /* Прокрутка к разделу по ссылке со страницы песни: без отступа заголовок
+     группы уезжает под фиксированный навбар (56px). */
+  scroll-margin-top: 4rem;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   margin-bottom: 0.5rem;

@@ -102,6 +102,9 @@ export const s = {
     chordUp: '.chord-up',
     repeat: '.repeat',
     stageDirection: '.stage-direction',
+    // Раздел сборника — ссылка на /songs?section=<id>, только при devMode
+    sectionLink: '.section-link',
+    sectionLinkTitle: '.section-link .section-link-title',
     notFound: 'text=Песня не найдена',
     backHome: 'a:has-text("Вернуться на главную")',
   },
@@ -203,6 +206,8 @@ export const s = {
     groupTitle: '.songs-page .group-title',
     groupCount: '.songs-page .group-count',
     songLink: '.songs-page .song-link',
+    // Группа по ключу — им же адресуется переход `?section=<id>`
+    groupByKey: (key) => `.songs-page .group[data-group-key="${key}"]`,
     songNumber: '.songs-page .song-link .song-number',
     songTitle: '.songs-page .song-link .song-title',
     searchBtn: '[aria-label="Найти песню"]',
