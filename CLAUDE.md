@@ -150,6 +150,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── parse.js              # .txt → songs.json
 │   ├── lint.js               # Линтер формата .txt
 │   ├── sections-integrity.js # Проверка согласованности sections.json с песнями
+│   ├── repeat-balance.js     # Проверка баланса маркеров повтора в строфе
 │   ├── convert.js            # songs.json → .txt (обратная операция)
 │   └── verify.js             # Проверка сохранности текста при переразбивке
 ├── scripts/parseTxt.js       # LEGACY-парсер (tmp/doc.txt)
@@ -207,6 +208,26 @@ npm run test:e2e:headed / test:e2e:ui
 - `songs-data/lint.js` вызывает её при **полном** прогоне (`npm run songs:lint`), то есть в CI-job'е «Линтинг текстов песен» — обязательном для мержа в `main`. Битые разделы блокируют мерж, а не всплывают в деплое
 - В `--staged` (pre-commit) разделы проверяются только если правится сам `sections.json`: покрытие считается по всему сборнику, и при коммите одной песни эта работа лишняя
 - Проверка требует полного набора песен, поэтому номера берутся из всей директории `songs/`, а не из списка проверяемых файлов
+
+### Баланс маркеров повтора проверяет линтер
+
+Разметка реприз (`/` … `/Nр.`) не бракуется парсером: несбалансированную строфу
+`lib/repeats.js` отдаёт **сырым текстом** — слеши и «2р.» видны на экране, а
+ошибки нет ни в консоли, ни в сборке. Заметить это можно только глазами на
+конкретной песне из полутора тысяч, поэтому баланс проверяется линтером
+(`songs-data/repeat-balance.js`, правило 10 в `lint.js`).
+
+Ключевое правило формата: **у каждого закрывающего слеша обязан быть счётчик**.
+Два уровня закрываются раздельно (`/3р. /2р.`), а `//Nр.` — ошибка: слеш без
+цифры парсер читает как открывающий, то есть `//2р.` открывает два повтора
+вместо того, чтобы закрыть их. Именно так в сборнике молча лежали восемь
+сломанных строф.
+
+Порядок разбора в `repeat-balance.js` повторяет `tokenize` из `lib/repeats.js`
+(сначала `//`, потом счётчик, потом одиночный слеш) — иначе `//2р.` дало бы
+сходящийся баланс при сломанной вёрстке. Дублирование правил разбора
+сознательное: `lib/` — ESM для браузера, `songs-data/` — CommonJS-инструменты
+сборки.
 
 ### Миграции (`lib/dbMigrations.js`)
 
@@ -416,7 +437,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
