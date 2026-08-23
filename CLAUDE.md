@@ -112,6 +112,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── useSongs.js           # Загрузка songs.json в IndexedDB
 │   ├── useSongsCache.js      # Модульный кэш песен: allSongs, songNumbers, songsMap
 │   ├── useSongSearch.js      # Vue-обёртка для поиска (индексы — синглтон)
+│   ├── useKeyboardOffset.js  # Смещение попапа при экранной клавиатуре
 │   ├── useWakeLock.js        # Обёртка над Wake Lock API
 │   └── utils.js              # pluralize для русского языка
 ├── layouts/
@@ -123,15 +124,18 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
 │   ├── devMode.js            # Активация режима разработчика тапами по версии
 │   ├── diagnostics.js        # Строки блока «Состояние хранилища» на /about
+│   ├── popupOffset.js        # Смещение попапа над экранной клавиатурой
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
 │   ├── songsIndex.js         # Карта «номер → песня», названия и метки вариантов
+│   ├── songsList.js          # Группировка песен: по номеру, алфавиту, разделам
 │   ├── storagePersist.js     # navigator.storage: постоянное хранилище и оценка места
 │   └── wakeLock.js           # Менеджер Wake Lock
 ├── pages/
 │   ├── index.vue             # Главная: поиск + подсказки
 │   ├── about.vue             # О приложении: шпаргалка, версия, dev-режим, диагностика
 │   ├── settings.vue          # Настройки
+│   ├── songs.vue             # Все песни: список с группировкой (за devMode)
 │   ├── song/[number].vue     # Страница песни
 │   └── collections/[id].vue  # Подборка: список песен
 ├── plugins/
@@ -161,7 +165,7 @@ npm run test:e2e:headed / test:e2e:ui
 
 ## Структура базы данных IndexedDB
 
-Плагин `plugins/indexedDB.client.js` (client-only) инициализирует БД `SongsDB` **версии 6** с тремя хранилищами. При пустой базе плагин сам вызывает `fetchSongs()` — песни грузятся автоматически при первом запуске.
+Плагин `plugins/indexedDB.client.js` (client-only) инициализирует БД `SongsDB` **версии 7** с четырьмя хранилищами. При пустой базе плагин сам вызывает `fetchSongs()` — песни грузятся автоматически при первом запуске.
 
 Имя базы, версия и создание хранилищ/индексов — в `lib/dbSchema.js` (`DB_NAME`, `DB_VERSION`, `createSchema`). Оттуда их берут и плагин, и тесты. Миграции — в `lib/dbMigrations.js`: они зависят от `oldVersion` и работают с транзакцией апгрейда, но вынесены из плагина, чтобы прогоняться в тестах.
 
@@ -186,6 +190,13 @@ npm run test:e2e:headed / test:e2e:ui
 - Индексы: `collectionId`, `songNumber`, `collectionId_songNumber` (не уникальный), `collectionId_songNumber_variantIndex` (**уникальный**)
 
 В подборку добавляется конкретный **вариант** песни — ключ связи включает `variantIndex`.
+
+### sections
+- `id` (keyPath) — номер раздела сборника
+- `title` — название раздела
+- `songNumbers` — номера песен в порядке раздела (в `songs.json` поле называется `song_ns`)
+
+Разделы нужны странице «Все песни» для группировки. Лежат в базе рядом с песнями, а не отдельным файлом: оффлайн-источник остаётся единственным — и песни, и разделы приходят из одного `songs.json`. Плагин догружает базу, если хранилище разделов пусто, даже когда песни на месте — иначе у клиентов, обновившихся со старой версии, группировка по разделам осталась бы пустой навсегда.
 
 ### Миграции (`lib/dbMigrations.js`)
 
@@ -229,6 +240,8 @@ npm run test:e2e:headed / test:e2e:ui
 
 **Избранное:** `getFavoriteCollection()`, `isSongInFavorite(songNumber, variantIndex)`, `addToFavorite(...)`, `removeFromFavorite(...)` — обёртки над подборкой с `isFavorite: 1`; бросают ошибку, если её нет
 
+**Разделы:** `addSections(sections)` (очищает хранилище перед записью), `getSections()`, `getSectionsCount()` (0 при ошибке)
+
 **Копия:** `getAllLinks()` (все связи), `backupCollections()` — снимает копию подборок в localStorage. Мутации (`createCollection`, `deleteCollection`, `addSongToCollection`, `removeSongFromCollection`, `addToFavorite`, `removeFromFavorite`) обёрнуты `withBackup` и снимают копию сами; сбой копирования не срывает саму операцию.
 
 ### `useCollectionsBackup` (composables/useCollectionsBackup.js)
@@ -260,6 +273,11 @@ Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `sear
 Постоянное хранилище (`lib/storagePersist.js`) запрашивается **при первом взаимодействии**, а не при загрузке: браузеры охотнее выдают флаг приложению, которым реально пользуются. Слушатели `pointerdown`/`keydown` одноразовые — повторный запрос бесполезен и может показать лишний промпт. Без флага IndexedDB остаётся best-effort, и система может освободить её вместе с подборками при нехватке места.
 
 Отказ — нормальный сценарий, а не ошибка: desktop-Chromium без установки флаг не даёт, установленному PWA на Android выдаёт. Результат виден в блоке диагностики на `/about`.
+
+### `useKeyboardOffset` (composables/useKeyboardOffset.js)
+`useKeyboardOffset(isOpen, elRef)` → `{ overlayStyle }`: пока попап помещается по центру — пустой стиль, иначе прижимает содержимое к верху видимой области (`visualViewport`). Расчёт — чистая функция `calcPopupOffset` в `lib/popupOffset.js`; в composable только подписка на `resize`/`scroll` и отписка при закрытии и `onUnmounted`.
+
+Нужен потому, что клавиатура накрывает страницу (`interactive-widget=overlays-content`), а не ужимает вьюпорт: центрированный попап с полем ввода оказывается под ней.
 
 ### `useWakeLock` (composables/useWakeLock.js)
 Обёртка над `lib/wakeLock.js` — не даёт экрану гаснуть, если включена настройка `keepScreenOn`.
@@ -296,7 +314,7 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 `layouts/default.vue`:
 - Фиксированная панель 56px сверху (`app-bar` в Tailwind), скрывается при скролле вниз, появляется при скролле вверх (порог 100px)
 - Три Teleport-слота: `#navbar-left`, `#navbar-center`, `#navbar-right`
-- Выдвижной сайдбар с оверлеем: ссылка на главную + список подборок с количеством песен; «Избранное» всегда первым, остальные — по дате создания; внизу «О приложении» и «Настройки»
+- Выдвижной сайдбар с оверлеем: ссылка на главную, «Все песни» (только при `devMode`), список подборок с количеством песен; «Избранное» всегда первым, остальные — по дате создания; внизу «О приложении» и «Настройки»
 - `provide('toggleSidebar')` и `provide('updateAvailable')` — для `NavBarHamburger` / `NavBarBack`
 - `UpdateToast` — предложение обновить базу песен
 
@@ -309,6 +327,7 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 ### `pages/index.vue` — Главная
 - `SongSearchInput`: полнотекстовый поиск и переход по номеру (лимит 7 результатов)
 - Подсказки: расширенные, пока в «Избранном» пусто; в обоих вариантах последняя строка плашки — ссылка «Подробнее» на `/about`
+- Ссылка «Все песни» под полем поиска — только при `settings.devMode`, как и пункт в сайдбаре
 - При пустой БД — ссылка на настройки
 
 ### `pages/song/[number].vue` — Страница песни
@@ -329,6 +348,15 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 - Блок версии/сборки из `useAppConfig()` (`appVersion`, `appCommit`, `appBuildDate`)
 - **Режим разработчика**: 7 тапов по блоку версии включают `settings.devMode` (подсказка об остатке с 3 тапов до порога). Логика подсчёта — чистая, в `lib/devMode.js` (`registerTap`, окно сброса 2 сек); страница только отображает результат
 - **Блок «Состояние хранилища»** (диагностика): песен в базе, подборок, песен в подборках, постоянное хранилище, резервная копия; версия базы и занятое место — только при `devMode`. Ошибка открытия базы из `useDbStatus()` показывается **всегда и всем**: ради неё блок и сделан — на телефоне до консоли не добраться. Строки собирает `lib/diagnostics.js`; дата форматируется вручную, а не через локаль устройства, потому что эту строку пользователь пересылает как есть
+
+### `pages/songs.vue` — Все песни
+Список всех песен с тремя режимами группировки: по номеру (группы по сотням), по алфавиту (первая буква названия, внутри — по алфавиту), по разделам сборника. Группы сворачиваемые: раскрыта только первая, иначе страница рендерила бы 1565 ссылок сразу. Смена режима заново раскрывает первую группу.
+
+Группировка — чистые функции в `lib/songsList.js` (`groupSongs`, `groupByNumber`, `groupByAlphabet`, `groupBySections`); все режимы возвращают одну структуру `{ key, title, songs }`, поэтому шаблон не разветвляется по режиму. Ключ группы разделов — `id`, а не название: в сборнике есть разделы с одинаковыми названиями. Песня, не попавшая ни в один раздел, уходит в группу «Вне разделов» — сейчас разделы покрывают сборник целиком, но молча терять песню нельзя.
+
+Экран закрыт `settings.devMode`. Гейт скрывает входы (ссылка на главной, пункт сайдбара), но не закрывает маршрут — при `ssr: false` статика генерируется для всех маршрутов, поэтому прямой заход показывает объяснение, а не пустой экран.
+
+В навбаре — кнопка поиска: тот же `SongSearchInput` в попапе, что на странице песни, со смещением от клавиатуры через `useKeyboardOffset`.
 
 ### `pages/collections/[id].vue` — Подборка
 - Список песен в подборке, удаление песни из подборки
@@ -373,11 +401,11 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
+- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, songs, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия

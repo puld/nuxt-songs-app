@@ -13,6 +13,7 @@
 //   settings   — страница настроек
 //   about      — страница «О приложении» (шпаргалка + версия + dev-режим)
 //   collection — страница подборки
+//   songsList  — страница «Все песни» (группировка по номеру/алфавиту/разделам)
 //   layout     — корневой контейнер
 
 export const s = {
@@ -182,6 +183,27 @@ export const s = {
     addSongsLink: 'a:has-text("Добавить песни")',
     notFound: 'text=Подборка не найдена',
     homeLink: 'a:has-text("На главную")',
+  },
+
+  // === Страница «Все песни» (список с группировкой) ===
+  songsList: {
+    page: '.songs-page',
+    stub: '.songs-page .stub',
+    stubLink: '.songs-page .stub-link',
+    modes: '.songs-page .modes',
+    modeBtn: '.songs-page .mode-btn',
+    modeActive: '.songs-page .mode-btn.active',
+    group: '.songs-page .group',
+    groupHeader: '.songs-page .group-header',
+    groupTitle: '.songs-page .group-title',
+    groupCount: '.songs-page .group-count',
+    songLink: '.songs-page .song-link',
+    songNumber: '.songs-page .song-link .song-number',
+    songTitle: '.songs-page .song-link .song-title',
+    searchBtn: '[aria-label="Найти песню"]',
+    // Входы на экран — оба под флагом режима разработчика
+    homeLink: '.songs-link',
+    sidebarLink: '.sidebar-link:has-text("Все песни")',
   },
 
   // === Корневой layout ===
