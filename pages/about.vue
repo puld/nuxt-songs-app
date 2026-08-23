@@ -27,34 +27,6 @@
       </dl>
     </section>
 
-    <!-- Что нового. За режимом разработчика: обычному пользователю список
-         версий ничего не даёт, а обновление PWA он и так не замечает. -->
-    <section v-if="settings.devMode" class="about-section" data-testid="changelog-section">
-      <h2>Что нового</h2>
-
-      <ol class="changelog">
-        <li v-for="item in changelogEntries" :key="item.version" class="changelog-item">
-          <div class="changelog-head">
-            <span class="changelog-version">{{ item.version }}</span>
-            <span class="changelog-date">{{ formatChangelogDate(item.date) }}</span>
-          </div>
-          <ul class="changelog-changes">
-            <li v-for="line in item.changes" :key="line">{{ line }}</li>
-          </ul>
-        </li>
-      </ol>
-
-      <button
-        v-if="canExpandChangelog"
-        type="button"
-        class="changelog-toggle"
-        data-testid="changelog-toggle"
-        @click="changelogExpanded = !changelogExpanded"
-      >
-        {{ changelogExpanded ? 'Свернуть' : 'Показать все версии' }}
-      </button>
-    </section>
-
     <section class="about-section" data-testid="diagnostics-section">
       <h2>Состояние хранилища</h2>
 
@@ -104,6 +76,36 @@
         <span>Режим разработчика включён — экспериментальные функции доступны в настройках.</span>
       </p>
     </div>
+
+    <!-- Что нового. Сразу под блоком версии: посмотрел, какая версия стоит —
+         тут же видишь, что в ней изменилось. За режимом разработчика:
+         обычному пользователю список версий ничего не даёт, а обновление PWA
+         он и так не замечает. -->
+    <section v-if="settings.devMode" class="about-section" data-testid="changelog-section">
+      <h2>Что нового</h2>
+
+      <ol class="changelog">
+        <li v-for="item in changelogEntries" :key="item.version" class="changelog-item">
+          <div class="changelog-head">
+            <span class="changelog-version">{{ item.version }}</span>
+            <span class="changelog-date">{{ formatChangelogDate(item.date) }}</span>
+          </div>
+          <ul class="changelog-changes">
+            <li v-for="line in item.changes" :key="line">{{ line }}</li>
+          </ul>
+        </li>
+      </ol>
+
+      <button
+        v-if="canExpandChangelog"
+        type="button"
+        class="changelog-toggle"
+        data-testid="changelog-toggle"
+        @click="changelogExpanded = !changelogExpanded"
+      >
+        {{ changelogExpanded ? 'Свернуть' : 'Показать все версии' }}
+      </button>
+    </section>
   </div>
 </template>
 
