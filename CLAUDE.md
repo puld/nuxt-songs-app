@@ -297,7 +297,9 @@ Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `sear
 
 ## Поиск
 
-Чистые функции в `lib/search.js`: `cleanText`, `prepareSongForIndexing`, `prepareVariantsForIndexing`, `buildSearchIndex`, `performSearch`, `parseSearchRef`. Индексируется каждый вариант песни отдельно, ref формата `"number:variantIndex"`; `title` boost 10, стоп-слова отключены, последний терм запроса ищется с fuzzy `~2`.
+Чистые функции в `lib/search.js`: `stripRemarks`, `cleanText`, `prepareSongForIndexing`, `prepareVariantsForIndexing`, `buildSearchIndex`, `performSearch`, `parseSearchRef`. Индексируется каждый вариант песни отдельно, ref формата `"number:variantIndex"`; `title` boost 10, стоп-слова отключены, последний терм запроса ищется с fuzzy `~2`.
+
+`stripRemarks` убирает ремарки исполнителю (`[Припев можно петь через два куплета]`) **вместе с текстом**, а не только скобки: на экране ремарка нужна, а в индексе давала ложную выдачу — по запросу «куплет» находились песни, где такого слова нет. Вызывается из `cleanText`, поэтому чистятся оба индекса и сам запрос. Круглые скобки только снимаются — внутри них слова песни (подголоски).
 
 Детали ранжирования, ограничения Lunr и разбор известных промахов — `docs/reference/search-lunr.md`.
 
