@@ -169,6 +169,11 @@ export const s = {
     diagnosticsRow: '[data-testid="diagnostics-row"]',
     diagnosticsValue: '.diagnostics-value',
     diagnosticsError: '[data-testid="diagnostics-error"]',
+    // Секция «Что нового» — только в режиме разработчика
+    changelog: '[data-testid="changelog-section"]',
+    changelogItem: '.changelog-item',
+    changelogVersion: '.changelog-version',
+    changelogToggle: '[data-testid="changelog-toggle"]',
   },
 
   // === Страница подборки ===

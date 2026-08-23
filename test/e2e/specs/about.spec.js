@@ -3,6 +3,7 @@ import { s } from '../lib/selectors'
 import { openSidebar, waitForHomeReady, gotoSong } from '../lib/flows'
 import { SONGS } from '../lib/songs'
 import { TAPS_REQUIRED } from '../../../lib/devMode'
+import { CHANGELOG, CHANGELOG_PREVIEW } from '../../../lib/changelog'
 
 // Страница «О приложении»: шпаргалка по экранам, блок версии,
 // активация режима разработчика семью тапами по версии (Android-style).
@@ -189,5 +190,40 @@ test.describe('О приложении: состояние хранилища', 
 
     await expect(page.locator(s.about.diagnosticsError)).toBeVisible()
     await expect(page.locator(s.about.diagnosticsError)).toContainText('IndexedDB запрещён настройками')
+  })
+})
+
+
+// Секция «Что нового»: список версий с описанием изменений. За режимом
+// разработчика — обычному пользователю номера версий ничего не говорят.
+test.describe('О приложении: что нового', () => {
+  test('без режима разработчика секции нет', async ({ page }) => {
+    await page.goto('/about')
+
+    await expect(page.locator(s.about.page)).toBeVisible()
+    await expect(page.locator(s.about.changelog)).toHaveCount(0)
+  })
+
+  test('в режиме разработчика показаны последние версии', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
+    await page.goto('/about')
+
+    await expect(page.locator(s.about.changelog)).toBeVisible()
+    await expect(page.locator(s.about.changelogItem)).toHaveCount(CHANGELOG_PREVIEW)
+
+    // Свежая версия — первой
+    await expect(page.locator(s.about.changelogVersion).first()).toHaveText(CHANGELOG[0].version)
+  })
+
+  test('«Показать все версии» разворачивает и сворачивает список', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
+    await page.goto('/about')
+
+    const toggle = page.locator(s.about.changelogToggle)
+    await toggle.click()
+    await expect(page.locator(s.about.changelogItem)).toHaveCount(CHANGELOG.length)
+
+    await toggle.click()
+    await expect(page.locator(s.about.changelogItem)).toHaveCount(CHANGELOG_PREVIEW)
   })
 })

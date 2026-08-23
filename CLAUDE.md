@@ -21,6 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - Версия живёт **только** в `package.json`; `nuxt.config.js` читает её в `appConfig.appVersion`, страница `/about` показывает
 - Инкремент — вручную, в том же коммите, что и доработка: `npm version <patch|minor|major> --no-git-tag-version` (обновляет и `package-lock.json`, тег и коммит не создаёт)
+- В том же коммите — запись в `lib/changelog.js`: первой записью должна стоять текущая версия из `package.json`, иначе падает тест в `lib/changelog.test.js`
 - Semver по смыслу для пользователя: новые экраны и функции — `minor`, исправления и мелкие правки — `patch`, несовместимая смена схемы данных или формата песен — `major`
 - Правки только документации версию не двигают
 
@@ -124,6 +125,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── collectionsBackup.js  # Копия подборок: сборка, разбор, план импорта
 │   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
+│   ├── changelog.js          # История версий: данные и формат даты
 │   ├── devMode.js            # Активация режима разработчика тапами по версии
 │   ├── diagnostics.js        # Строки блока «Состояние хранилища» на /about
 │   ├── popupOffset.js        # Смещение попапа над экранной клавиатурой
@@ -136,7 +138,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   └── wakeLock.js           # Менеджер Wake Lock
 ├── pages/
 │   ├── index.vue             # Главная: поиск + подсказки
-│   ├── about.vue             # О приложении: шпаргалка, версия, dev-режим, диагностика
+│   ├── about.vue             # О приложении: шпаргалка, что нового, версия, dev-режим, диагностика
 │   ├── settings.vue          # Настройки
 │   ├── songs.vue             # Все песни: список с группировкой (за devMode)
 │   ├── song/[number].vue     # Страница песни
@@ -390,6 +392,7 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 - Краткое описание приложения и шпаргалка «Как пользоваться» по экранам (поиск, страница песни, избранное, подборки, настройки, установка)
 - Блок версии/сборки из `useAppConfig()` (`appVersion`, `appCommit`, `appBuildDate`)
 - **Режим разработчика**: 7 тапов по блоку версии включают `settings.devMode` (подсказка об остатке с 3 тапов до порога). Логика подсчёта — чистая, в `lib/devMode.js` (`registerTap`, окно сброса 2 сек); страница только отображает результат
+- **Секция «Что нового»** (только при `devMode`): список версий с описанием изменений, свежая первой. Данные и чистые функции — `lib/changelog.js`; свёрнутый список показывает три последние версии, кнопка разворачивает остальные. Нужна потому, что PWA обновляется незаметно: иначе новую функцию замечают случайно. Формулировки пользовательские, а не коммит-сообщения; чисто внутренние изменения в список не попадают
 - **Блок «Состояние хранилища»** (диагностика): песен в базе, подборок, песен в подборках, постоянное хранилище, резервная копия; версия базы и занятое место — только при `devMode`. Ошибка открытия базы из `useDbStatus()` показывается **всегда и всем**: ради неё блок и сделан — на телефоне до консоли не добраться. Строки собирает `lib/diagnostics.js`; дата форматируется вручную, а не через локаль устройства, потому что эту строку пользователь пересылает как есть
 
 ### `pages/songs.vue` — Все песни
@@ -458,7 +461,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
