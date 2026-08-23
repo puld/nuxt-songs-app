@@ -17,6 +17,12 @@ concurrency:
 jobs:
   lint:
     name: Линтинг текстов песен
+    # Имя job'а менять нельзя: branch protection ссылается на required check
+    # по имени, переименование навсегда оставит проверку в pending.
+    #
+    # `songs:lint` — полный прогон, поэтому кроме формата .txt он проверяет
+    # согласованность sections.json с песнями: разделы — часть базы, и битые
+    # разделы не должны попадать в main.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

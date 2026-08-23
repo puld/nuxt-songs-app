@@ -51,7 +51,9 @@ npm run start        # Запуск production-сервера (после build)
 ### Данные песен
 ```bash
 npm run songs:parse    # songs-data/songs/*.txt + sections.json → public/assets/songs.json
-npm run songs:lint     # Линтер формата .txt (node songs-data/lint.js --staged — только staged)
+                       # + проверка целостности разделов: расхождение = код возврата 1
+npm run songs:lint     # Линтер формата .txt + целостность разделов
+                       # (node songs-data/lint.js --staged — только staged)
 npm run songs:convert  # Обратная операция: songs.json → songs-data/songs/*.txt
 node songs-data/verify.js  # Верификация: текст не потерян при переразбивке на строфы
 npm run parse-txt      # LEGACY: tmp/doc.txt → tmp/result.json (scripts/parseTxt.js)
@@ -147,6 +149,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── sections.json         # Разделы сборника
 │   ├── parse.js              # .txt → songs.json
 │   ├── lint.js               # Линтер формата .txt
+│   ├── sections-integrity.js # Проверка согласованности sections.json с песнями
 │   ├── convert.js            # songs.json → .txt (обратная операция)
 │   └── verify.js             # Проверка сохранности текста при переразбивке
 ├── scripts/parseTxt.js       # LEGACY-парсер (tmp/doc.txt)
@@ -197,6 +200,13 @@ npm run test:e2e:headed / test:e2e:ui
 - `songNumbers` — номера песен в порядке раздела (в `songs.json` поле называется `song_ns`)
 
 Разделы нужны странице «Все песни» для группировки. Лежат в базе рядом с песнями, а не отдельным файлом: оффлайн-источник остаётся единственным — и песни, и разделы приходят из одного `songs.json`. Плагин догружает базу, если хранилище разделов пусто, даже когда песни на месте — иначе у клиентов, обновившихся со старой версии, группировка по разделам осталась бы пустой навсегда.
+
+Согласованность разделов с песнями проверяет **сборка и линтер**, а не приложение. Чистая функция — `checkSectionsIntegrity` в `songs-data/sections-integrity.js`; ловит четыре случая: значение в `song_ns` не номер; номер без песни; песня в двух разделах; песня вне всех разделов.
+
+- `songs-data/parse.js` вызывает её при сборке и при расхождении ставит код возврата 1 — `dev`/`build`/`generate` до Nuxt не доходят. Файл при этом всё равно записывается: чинить данные удобнее, глядя на результат
+- `songs-data/lint.js` вызывает её при **полном** прогоне (`npm run songs:lint`), то есть в CI-job'е «Линтинг текстов песен» — обязательном для мержа в `main`. Битые разделы блокируют мерж, а не всплывают в деплое
+- В `--staged` (pre-commit) разделы проверяются только если правится сам `sections.json`: покрытие считается по всему сборнику, и при коммите одной песни эта работа лишняя
+- Проверка требует полного набора песен, поэтому номера берутся из всей директории `songs/`, а не из списка проверяемых файлов
 
 ### Миграции (`lib/dbMigrations.js`)
 
@@ -404,7 +414,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
