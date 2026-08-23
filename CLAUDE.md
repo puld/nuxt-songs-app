@@ -33,6 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `docs/reference/song-format.md` | Правка текстов песен, парсера `songs-data/parse.js`, линтера; формат `.txt`, аккорды, повторы, схема `songs.json` |
 | `docs/reference/search-lunr.md` | Настройка ранжирования поиска, разбор «песня не находится»; API `lib/search.js` и особенности Lunr |
 | `docs/reference/legacy-parse-txt.md` | Только для старого пайплайна `scripts/parseTxt.js` (`tmp/doc.txt`) |
+| `docs/roadmap.md` | **Единственный источник плана**: что осталось (фазы 3–6), что закрыто, backlog и техдолг. Спецификация `docs/specs/spec-v1.md` описывает целевое поведение, а не план |
 | `.claude/handoffs/README.md` | Формат handoff'ов между сессиями и их ротация. **Локальный файл**: каталог `.claude/` в `.gitignore`, в свежем клоне его нет |
 
 ## Основные команды
@@ -147,7 +148,7 @@ npm run test:e2e:headed / test:e2e:ui
 ├── scripts/parseTxt.js       # LEGACY-парсер (tmp/doc.txt)
 ├── public/assets/songs.json  # Собранная база песен (генерируется, кэшируется PWA)
 ├── static/                   # Иконки PWA, favicon
-├── docs/                     # Планы и спецификации (roadmap, specs/)
+├── docs/                     # roadmap.md — план работ; specs/ — спецификация; reference/ — справочники
 ├── test/
 │   ├── setup.js              # Глобальный setup для Vitest
 │   ├── helpers/              # Моки IndexedDB, NuxtApp, fetch
