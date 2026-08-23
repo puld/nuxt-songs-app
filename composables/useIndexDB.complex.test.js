@@ -29,6 +29,56 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
         createCollection = null
     })
 
+    describe('разделы сборника', () => {
+        const sections = [
+            { id: 0, title: 'Перед началом собрания', song_ns: [1, 2, 3] },
+            { id: 1, title: 'Хвала и поклонение', song_ns: [10, 11] }
+        ]
+
+        it('addSections сохраняет разделы, getSections возвращает их по порядку', async () => {
+            const { addSections, getSections } = useIndexDB()
+
+            await addSections(sections)
+            const saved = await getSections()
+
+            expect(saved).toHaveLength(2)
+            expect(saved[0]).toEqual({ id: 0, title: 'Перед началом собрания', songNumbers: [1, 2, 3] })
+            expect(saved[1].songNumbers).toEqual([10, 11])
+        })
+
+        it('повторный addSections заменяет прежние разделы, а не дополняет', async () => {
+            const { addSections, getSections, getSectionsCount } = useIndexDB()
+
+            await addSections(sections)
+            await addSections([{ id: 5, title: 'Единственный', song_ns: [7] }])
+
+            expect(await getSectionsCount()).toBe(1)
+            expect((await getSections())[0].title).toBe('Единственный')
+        })
+
+        it('номера разделов приводятся к числам', async () => {
+            const { addSections, getSections } = useIndexDB()
+
+            await addSections([{ id: '3', title: 'Строковый', song_ns: ['12', '13'] }])
+
+            const [section] = await getSections()
+            expect(section.id).toBe(3)
+            expect(section.songNumbers).toEqual([12, 13])
+        })
+
+        it('раздел без списка песен сохраняется с пустым массивом', async () => {
+            const { addSections, getSections } = useIndexDB()
+
+            await addSections([{ id: 0, title: 'Пустой' }])
+
+            expect((await getSections())[0].songNumbers).toEqual([])
+        })
+
+        it('getSectionsCount на пустой базе возвращает 0', async () => {
+            expect(await useIndexDB().getSectionsCount()).toBe(0)
+        })
+    })
+
     describe('addSongs', () => {
         it('должен успешно загружать массив песен', async () => {
             const {addSongs} = useIndexDB()

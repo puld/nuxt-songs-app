@@ -77,6 +77,17 @@ const countSongs = (db) => new Promise((resolve) => {
     }
 })
 
+/** Количество разделов в базе; 0 при любой ошибке. */
+const countSections = (db) => new Promise((resolve) => {
+    try {
+        const request = db.transaction(['sections'], 'readonly').objectStore('sections').count()
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = () => resolve(0)
+    } catch (e) {
+        resolve(0)
+    }
+})
+
 export default defineNuxtPlugin(async (nuxtApp) => {
     const { setDbError, setDbAvailable, setDbBlocked } = useDbStatus()
 
@@ -107,8 +118,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
 
     await ensureFavoriteCollection(db)
 
-    // Автоматическая загрузка песен при пустой базе данных
-    if (await countSongs(db) === 0) {
+    // Автоматическая загрузка при пустой базе. Разделы проверяем отдельно:
+    // у тех, кто обновился с прежней версии, песни на месте, а хранилища
+    // разделов ещё не существовало — без догрузки группировка по разделам
+    // осталась бы пустой навсегда.
+    const [songsCount, sectionsCount] = await Promise.all([countSongs(db), countSections(db)])
+    if (songsCount === 0 || sectionsCount === 0) {
         try {
             const { fetchSongs } = useSongs()
             await fetchSongs()

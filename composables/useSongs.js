@@ -8,7 +8,7 @@ import { resetSearchIndex } from './useSongSearch'
  * После успешной загрузки сохраняет ETag ответа в settings store.
  */
 export const useSongs = () => {
-    const { addSongs } = useIndexDB()
+    const { addSongs, addSections } = useIndexDB()
 
     /**
      * Загружает песни из файла assets/songs.json и сохраняет в IndexedDB.
@@ -32,6 +32,9 @@ export const useSongs = () => {
 
             const data = await response.json()
             await addSongs(data.songs)
+            // Разделы приходят тем же файлом — сохраняем их сразу, иначе
+            // страница «Все песни» осталась бы без группировки по разделам.
+            await addSections(data.sections || [])
 
             // База изменилась — кэш песен и поисковые индексы устарели.
             invalidateSongsCache()
