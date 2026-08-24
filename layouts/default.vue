@@ -1,6 +1,6 @@
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
-import { clampOffset, dropIndex, moveItem, previewShift, sortCollections } from '~/lib/collectionsOrder'
+import { autoScrollStep, clampOffset, dropIndex, moveItem, previewShift, sortCollections } from '~/lib/collectionsOrder'
 
 const colorMode = useColorMode()
 const settings = useSettingsStore()
@@ -134,17 +134,17 @@ const updateDrag = () => {
   drag.value = { ...state, offset, target }
 }
 
-/** Полоса у края списка, в которой он подкручивается сам, и шаг за кадр. */
-const AUTO_SCROLL_EDGE = 36
-const AUTO_SCROLL_STEP = 10
-
 let autoScrollFrame = null
+// Время предыдущего кадра: шаг считается от его длительности, чтобы скорость
+// не зависела от частоты обновления экрана.
+let autoScrollAt = 0
 
 const stopAutoScroll = () => {
   if (autoScrollFrame === null) return
 
   cancelAnimationFrame(autoScrollFrame)
   autoScrollFrame = null
+  autoScrollAt = 0
 }
 
 /**
@@ -153,17 +153,27 @@ const stopAutoScroll = () => {
  * Без этого подборку из конца длинного списка нельзя перенести в начало одним
  * жестом: дотащил до края — и дальше некуда, надо отпускать и прокручивать.
  */
-const autoScrollTick = () => {
+const autoScrollTick = (now) => {
   autoScrollFrame = null
 
   const state = drag.value
   if (!state || state.settling || !dragList) return
 
+  // Первый кадр цикла двигать нечем — от чего считать длительность, ещё
+  // неизвестно. Запоминаем отметку и ждём следующего.
+  const elapsed = autoScrollAt ? now - autoScrollAt : 0
+  autoScrollAt = now
+
   const box = dragList.getBoundingClientRect()
-  const step = state.pointerY - box.top < AUTO_SCROLL_EDGE ? -AUTO_SCROLL_STEP
-    : box.bottom - state.pointerY < AUTO_SCROLL_EDGE ? AUTO_SCROLL_STEP
-      : 0
-  if (!step) return
+  const step = autoScrollStep(state.pointerY, box.top, box.bottom, elapsed)
+  if (!step) {
+    // Указатель ушёл от края — цикл останавливаем, следующий `pointermove`
+    // запустит его заново. Но пустой первый кадр цикла к этому не относится.
+    if (elapsed) return
+
+    autoScrollFrame = requestAnimationFrame(autoScrollTick)
+    return
+  }
 
   const before = dragList.scrollTop
   dragList.scrollTop = before + step
