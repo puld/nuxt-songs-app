@@ -170,3 +170,72 @@ export async function seedCollections(page, count) {
 
   await page.reload()
 }
+
+/**
+ * Подменяет `navigator.share` перехватчиком.
+ *
+ * Обязательно для любого теста, который жмёт «Поделиться»: desktop-Chromium
+ * Web Share заявляет, но системной шторки в автоматизации нет — настоящий вызов
+ * просто зависает, и тест падает по таймауту, а не по существу.
+ */
+export async function stubWebShare(page) {
+  await page.addInitScript(() => {
+    window.__shareCalls = []
+    Navigator.prototype.share = function (data) {
+      window.__shareCalls.push(data)
+      return Promise.resolve()
+    }
+  })
+}
+
+/** Убирает Web Share целиком — остаётся ветка копирования в буфер. */
+export async function removeWebShare(page) {
+  await page.addInitScript(() => {
+    delete Navigator.prototype.share
+  })
+}
+
+/** Перехваченные вызовы `navigator.share`. */
+export async function getShareCalls(page) {
+  return page.evaluate(() => window.__shareCalls || [])
+}
+
+/**
+ * Собирает данные для фрагмента ссылки на подборку (формат `1`, без сжатия).
+ *
+ * Тест кодирует payload сам, а не через `lib/collectionShare.js`: так ссылку
+ * можно собрать с любой версией базы — иначе ветку «база получателя устарела»
+ * не проверить, ведь приложение всегда пишет актуальную версию.
+ */
+export async function buildShareData(page, { name, songsVersion = 1, songs = [] }) {
+  return page.evaluate(({ name, songsVersion, songs }) => {
+    const list = songs
+      .map((s) => (s.variantIndex ? `${s.songNumber}.${s.variantIndex}` : String(s.songNumber)))
+      .join(',')
+    const bytes = new TextEncoder().encode(['1', name, String(songsVersion), list].join('\n'))
+
+    let binary = ''
+    for (const byte of bytes) binary += String.fromCharCode(byte)
+
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  }, { name, songsVersion, songs })
+}
+
+/**
+ * То же, но без браузера — когда страница импорта должна быть первой записью
+ * истории вкладки: любой предварительный `goto` даёт кнопке «Назад» чужую
+ * страницу, куда можно вернуться, и баг с уходом из приложения не воспроизводится.
+ */
+export function buildShareDataOffline({ name, songsVersion = 1, songs = [] }) {
+  const list = songs
+    .map((s) => (s.variantIndex ? `${s.songNumber}.${s.variantIndex}` : String(s.songNumber)))
+    .join(',')
+
+  return Buffer.from(['1', name, String(songsVersion), list].join('\n')).toString('base64url')
+}
+
+/** Открывает страницу приёма подборки с готовым фрагментом. */
+export async function openImportLink(page, data) {
+  await page.goto(`/collections/import#${data}`)
+  await page.waitForSelector(s.collectionImport.page)
+}

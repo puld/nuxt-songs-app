@@ -13,6 +13,13 @@
 
   <ClientOnly>
     <Teleport v-if="collection && songs.length > 0" to="#navbar-right">
+      <ShareButton
+        v-if="canShareCollection"
+        :url="shareUrl"
+        :title="shareTitle"
+        :text="shareText"
+        aria-label="Поделиться подборкой"
+      />
       <button class="nav-btn" @click="editMode = !editMode" :aria-label="editMode ? 'Готово' : 'Редактировать'">
         <span v-if="editMode" class="edit-done">Готово</span>
         <Icon v-else name="mingcute:edit-2-line" size="1.5rem"/>
@@ -72,18 +79,51 @@
 </template>
 
 <script setup>
+import { useSettingsStore } from '~/stores/settings'
+import { encodeShare } from '~/lib/collectionShare'
+import { joinUrl, songPath, collectionShareTitle, IMPORT_ROUTE } from '~/lib/share'
+
 const route = useRoute()
 const router = useRouter()
+const settings = useSettingsStore()
+const { pluralize } = useUtils()
 const { getSongsInCollection, getCollection, removeSongFromCollection, deleteCollection: deleteCollectionDB } = useIndexDB()
 
 const collection = ref(null)
 const songs = ref([])
 const loading = ref(true)
 const editMode = ref(false)
+const shareUrl = ref('')
 
-const songLink = (song) => {
-  const path = `/song/${song.number}`
-  return song.variantIndex > 0 ? `${path}?v=${song.variantIndex}` : path
+const songLink = (song) => songPath(song.number, song.variantIndex)
+
+// Ссылкой делятся только пользовательскими подборками: «Избранное» есть у
+// каждого своё, и подменять его чужим содержимым бессмысленно. Гейт devMode —
+// потому что страница импорта у получателя ещё не готова (4.4 дорожной карты).
+const canShareCollection = computed(() => (
+  settings.devMode && collection.value && !collection.value.isFavorite
+))
+
+const shareTitle = computed(() => collectionShareTitle(collection.value?.name))
+const shareText = computed(() => (
+  `${songs.value.length} ${pluralize(songs.value.length, 'песня', 'песни', 'песен')}`
+))
+
+/**
+ * Готовит адрес заранее, а не по нажатию: `navigator.share` требует жеста
+ * пользователя, и вызов после `await` Safari уже не считает ответом на клик.
+ */
+const buildShareUrl = async () => {
+  shareUrl.value = ''
+  if (!canShareCollection.value || songs.value.length === 0) return
+
+  const { ok, data } = await encodeShare({
+    name: collection.value.name,
+    songsVersion: settings.currentSongsVersion,
+    songs: songs.value.map((song) => ({ songNumber: song.number, variantIndex: song.variantIndex }))
+  })
+
+  if (ok) shareUrl.value = joinUrl(window.location.origin, `${router.resolve(IMPORT_ROUTE).href}#${data}`)
 }
 
 const getVariantLabel = (song) => {
@@ -132,6 +172,10 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+// Состав подборки меняется прямо на странице (удаление песни), и ссылка,
+// собранная один раз при загрузке, отдавала бы уже неверный список.
+watch([songs, collection, () => settings.devMode], buildShareUrl, { immediate: true })
 </script>
 
 <style scoped>

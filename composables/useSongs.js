@@ -40,10 +40,17 @@ export const useSongs = () => {
             invalidateSongsCache()
             resetSearchIndex()
 
+            const settings = useSettingsStore()
+
+            // Версия базы из корня файла: ссылка на подборку несёт номера песен,
+            // а не тексты, поэтому получателю нужно знать, из какой версии базы
+            // подборка собрана. Поля может не быть — файл мог приехать из кэша
+            // PWA от старой сборки, тогда версия считается самой старой.
+            settings.setSongsVersion(data.version)
+
             // Сохраняем ETag для автообновления
             const etag = response.headers.get('etag')
             if (etag) {
-                const settings = useSettingsStore()
                 settings.setSongsEtag(etag)
             }
 

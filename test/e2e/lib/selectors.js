@@ -117,6 +117,12 @@ export const s = {
     backHome: 'a:has-text("Вернуться на главную")',
   },
 
+  // === Кнопка «Поделиться» (страница песни и страница подборки) ===
+  share: {
+    button: '[data-testid="share-button"]',
+    toast: '[data-testid="share-toast"]',
+  },
+
   // === Чипы подборок на странице песни ===
   chips: {
     section: '.collections-section',
@@ -204,6 +210,26 @@ export const s = {
     addSongsLink: 'a:has-text("Добавить песни")',
     notFound: 'text=Подборка не найдена',
     homeLink: 'a:has-text("На главную")',
+  },
+
+  // === Страница подборки по ссылке (/collections/import#<data>) ===
+  collectionImport: {
+    page: '.import-page',
+    stub: '.import-page .stub',
+    subtitle: '.import-subtitle',
+    song: '[data-testid="import-song"]',
+    songNumber: '[data-testid="import-song"] .song-number',
+    songTitle: '[data-testid="import-song"] .song-title',
+    songNote: '[data-testid="import-song"] .song-note',
+    nameInput: '[data-testid="import-name"]',
+    nameHint: '.import-page .name-hint',
+    sameName: '[data-testid="import-same-name"]',
+    separateBtn: '[data-testid="import-separate"]',
+    saveBtn: '[data-testid="import-save"]',
+    saved: '[data-testid="import-saved"]',
+    error: '.import-page .notice-error',
+    warning: '.import-page .notice-warning',
+    updateBtn: 'button:has-text("Обновить базу песен")',
   },
 
   // === Страница «Все песни» (список с группировкой) ===

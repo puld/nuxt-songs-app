@@ -51,7 +51,7 @@ npm run start        # Запуск production-сервера (после build)
 
 ### Данные песен
 ```bash
-npm run songs:parse    # songs-data/songs/*.txt + sections.json → public/assets/songs.json
+npm run songs:parse    # songs-data/songs/*.txt + sections.json + version.txt → public/assets/songs.json
                        # + проверка целостности разделов: расхождение = код возврата 1
 npm run songs:lint     # Линтер формата .txt + целостность разделов
                        # (node songs-data/lint.js --staged — только staged)
@@ -104,6 +104,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── SettingToggle.vue     # Кнопка-переключатель настроек
 │   ├── SongCard.vue          # Карточка песни (не используется в страницах)
 │   ├── SongDisplay.vue       # Текст песни с аккордами, повторами и табами вариантов
+│   ├── ShareButton.vue       # Кнопка «Поделиться» (песня и подборка)
 │   ├── SongSearchInput.vue   # Поле поиска + выдача (поиск по тексту и по номеру)
 │   └── UpdateToast.vue       # Тост «доступно обновление базы»
 ├── composables/
@@ -115,6 +116,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── useSongs.js           # Загрузка songs.json в IndexedDB
 │   ├── useSongsCache.js      # Модульный кэш песен: allSongs, songNumbers, songsMap
 │   ├── useSongSearch.js      # Vue-обёртка для поиска (индексы — синглтон)
+│   ├── useShare.js           # Отправка ссылки: Web Share или буфер обмена
 │   ├── useKeyboardOffset.js  # Смещение попапа при экранной клавиатуре
 │   ├── useWakeLock.js        # Обёртка над Wake Lock API
 │   └── utils.js              # pluralize для русского языка
@@ -123,6 +125,8 @@ npm run test:e2e:headed / test:e2e:ui
 ├── lib/                      # Чистые функции без Vue (+ тесты рядом)
 │   ├── autoUpdate.js         # ETag-логика автообновления
 │   ├── collectionsBackup.js  # Копия подборок: сборка, разбор, план импорта
+│   ├── collectionShare.js    # Ссылка на подборку: компактный payload + base64url
+│   ├── collectionImport.js   # Приём ссылки: сверка версии базы, план сохранения
 │   ├── collectionsOrder.js   # Порядок подборок: сортировка, план записи, перестановка
 │   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
@@ -133,7 +137,9 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── recentSongs.js        # История просмотров: нормализация и добавление
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
+│   ├── share.js              # Ссылки «поделиться»: адрес и подписи
 │   ├── songsIndex.js         # Карта «номер → песня» и «номер → раздел», названия и метки вариантов
+│   ├── songsVersion.js       # Нормализация версии базы песен
 │   ├── songsList.js          # Группировка песен: по номеру, алфавиту, разделам
 │   ├── storagePersist.js     # navigator.storage: постоянное хранилище и оценка места
 │   └── wakeLock.js           # Менеджер Wake Lock
@@ -143,7 +149,8 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── settings.vue          # Настройки
 │   ├── songs.vue             # Все песни: список с группировкой (за devMode)
 │   ├── song/[number].vue     # Страница песни
-│   └── collections/[id].vue  # Подборка: список песен
+│   ├── collections/[id].vue  # Подборка: список песен
+│   └── collections/import.vue # Приём подборки по ссылке (#<data>)
 ├── app/
 │   └── router.options.js     # Прокрутка при навигации: `scrollToTop: false` значит «страница разберётся сама»
 ├── plugins/
@@ -153,7 +160,9 @@ npm run test:e2e:headed / test:e2e:ui
 ├── songs-data/               # ИСТОЧНИК ДАННЫХ (см. docs/reference/song-format.md)
 │   ├── songs/NNNN.txt        # 1565 файлов песен
 │   ├── sections.json         # Разделы сборника
+│   ├── version.txt           # Версия базы: ручной счётчик (см. «Версия базы песен»)
 │   ├── parse.js              # .txt → songs.json
+│   ├── version.js            # Чтение и разбор version.txt
 │   ├── lint.js               # Линтер формата .txt
 │   ├── sections-integrity.js # Проверка согласованности sections.json с песнями
 │   ├── repeat-balance.js     # Проверка баланса маркеров повтора в строфе
@@ -279,6 +288,122 @@ npm run test:e2e:headed / test:e2e:ui
 - **Длинный список скроллится, и жест это учитывает.** Смещение считается в координатах содержимого (`pointerY - startY + (scrollTop - startScroll)`), иначе прокрутка уводит строку из-под пальца ровно на величину скролла. Прокрутка во время жеста ловится подпиской на `scroll` контейнера: колесо и инерционный скролл `pointermove` не порождают. У края списка работает автоскролл (`autoScrollStep`, цикл на `requestAnimationFrame`) — без него подборку из конца длинного списка нельзя перенести в начало одним жестом. Скорость задана в px/с (`AUTO_SCROLL_SPEED`), а шаг считается от длительности кадра: шаг «за кадр» привязал бы прокрутку к частоте обновления экрана — на 120 Гц список ехал бы вдвое быстрее, чем на 60. Кадр длиннее `MAX_FRAME_MS` урезается, иначе возврат из фоновой вкладки давал бы прыжок. Смещение ограничено крайними слотами (`clampOffset`): за границей `overflow-y: auto` строку просто обрезает, и тащат её вслепую
 - **Переход анимации задаётся inline и только на время жеста.** Порядок применяется не в момент отпускания, а после доводки строки до слота (`SETTLE_MS`): иначе DOM переставлялся сразу, а доигрывающий переход тащил строки к новым местам «вдогонку». Когда состояние сбрасывается, inline-стиль исчезает вместе с `transform`, поэтому снятие смещений одновременно с перестановкой проходит мгновенно
 
+### Ссылка на подборку
+
+Подборки локальны, `id` в них autoIncrement — делиться `id` бессмысленно. Общая у всех
+только база песен, поэтому ссылка несёт `{ имя, версия базы, список (номер, вариант) }`,
+а тексты не передаются. Чистые функции — `lib/collectionShare.js`, кнопка — на странице
+подборки (см. «Поделиться»); страница, принимающая такую ссылку, — `pages/collections/import.vue`
+(см. «Приём подборки по ссылке»).
+
+Payload — компактная строка из четырёх строк, а не JSON: она уезжает в URL, где каждый
+символ видит пользователь и считают мессенджеры.
+
+```
+1
+Молодёжное служение — воскресенье
+3
+14,102.1,340,507,1120.2
+```
+
+- **Маркер формата в первой строке** (`1` — без сжатия, `2` — gzip из 4.5) лежит **вне**
+  сжимаемой части, поэтому читается до распаковки. Из-за этого модуль работает с
+  `Uint8Array`, а не со строкой: у сжатого тела текстового представления нет
+  (`splitShareMarker` режет байты по первому `\n`)
+- **Нулевой вариант в списке не пишется** — он у подавляющего большинства песен, а
+  символы уходят в длину ссылки
+- **Имя схлопывается в одну строку**: перевод строки внутри имени сдвинул бы остальные
+  строки, и получатель прочитал бы имя как версию базы
+- **base64url, а не base64**: `+` и `/` меняют смысл в URL, а выравнивающие `=` часть
+  мессенджеров обрезает вместе с хвостом ссылки
+- **Декодирование с `fatal: true`**: битые байты должны давать честную ошибку, а не имя
+  из подстановочных символов
+- `encodeShare` / `decodeShare` асинхронны, хотя формат `1` кодируется синхронно: gzip
+  работает только через `CompressionStream`, и менять сигнатуру после появления вызовов
+  в интерфейсе дороже, чем принять `await` сразу
+- Ошибки возвращаются значением (`{ ok, error }`), как в `lib/collectionsBackup.js`
+
+### Поделиться
+
+Одно слово покрывает две разные вещи, и различие видно пользователю:
+
+- **Песня** — обычный адрес приложения (`/song/115?v=1`). Открывается у любого
+  получателя без импорта, поэтому кнопка **открыта всем**, без гейтов
+- **Подборка** — адрес страницы импорта с payload во фрагменте
+  (`/collections/import#<data>`). Фрагмент на сервер не уходит, длина ограничена только
+  браузером. Кнопка **за `devMode`** и **не показывается у «Избранного»**: страница
+  импорта тоже за гейтом, а своё «Избранное» есть у каждого — подменять его чужим нечего
+
+Чистые функции — `lib/share.js` (`joinUrl`, `songPath`, `songShareTitle`,
+`collectionShareTitle`, `shareMethod`), отправка — `composables/useShare.js`, кнопка —
+`components/ShareButton.vue`.
+
+- **Способ выбирается по браузеру**: `navigator.share` (телефон, установленное PWA), иначе
+  буфер обмена. Нет ни того, ни другого — кнопки нет вовсе: буфер требует защищённого
+  контекста, и по http кнопка была бы мёртвой
+- **Отказ пользователя (`AbortError`) — не ошибка**: шторку закрывают мимо цели чаще, чем
+  ошибаются приложения, и красная плашка выглядела бы поломкой. Молча копировать в буфер
+  после отказа тоже нельзя — пользователь уже сказал «нет»
+- **Адрес подборки готовится заранее**, в `watch` по составу, а не по нажатию:
+  `navigator.share` требует жеста пользователя, и вызов после `await` Safari уже не
+  считает ответом на клик. Пока адреса нет, кнопка неактивна, а не отсутствует — иначе
+  она появлялась бы в навбаре с задержкой
+- **Путь берётся у роутера** (`router.resolve`), а не собирается строкой: на GitHub Pages
+  приложение живёт не в корне домена, и `app.baseURL` иначе потерялся бы
+- **Пустые поля в payload `navigator.share` не отправляются**: часть целей вставляет
+  `text` буквально, и сообщение начиналось бы с пустой строки
+- **В e2e Web Share обязательно подменять** (`stubWebShare` в `test/e2e/lib/flows.js`):
+  desktop-Chromium `navigator.share` заявляет, но системной шторки в автоматизации нет —
+  настоящий вызов зависает, и тест падает по таймауту, а не по существу
+
+### Приём подборки по ссылке
+
+Страница `pages/collections/import.vue` (`/collections/import#<data>`) — вторая
+половина шеринга: то, что видит получатель. Чистые функции — `lib/collectionImport.js`
+(`checkSongsVersion`, `planShareImport`, `findSameNameCollection`, `uniqueCollectionName`).
+
+- **Маршрут обязан быть статическим файлом.** Без `import.vue` адрес попадает в
+  `pages/collections/[id].vue`, где `Number('import')` даёт `NaN` и экран говорит
+  «Подборка не найдена» — именно так баг и пришёл от пользователя. В статике и в PWA то
+  же самое: динамический маршрут перехватывает всё, чему нет своей страницы
+- **Импорт останавливается только когда база получателя старше ссылки.** Номеров из
+  ссылки в старой базе может не быть, и половина подборки молча превратилась бы в
+  «песня не найдена», поэтому вместо списка — предложение обновить базу. Обратный
+  случай безопасен: подборка ссылается на номера, а они стабильны; разъехаться могут
+  только варианты — отсюда мягкое предупреждение, а не стоп
+- **Отсутствующая песня не отменяет импорт целиком**: она видна в списке с пометкой и
+  не попадает в подборку. Терять из-за одной песни всю подборку хуже, чем сохранить
+  остальное. Вариант вне диапазона прижимается к основному — тоже с пометкой
+- **Решает имя в поле, а кнопка одна.** Присланное «Рождество» осмысленно у
+  отправителя, а у получателя таких ссылок может быть несколько от разных людей —
+  различать их иначе нечем, поэтому имя правится до сохранения. Совпало с существующей
+  подборкой — песни идут в неё, и под полем об этом сказано одной строкой со ссылкой
+  «Сохранить отдельно» (она не сохраняет, а подставляет в поле свободное имя
+  `Рождество (2)`); не совпало — создаётся новая. Пара равнозначных кнопок «добавить в
+  свою» / «сохранить отдельно» из первой версии экрана заставляла сравнивать два имени в
+  кавычках, чтобы понять разницу
+- **Имя показывается один раз — в поле.** Заголовка с присланным именем нет: рядом с
+  полем он читался как второе, другое имя. Поле стоит первым, до списка песен: сначала
+  «куда ляжет», потом «что придёт». Пустое имя сохранять нельзя (подборка без названия
+  неотличима в сайдбаре) — кнопка заблокирована, под полем подсказка
+- **Правило «та же подборка» одно с резервной копией**: `normalizeCollectionName`
+  вынесен из `lib/collectionsBackup.js`, иначе слияние по ссылке и по копии считали бы
+  одинаковыми разные имена. Сравнение без учёта регистра: вписав «рождество», получатель
+  попадает в свою «Рождество»
+- **Дубликат связи при слиянии — не ошибка, а пропуск**: часть песен уже могла лежать в
+  подборке, и импорт по смыслу добавляет недостающее, а не переписывает список
+- **Страница слушает `route.hash`.** Вторая ссылка, открытая при уже открытой странице,
+  меняет только фрагмент: документ не перезагружается, `onMounted` не повторяется — без
+  watch получатель видел бы прежнюю подборку и сохранил бы не то, что прислали
+- Экран за `devMode`, но маршрут не закрыт: при `ssr: false` статика генерируется для
+  всех маршрутов, поэтому прямой заход показывает объяснение, а не пустоту
+- **В e2e-фикстуре есть `version: 1`** (`test/e2e/data/fixtures/songs.fixture.json`): без
+  версии приложение записывает `0`, и любая ссылка выглядела бы собранной на более новой
+  базе. Ссылки в тестах кодирует свой хелпер (`buildShareData` в `test/e2e/lib/flows.js`),
+  а не `lib/collectionShare.js` — иначе версию в payload не подделать, и ветка «база
+  устарела» осталась бы непроверенной
+
+
 ## Composables
 
 ### `useIndexDB` (composables/useIndexDB.js)
@@ -314,7 +439,7 @@ Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `sear
 Страницы главной и песни берут песни и номера отсюда, а не из `useIndexDB()` напрямую.
 
 ### `useSongs` (composables/useSongs.js)
-- `fetchSongs()` — загружает `assets/songs.json` через `fetch()`, сохраняет в IndexedDB через `addSongs()` и запоминает ETag. Единая точка входа для обновления базы. После записи вызывает `invalidateSongsCache()` и `resetSearchIndex()` — кэш песен и поисковые индексы устарели. Возвращает `true/false`.
+- `fetchSongs()` — загружает `assets/songs.json` через `fetch()`, сохраняет в IndexedDB через `addSongs()`, запоминает версию базы (`setSongsVersion`) и ETag. Единая точка входа для обновления базы. После записи вызывает `invalidateSongsCache()` и `resetSearchIndex()` — кэш песен и поисковые индексы устарели. Возвращает `true/false`.
 
 ### `useAutoUpdate` (composables/useAutoUpdate.js)
 Проверка обновлений базы по ETag: HEAD-запрос к `songs.json`, сравнение с сохранённым ETag, при расхождении — `settings.updateAvailable = true`. Коулдаун 30 минут (`lib/autoUpdate.js`). Применение обновления делегируется в `useSongs().fetchSongs()`.
@@ -357,13 +482,16 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 | `showChords` | Boolean | `true` / `false` | `false` |
 | `keepScreenOn` | Boolean | `true` / `false` | `true` |
 | `songsEtag` | String | ETag последней загрузки `songs.json` | `''` |
+| `songsVersion` | Number | версия базы из корня `songs.json` (см. «Версия базы песен») | `0` |
 | `lastUpdateCheck` | Number | timestamp последней проверки (ms) | `0` |
 | `devMode` | Boolean | режим разработчика — гейт экспериментальных функций | `false` |
 | `songsListMode` | String | режим группировки на «Все песни»: `'number'`, `'alphabet'`, `'sections'` | `'number'` |
 | `recentSongs` | Array | номера недавно открытых песен, свежая первой (не более `RECENT_LIMIT`) | `[]` |
 | `updateAvailable` | Boolean | **не персистентно** — пересчитывается при запуске | `false` |
 
-Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`), `addRecentSong`, `clearRecentSongs`.
+Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setSongsVersion` (через `normalizeSongsVersion`), `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`), `addRecentSong`, `clearRecentSongs`.
+
+Геттер `currentSongsVersion` нормализует версию при чтении — на ней держится сравнение баз при импорте подборки, и `NaN` из localStorage сломал бы его молча.
 
 Геттер `recentSongNumbers` нормализует историю при чтении (`normalizeRecent`): значение приходит из localStorage, где может оказаться что угодно, а мусор ушёл бы прямо в шаблон пустыми ссылками.
 
@@ -375,6 +503,28 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 - Выдвижной сайдбар с оверлеем: ссылка на главную, «Все песни» (только при `devMode`), список подборок с количеством песен; «Избранное» всегда первым, остальные — в пользовательском порядке (см. «Порядок подборок»); внизу «О приложении» и «Настройки»
 - `provide('toggleSidebar')` и `provide('updateAvailable')` — для `NavBarHamburger` / `NavBarBack`
 - `UpdateToast` — предложение обновить базу песен
+
+### Кнопка «Назад» знает, что истории может не быть
+
+`components/NavBarBack.vue` не зовёт `router.back()` безусловно: приложение всё
+чаще открывают сразу на внутреннем экране — присланная ссылка на песню или на
+подборку (`/collections/import#…`), закладка, ярлык PWA. В такой сессии
+предыдущей записи нет, и «Назад» уводила из приложения: в браузере на стартовую
+страницу, в установленном PWA на пустой экран. Именно так баг и пришёл от
+пользователя.
+
+Различает случаи `history.state.back` — vue-router кладёт туда адрес предыдущей
+записи своей истории и оставляет пустым, когда запись первая. Решение вынесено в
+`lib/navBack.js` (`backTarget`): пусто — `router.push('/')`, иначе прежний
+`back()`. Считать `history.length` нельзя — она общая на вкладку и растёт от
+чужих страниц, открытых до нашей.
+
+E2E-сторожа два, и оба падают без фикса: «стрелка назад при заходе по прямой
+ссылке ведёт на главную» (`navbar.spec.js`) и то же со страницы импорта
+(`collection-import.spec.js`). В последнем данные ссылки считает
+`buildShareDataOffline` — **без браузера**: любой `page.goto('/')` ради payload
+кладёт в историю вкладки страницу, на которую `back()` благополучно вернётся, и
+баг перестаёт воспроизводиться.
 
 Футера нет: описание и версия/сборка (`appVersion`, `appCommit`, `appBuildDate`) переехали на `/about`, где они не дублируются на каждом экране.
 
@@ -401,7 +551,7 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 - «Не гасить экран» (`keepScreenOn`)
 - Принудительное обновление базы данных песен
 - Секция «Резервная копия подборок»: экспорт в файл `podborki-YYYY-MM-DD.json` доступен всем; **импорт закрыт `settings.devMode`** — он меняет содержимое базы, и ошибиться файлом легко. Пустая база (одно пустое «Избранное») не экспортируется — `isTrivialBackup`
-- Тумблер аккордов **временно скрыт** флагом `showChordsSection`; функциональность (`settings.showChords`, `SongDisplay`) сохранена — план возврата в `docs/restore-chords-toggle.md`
+- Тумблер аккордов — за `settings.devMode`: сама разметка аккордов в текстах песен ещё не расставлена (5.4 в дорожной карте), поэтому обычному пользователю переключатель ничего не меняет на экране. Функциональность (`settings.showChords`, `SongDisplay`) работает независимо от гейта
 - Секция «Экспериментальные функции» показывается только при `settings.devMode`; там же тумблер, которым режим выключается
 
 ### `pages/about.vue` — О приложении
@@ -477,11 +627,11 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionsOrder.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar (в т.ч. порядок подборок), favorites, collections, add-to-collection, songs (в т.ч. переход к разделу по якорю), settings, about, song (в т.ч. раздел сборника), song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
+- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar (в т.ч. порядок подборок), favorites, collections, add-to-collection, songs (в т.ч. переход к разделу по якорю), settings, about, song (в т.ч. раздел сборника), song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore, share, collection-import
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия
@@ -498,6 +648,24 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 
 ### Источник данных — songs-data/, а не songs.json
 `public/assets/songs.json` **генерируется** из `songs-data/songs/*.txt` и правится только через них. Файл пересобирается автоматически в `dev`/`build`/`generate`. Ручные правки `songs.json` затрутся при следующей сборке.
+
+### Версия базы песен — ручной счётчик
+
+В корне `songs.json` лежит целое `version`. Источник — `songs-data/version.txt`
+(одно число), читает его `songs-data/version.js`, кладёт в файл `parse.js`.
+Приложение запоминает значение при загрузке базы (`songsVersion` в настройках).
+
+**Инкремент — вручную, в том же коммите, что и правка данных**, и только при
+значимых для подборок изменениях: новые песни, изменение номеров, переразбивка
+на варианты. Опечатка в тексте счётчик не двигает. Автоматической производной от
+содержимого здесь быть не должно: хеш менялся бы от любой правки, а ссылка на
+подборку ссылается на номера песен и индексы вариантов — ей важны только те
+изменения, после которых номер означает другое.
+
+Испорченное значение в `version.txt` **роняет сборку** (код возврата 1), как и
+битые разделы: молча подставленный ноль означал бы, что каждая разосланная
+ссылка считает базу самой старой, и получатели видели бы ложное «обновите базу».
+Отсутствие файла ошибкой не считается — это версия `0`.
 
 ### Путь к базе данных песен
 Файл лежит в `public/assets/songs.json` — этот путь важен для PWA-кэширования. Локально доступен как `/assets/songs.json`; загрузка в IndexedDB — `fetch('assets/songs.json')` в `useSongs.fetchSongs()`.

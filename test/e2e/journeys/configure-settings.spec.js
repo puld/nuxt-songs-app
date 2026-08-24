@@ -8,11 +8,11 @@ import { gotoSong } from '../lib/flows'
 
 test.describe('Джорни: настройки → отображение песни', () => {
   test('тёмная тема + крупный шрифт + аккорды применяются к песне', async ({ page }) => {
-    // 0. Включаем аккорды через localStorage ДО загрузки — тумблер скрыт в UI,
-    //    но функциональность сохранена. Pinia (useStorage) подхватит значение
-    //    при инициализации.
+    // 0. Тумблер аккордов живёт за режимом разработчика, поэтому включаем режим
+    //    до загрузки страницы — сами аккорды дальше переключаем кликом, как
+    //    это делает пользователь.
     await page.addInitScript(() => {
-      localStorage.setItem('showChords', 'true')
+      localStorage.setItem('devMode', 'true')
     })
 
     // 1. В настройках включаем тёмную тему.
@@ -25,7 +25,10 @@ test.describe('Джорни: настройки → отображение пе�
     await page.locator(s.settings.section, { hasText: 'Размер шрифта' })
       .getByRole('button', { name: 'Больше' }).click()
 
-    // 3. Аккорды уже включены через localStorage (тумблер скрыт в UI).
+    // 3. Аккорды — тумблером в настройках.
+    const chordsSection = page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
+    await chordsSection.locator(s.settings.toggleSwitch).click()
+    await expect(chordsSection.locator('input[type="checkbox"]')).toBeChecked()
 
     // 4. Открываем песню — настройки применились.
     await gotoSong(page, SONGS.ONE.n)
@@ -35,11 +38,11 @@ test.describe('Джорни: настройки → отображение пе�
     // Крупный шрифт — на .song-container (SongDisplay), не на .layout.
     await expect(page.locator(s.song.container)).toHaveClass(/font-size-large/)
 
-    // Если в песне есть аккорды — они отображаются (есть .chord в DOM).
-    // Песня #1 может не иметь аккордов, поэтому проверяем «не падает»:
-    // селектор либо находит, либо 0 — главное, что showChords=true не ломает рендер.
-    const chordCount = await page.locator(s.song.chord).count()
-    expect(chordCount).toBeGreaterThanOrEqual(0)
+    // Аккордов в текстах пока нет ни в одной песне (5.4 в дорожной карте),
+    // поэтому проверяем не сами аккорды, а что включённый showChords не ломает
+    // отрисовку: текст песни на месте.
+    await expect(page.locator(s.song.container)).toBeVisible()
+    await expect(page.locator(s.song.title)).toBeVisible()
   })
 
   test('светлая тема persists при переходе между страницами', async ({ page }) => {
