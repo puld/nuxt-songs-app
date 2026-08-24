@@ -275,6 +275,21 @@ test.describe('Подборка по ссылке: имя подборки', () 
     await expect(page.locator(s.collection.songItem)).toHaveCount(2)
   })
 
+  test('поле имени по ширине колонки, а не шире списка песен', async ({ page }) => {
+    // У input свой `box-sizing`, и при `width: 100%` паддинги с рамкой
+    // выталкивали поле за колонку — заметно только глазами, поэтому сторож.
+    await page.goto('/')
+    const data = await buildShareData(page, { name: 'Ширина', songs: [{ songNumber: SONGS.ONE.n }] })
+
+    await openImportLink(page, data)
+
+    const list = await page.locator(s.collection.songsList).first().boundingBox()
+    const input = await page.locator(s.collectionImport.nameInput).boundingBox()
+
+    expect(Math.abs(input.width - list.width)).toBeLessThanOrEqual(1)
+    expect(Math.abs(input.x - list.x)).toBeLessThanOrEqual(1)
+  })
+
   test('пустое имя не даёт сохранить', async ({ page }) => {
     await page.goto('/')
     const data = await buildShareData(page, { name: 'Без имени', songs: [{ songNumber: SONGS.ONE.n }] })

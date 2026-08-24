@@ -384,6 +384,9 @@ watch(() => route.hash, load)
 
 .name-input {
   width: 100%;
+  /* Без этого паддинги и рамка прибавляются к 100% и поле вылезает за колонку:
+     сброс Tailwind до input не доходит. */
+  box-sizing: border-box;
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--border-color);
   border-radius: 0.5rem;
