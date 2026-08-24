@@ -79,6 +79,95 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
         })
     })
 
+    describe('порядок подборок', () => {
+        it('createCollection проставляет order следом за последним', async () => {
+            const first = await createCollection('Первая')
+            const second = await createCollection('Вторая')
+            const { getCollections } = useIndexDB()
+
+            const byId = new Map((await getCollections()).map((item) => [item.id, item]))
+
+            expect(byId.get(first).order).toBe(0)
+            expect(byId.get(second).order).toBe(1)
+        })
+
+        it('order не повторяется, даже если подборки создаются подряд', async () => {
+            // Раньше порядок считался бы до записи предыдущей подборки — обе
+            // получили бы один номер и встали бы в сайдбаре как попало.
+            const ids = await Promise.all([
+                createCollection('Первая'),
+                createCollection('Вторая'),
+                createCollection('Третья'),
+            ])
+            const { getCollections } = useIndexDB()
+
+            const orders = (await getCollections()).map((item) => item.order).sort((a, b) => a - b)
+
+            expect(ids).toHaveLength(3)
+            expect(orders).toEqual([0, 1, 2])
+        })
+
+        it('reorderCollections записывает новый порядок и отдаёт число изменённых', async () => {
+            const first = await createCollection('Первая')
+            const second = await createCollection('Вторая')
+            const third = await createCollection('Третья')
+            const { reorderCollections, getCollections } = useIndexDB()
+
+            const written = await reorderCollections([third, first, second])
+            const byId = new Map((await getCollections()).map((item) => [item.id, item]))
+
+            expect(written).toBe(3)
+            expect(byId.get(third).order).toBe(0)
+            expect(byId.get(first).order).toBe(1)
+            expect(byId.get(second).order).toBe(2)
+        })
+
+        it('переставленная подборка меняет updatedAt', async () => {
+            const first = await createCollection('Первая')
+            const second = await createCollection('Вторая')
+            const { reorderCollections, getCollection } = useIndexDB()
+            const before = (await getCollection(first)).updatedAt
+
+            await reorderCollections([second, first])
+            const after = (await getCollection(first)).updatedAt
+
+            expect(typeof after).toBe('string')
+            expect(new Date(after).getTime()).toBeGreaterThanOrEqual(new Date(before).getTime())
+        })
+
+        it('неизменившийся порядок не пишет ничего', async () => {
+            const first = await createCollection('Первая')
+            const second = await createCollection('Вторая')
+            const { reorderCollections } = useIndexDB()
+
+            expect(await reorderCollections([first, second])).toBe(0)
+        })
+
+        it('неизвестные id пропускаются, остальные сдвигаются', async () => {
+            // Список приходит из открытого сайдбара: подборку могли удалить в
+            // другой вкладке, и падать из-за этого перестановка не должна.
+            const first = await createCollection('Первая')
+            const second = await createCollection('Вторая')
+            const { reorderCollections, getCollections } = useIndexDB()
+
+            const written = await reorderCollections([9999, second, first])
+            const byId = new Map((await getCollections()).map((item) => [item.id, item]))
+
+            expect(written).toBe(2)
+            expect(byId.get(second).order).toBe(0)
+            expect(byId.get(first).order).toBe(1)
+        })
+
+        it('пустой и некорректный список ничего не меняет', async () => {
+            const first = await createCollection('Первая')
+            const { reorderCollections, getCollection } = useIndexDB()
+
+            expect(await reorderCollections([])).toBe(0)
+            expect(await reorderCollections(null)).toBe(0)
+            expect((await getCollection(first)).order).toBe(0)
+        })
+    })
+
     describe('addSongs', () => {
         it('должен успешно загружать массив песен', async () => {
             const {addSongs} = useIndexDB()

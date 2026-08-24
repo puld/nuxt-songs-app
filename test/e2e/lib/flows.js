@@ -138,3 +138,35 @@ export async function resetPromptCalledMarker(page) {
 export async function wasPromptCalled(page) {
   return page.evaluate(() => !!window.__promptCalled)
 }
+
+/**
+ * Создаёт подборки прямо в IndexedDB, минуя UI.
+ *
+ * Через страницу песни каждая подборка — это переход, диалог и ввод имени;
+ * для длинного списка (проверки скролла) это минуты на пустом месте.
+ * Возвращает на главную готовой к открытию сайдбара.
+ */
+export async function seedCollections(page, count) {
+  await page.evaluate(async (n) => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('SongsDB')
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('collections', 'readwrite')
+      const store = tx.objectStore('collections')
+      for (let i = 1; i <= n; i++) {
+        const date = new Date(Date.UTC(2020, 0, i)).toISOString()
+        store.add({ name: `Список ${i}`, createdAt: date, updatedAt: date, order: i })
+      }
+      tx.oncomplete = resolve
+      tx.onerror = () => reject(tx.error)
+    })
+
+    db.close()
+  }, count)
+
+  await page.reload()
+}
