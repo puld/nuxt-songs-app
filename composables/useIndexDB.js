@@ -101,8 +101,9 @@ export const useIndexDB = () => {
      * хранилище. Идентификаторы, которых в базе нет, пропускаются: список
      * приходит из открытого сайдбара, а подборку могли удалить в другой вкладке.
      *
-     * Порядок не входит в резервную копию (там имена и связи), поэтому
-     * `withBackup` тут не нужен: копия от перестановки не устаревает.
+     * Обёрнута `withBackup`: порядок входит в резервную копию, и без снятия
+     * копии восстановление вернуло бы расстановку, от которой пользователь уже
+     * ушёл.
      *
      * @param {Array<number>} orderedIds — id подборок в нужном порядке
      * @returns {Promise<number>} сколько записей обновлено
@@ -511,7 +512,7 @@ export const useIndexDB = () => {
         getSong: guardRead(getSong, null),
         createCollection: guardWrite(withBackup(createCollection)),
         getCollections: guardRead(getCollections, []),
-        reorderCollections: guardWrite(reorderCollections),
+        reorderCollections: guardWrite(withBackup(reorderCollections)),
         addSongToCollection: guardWrite(withBackup(addSongToCollection)),
         removeSongFromCollection: guardWrite(withBackup(removeSongFromCollection)),
         getSongsInCollection: guardRead(getSongsInCollection, []),

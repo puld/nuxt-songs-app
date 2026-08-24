@@ -314,16 +314,39 @@ describe('useCollectionsBackup', () => {
             links
         })
 
-        it('порядок в копию не входит', async () => {
-            // Осознанное решение: восстановление после потери данных важнее
-            // переноса расстановки, а новое поле сломало бы формат копии.
+        it('порядок попадает в копию', async () => {
             const first = await useIndexDB().createCollection('Пасха')
             const second = await useIndexDB().createCollection('Рождество')
             await useIndexDB().reorderCollections([second, first])
 
             const backup = readBackupFrom(localStorage).backup
+            const byName = new Map(backup.collections.map((c) => [c.name, c.order]))
 
-            expect(backup.collections.every((c) => c.order === undefined)).toBe(true)
+            expect(byName.get('Рождество')).toBe(0)
+            expect(byName.get('Пасха')).toBe(1)
+        })
+
+        it('расстановка переносится через экспорт и импорт', async () => {
+            const first = await useIndexDB().createCollection('Пасха')
+            const second = await useIndexDB().createCollection('Рождество')
+            const third = await useIndexDB().createCollection('Псалмы')
+            await useIndexDB().reorderCollections([third, second, first])
+            const exported = await useCollectionsBackup().exportToText()
+
+            // Потеря данных: база пуста, «Избранное» пересоздал плагин
+            await new Promise((resolve, reject) => {
+                const transaction = db.transaction(['collections', 'songCollections'], 'readwrite')
+                transaction.objectStore('collections').clear()
+                transaction.objectStore('songCollections').clear()
+                transaction.oncomplete = resolve
+                transaction.onerror = () => reject(transaction.error)
+            })
+            await createFavorite(db)
+
+            await useCollectionsBackup().importFromText(exported.text)
+            const sorted = sortCollections(await useIndexDB().getCollections())
+
+            expect(sorted.map((c) => c.name)).toEqual(['Избранное', 'Псалмы', 'Рождество', 'Пасха'])
         })
 
         it('импортированные подборки получают последовательный order', async () => {
@@ -338,9 +361,10 @@ describe('useCollectionsBackup', () => {
             expect(restored.map((c) => c.order)).toEqual([0, 1, 2])
         })
 
-        it('копия старого вида без order восстанавливается в порядке записей', async () => {
-            // Поля `order` в формате копии не было никогда, поэтому «старая
-            // копия» — это ровно текущий формат: порядок задаёт сам файл.
+        it('копия старого вида без order восстанавливается по датам создания', async () => {
+            // Копию без `order` снимала версия до появления сортировки. Там
+            // список строился по `createdAt`, и восстановление воспроизводит
+            // именно тот вид, а не порядок записей в файле.
             await useCollectionsBackup().importFromText(fileBackup([
                 { id: 7, name: 'Псалмы', createdAt: '2026-01-03T00:00:00.000Z' },
                 { id: 3, name: 'Пасха', createdAt: '2026-01-01T00:00:00.000Z' }
@@ -348,7 +372,7 @@ describe('useCollectionsBackup', () => {
 
             const restored = sortCollections(await useIndexDB().getCollections())
 
-            expect(restored.map((c) => c.name)).toEqual(['Псалмы', 'Пасха'])
+            expect(restored.map((c) => c.name)).toEqual(['Пасха', 'Псалмы'])
             // Нумерацию подборки получают заново, из базы, а не из файла
             expect(restored.map((c) => c.order)).toEqual([0, 1])
         })

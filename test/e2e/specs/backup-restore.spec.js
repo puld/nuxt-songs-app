@@ -1,7 +1,13 @@
 import { test, expect } from '../lib/fixtures'
 import { s } from '../lib/selectors'
 import { SONGS } from '../lib/songs'
-import { gotoSong, waitForHomeReady, openSidebar } from '../lib/flows'
+import {
+  gotoSong,
+  waitForHomeReady,
+  openSidebar,
+  createCollectionFromSong,
+  uniqueCollectionName
+} from '../lib/flows'
 
 // Резервная копия подборок в localStorage: снимается при изменениях,
 // предлагается к восстановлению, когда IndexedDB опустела.
@@ -63,6 +69,43 @@ test.describe('Резервная копия подборок', () => {
 
     await gotoSong(page, SONGS.ONE.n)
     await expect(page.locator(s.navbar.favoriteStarActive)).toBeVisible()
+  })
+
+  test('восстановление возвращает подборки в прежнем порядке', async ({ page }) => {
+    // Порядок в сайдбаре пользователь расставляет руками — после потери данных
+    // он не должен расставлять его заново.
+    await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
+
+    const first = uniqueCollectionName('Первая')
+    const second = uniqueCollectionName('Вторая')
+    await waitForHomeReady(page)
+    await createCollectionFromSong(page, SONGS.ONE.n, first)
+    await createCollectionFromSong(page, SONGS.TWO.n, second)
+
+    await waitForHomeReady(page)
+    await openSidebar(page)
+    await page.locator(s.sidebar.reorderToggle).click()
+    await page.locator(s.sidebar.collectionRow).nth(1).locator(s.sidebar.collectionDown).click()
+    await expect(page.locator(s.sidebar.collectionRow).nth(1)).toContainText(second)
+
+    // Копия должна успеть впитать новый порядок до потери базы.
+    await expect
+      .poll(async () => {
+        const backup = await readBackup(page)
+        return backup?.collections?.find((item) => item.name === second)?.order ?? null
+      })
+      .toBe(1)
+
+    await dropDatabase(page)
+    await waitForHomeReady(page)
+    await page.locator(s.backup.apply).click({ timeout: 30000 })
+    await expect(page.locator(s.backup.toast)).toBeHidden({ timeout: 30000 })
+
+    await waitForHomeReady(page)
+    await openSidebar(page)
+    const rows = page.locator(s.sidebar.collectionRow)
+    await expect(rows.nth(1)).toContainText(second)
+    await expect(rows.nth(2)).toContainText(first)
   })
 
   test('отказ удаляет копию, и предложение больше не появляется', async ({ page }) => {
