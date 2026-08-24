@@ -1,5 +1,6 @@
 import { useNuxtApp } from 'nuxt/app'
 import { buildBackup, saveBackupTo } from '~/lib/collectionsBackup'
+import { nextOrder, orderPlan } from '~/lib/collectionsOrder'
 
 export const useIndexDB = () => {
     const {$indexedDB} = useNuxtApp();
@@ -56,17 +57,29 @@ export const useIndexDB = () => {
         });
     };
 
+    /**
+     * Новая подборка встаёт в конец списка: `order` берётся следом за последним
+     * существующим. Читаем текущие подборки в той же транзакции — иначе две
+     * подборки, созданные подряд, могли бы получить один и тот же порядок.
+     */
     const createCollection = async (name) => {
         return new Promise((resolve, reject) => {
             const transaction = $indexedDB.transaction(['collections'], 'readwrite')
             const store = transaction.objectStore('collections')
-            const request = store.add({
-                name: String(name),
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            })
-            request.onsuccess = () => resolve(request.result)
-            request.onerror = (event) => reject(event.target.error)
+            const existing = store.getAll()
+
+            existing.onsuccess = () => {
+                const now = new Date().toISOString()
+                const request = store.add({
+                    name: String(name),
+                    order: nextOrder(existing.result || []),
+                    createdAt: now,
+                    updatedAt: now,
+                })
+                request.onsuccess = () => resolve(request.result)
+                request.onerror = (event) => reject(event.target.error)
+            }
+            existing.onerror = (event) => reject(event.target.error)
         })
     }
 
@@ -76,6 +89,53 @@ export const useIndexDB = () => {
             const store = transaction.objectStore('collections')
             const request = store.getAll()
             request.onsuccess = () => resolve(request.result)
+            request.onerror = (event) => reject(event.target.error)
+        })
+    }
+
+    /**
+     * Записывает новый порядок подборок: `order` = позиция в переданном списке.
+     *
+     * Пишутся только записи, у которых порядок реально изменился
+     * (`orderPlan`) — перестановка одной подборки не переписывает всё
+     * хранилище. Идентификаторы, которых в базе нет, пропускаются: список
+     * приходит из открытого сайдбара, а подборку могли удалить в другой вкладке.
+     *
+     * Порядок не входит в резервную копию (там имена и связи), поэтому
+     * `withBackup` тут не нужен: копия от перестановки не устаревает.
+     *
+     * @param {Array<number>} orderedIds — id подборок в нужном порядке
+     * @returns {Promise<number>} сколько записей обновлено
+     */
+    const reorderCollections = async (orderedIds) => {
+        return new Promise((resolve, reject) => {
+            const transaction = $indexedDB.transaction(['collections'], 'readwrite')
+            const store = transaction.objectStore('collections')
+            const request = store.getAll()
+
+            request.onsuccess = () => {
+                const byId = new Map((request.result || []).map((item) => [Number(item.id), item]))
+                const ordered = (Array.isArray(orderedIds) ? orderedIds : [])
+                    .map((id) => byId.get(Number(id)))
+                    .filter(Boolean)
+                const plan = orderPlan(ordered)
+
+                if (!plan.length) {
+                    resolve(0)
+                    return
+                }
+
+                const now = new Date().toISOString()
+                let written = 0
+
+                for (const { id, order } of plan) {
+                    store.put({ ...byId.get(Number(id)), order, updatedAt: now })
+                    written++
+                }
+
+                transaction.oncomplete = () => resolve(written)
+                transaction.onerror = (event) => reject(event.target.error)
+            }
             request.onerror = (event) => reject(event.target.error)
         })
     }
@@ -451,6 +511,7 @@ export const useIndexDB = () => {
         getSong: guardRead(getSong, null),
         createCollection: guardWrite(withBackup(createCollection)),
         getCollections: guardRead(getCollections, []),
+        reorderCollections: guardWrite(reorderCollections),
         addSongToCollection: guardWrite(withBackup(addSongToCollection)),
         removeSongFromCollection: guardWrite(withBackup(removeSongFromCollection)),
         getSongsInCollection: guardRead(getSongsInCollection, []),

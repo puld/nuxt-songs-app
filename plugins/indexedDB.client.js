@@ -56,7 +56,8 @@ const ensureFavoriteCollection = (db) => new Promise((resolve) => {
         checkRequest.onsuccess = () => {
             if (!checkRequest.result) {
                 const now = new Date().toISOString()
-                store.add({ name: 'Избранное', isFavorite: 1, createdAt: now, updatedAt: now })
+                // order 0 — «Избранное» всегда первым в сайдбаре
+                store.add({ name: 'Избранное', isFavorite: 1, order: 0, createdAt: now, updatedAt: now })
             }
         }
         transaction.oncomplete = () => resolve()

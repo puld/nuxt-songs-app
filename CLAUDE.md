@@ -123,6 +123,7 @@ npm run test:e2e:headed / test:e2e:ui
 ├── lib/                      # Чистые функции без Vue (+ тесты рядом)
 │   ├── autoUpdate.js         # ETag-логика автообновления
 │   ├── collectionsBackup.js  # Копия подборок: сборка, разбор, план импорта
+│   ├── collectionsOrder.js   # Порядок подборок: сортировка, план записи, перестановка
 │   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
 │   ├── changelog.js          # История версий: данные и формат даты
@@ -174,7 +175,7 @@ npm run test:e2e:headed / test:e2e:ui
 
 ## Структура базы данных IndexedDB
 
-Плагин `plugins/indexedDB.client.js` (client-only) инициализирует БД `SongsDB` **версии 7** с четырьмя хранилищами. При пустой базе плагин сам вызывает `fetchSongs()` — песни грузятся автоматически при первом запуске.
+Плагин `plugins/indexedDB.client.js` (client-only) инициализирует БД `SongsDB` **версии 8** с четырьмя хранилищами. При пустой базе плагин сам вызывает `fetchSongs()` — песни грузятся автоматически при первом запуске.
 
 Имя базы, версия и создание хранилищ/индексов — в `lib/dbSchema.js` (`DB_NAME`, `DB_VERSION`, `createSchema`). Оттуда их берут и плагин, и тесты. Миграции — в `lib/dbMigrations.js`: они зависят от `oldVersion` и работают с транзакцией апгрейда, но вынесены из плагина, чтобы прогоняться в тестах.
 
@@ -190,6 +191,7 @@ npm run test:e2e:headed / test:e2e:ui
 ### collections
 - `id` (keyPath, autoIncrement), `name`, `createdAt`, `updatedAt` (ISO)
 - `isFavorite` — `1` у единственной системной подборки «Избранное» (индекс `isFavorite`)
+- `order` — порядок в сайдбаре, задаётся пользователем; индекса нет (подборок единицы, сортировка идёт в памяти)
 - Индекс `name`
 
 Подборка «Избранное» создаётся автоматически: в миграциях и при старте плагина, если её нет.
@@ -238,7 +240,7 @@ npm run test:e2e:headed / test:e2e:ui
 
 `runMigrations(db, transaction, oldVersion)` вызывается из `onupgradeneeded` после `createSchema(db)`. Шаги описывают **целевое состояние** и идемпотентны, а не образуют лестницу «v3→v4, v4→v5»: прежняя лестница пересекалась сама с собой (v3→v4 создавал уникальный индекс в асинхронном колбэке, v5→v6 синхронно видел, что индекса нет, и создавал второй — апгрейд падал).
 
-Шаги: `body` → `variants` (только с v1); снятие уникальности с `collectionId_songNumber`; удаление устаревших индексов связей; нормализация связей; создание уникального `collectionId_songNumber_variantIndex`; индекс `isFavorite`; создание «Избранного».
+Шаги: `body` → `variants` (только с v1); снятие уникальности с `collectionId_songNumber`; удаление устаревших индексов связей; нормализация связей; создание уникального `collectionId_songNumber_variantIndex`; индекс `isFavorite`; создание «Избранного»; простановка `order` по текущему порядку.
 
 Правила, которые нельзя нарушать при доработке:
 - **Сначала нормализация связей, потом уникальный индекс.** До v4 ключ включал `variantLabel`, поэтому песня легально лежала в подборке в двух вариантах. Дубли не удаляются, а сдвигаются на свободный `variantIndex` — иначе `ConstraintError` откатывает транзакцию апгрейда, и приложение выглядит так, будто данных нет вообще.
@@ -263,6 +265,18 @@ npm run test:e2e:headed / test:e2e:ui
 - Проверка выполняется один раз за сессию (модульный флаг в `useCollectionsBackup`)
 - Ручной перенос — в настройках: экспорт в файл открыт всем, импорт спрятан за режимом разработчика. Импорт только добавляет, так что «не тот файл» данные не уничтожит, но чинить последствия всё равно пришлось бы вручную
 
+### Порядок подборок
+
+Порядок в сайдбаре задаёт пользователь: поле `order` в `collections`, чистые функции — `lib/collectionsOrder.js` (`sortCollections`, `nextOrder`, `orderPlan`, `initialOrderPlan`, `moveItem`, `dropIndex`, `previewShift`), запись — `reorderCollections` в `useIndexDB`.
+
+- «Избранное» закреплено первым и не переставляется: `sortCollections` ставит его перед остальными независимо от `order`, а разметка не рисует ему ни ручки, ни стрелок
+- Индекса по `order` нет — подборок единицы, сортировка идёт в памяти
+- Миграция `ensureCollectionsOrder` описывает **целевое состояние**: проставляет `order` только тем записям, у которых его нет или он расходится с текущим порядком («Избранное», затем по `createdAt`). Повторный апгрейд уже выстроенный пользователем порядок не трогает
+- `reorderCollections` пишет **только изменившиеся** записи и возвращает их количество; `withBackup` ей не нужен — порядок в резервную копию не входит
+- Режим перестановки в сайдбаре — за `settings.devMode` и только когда пользовательских подборок больше одной. Кнопка «Порядок»/«Готово» в заголовке секции; в режиме перестановки ссылки заблокированы (`pointer-events: none`), иначе тап по строке уводил бы со страницы вместо перестановки
+- Два способа: стрелки «выше/ниже» (надёжная база, работает и без указателя) и перетаскивание за ручку на pointer-событиях (`setPointerCapture`, `touch-action: none`). Шаг перетаскивания считается от высоты строки — `dropIndex`; соседи расступаются по `previewShift`
+- **Переход анимации задаётся inline и только на время жеста.** Порядок применяется не в момент отпускания, а после доводки строки до слота (`SETTLE_MS`): иначе DOM переставлялся сразу, а доигрывающий переход тащил строки к новым местам «вдогонку». Когда состояние сбрасывается, inline-стиль исчезает вместе с `transform`, поэтому снятие смещений одновременно с перестановкой проходит мгновенно
+
 ## Composables
 
 ### `useIndexDB` (composables/useIndexDB.js)
@@ -270,7 +284,7 @@ npm run test:e2e:headed / test:e2e:ui
 
 **Песни:** `addSongs(songs)` (очищает хранилище перед добавлением), `getSong(number)`, `getAllSongs()`, `getSongsCount()` (0 при ошибке), `getSongNumbers()`
 
-**Подборки:** `createCollection(name)` → ID, `getCollections()`, `getCollection(id)`, `deleteCollection(id)` (вместе со связями)
+**Подборки:** `createCollection(name)` → ID (с `order` следом за последней), `getCollections()`, `getCollection(id)`, `deleteCollection(id)` (вместе со связями), `reorderCollections(orderedIds)` → сколько записей обновлено (пишутся только изменившиеся; `withBackup` не нужен — порядок не входит в копию)
 
 **Связи** (везде `variantIndex = 0` по умолчанию): `addSongToCollection(collectionId, songNumber, variantIndex)` (с проверкой дубликата), `removeSongFromCollection(...)`, `getSongsInCollection(collectionId)` (сортировка по номеру), `getCollectionsForSong(songNumber)`, `getAvailableCollections(songNumber)`, `getSongsCountInCollection(collectionId)`
 
@@ -356,7 +370,7 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 `layouts/default.vue`:
 - Фиксированная панель 56px сверху (`app-bar` в Tailwind), скрывается при скролле вниз, появляется при скролле вверх (порог 100px)
 - Три Teleport-слота: `#navbar-left`, `#navbar-center`, `#navbar-right`
-- Выдвижной сайдбар с оверлеем: ссылка на главную, «Все песни» (только при `devMode`), список подборок с количеством песен; «Избранное» всегда первым, остальные — по дате создания; внизу «О приложении» и «Настройки»
+- Выдвижной сайдбар с оверлеем: ссылка на главную, «Все песни» (только при `devMode`), список подборок с количеством песен; «Избранное» всегда первым, остальные — в пользовательском порядке (см. «Порядок подборок»); внизу «О приложении» и «Настройки»
 - `provide('toggleSidebar')` и `provide('updateAvailable')` — для `NavBarHamburger` / `NavBarBack`
 - `UpdateToast` — предложение обновить базу песен
 
@@ -461,11 +475,11 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionsOrder.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar, favorites, collections, add-to-collection, songs (в т.ч. переход к разделу по якорю), settings, about, song (в т.ч. раздел сборника), song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
+- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar (в т.ч. порядок подборок), favorites, collections, add-to-collection, songs (в т.ч. переход к разделу по якорю), settings, about, song (в т.ч. раздел сборника), song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия

@@ -63,6 +63,12 @@ export const s = {
     closeBtn: '.sidebar-close-btn',
     favoriteIcon: '.favorite-icon',
     updateBadge: '.update-badge',
+    // Ручная сортировка подборок (за devMode)
+    reorderToggle: '[data-testid="reorder-toggle"]',
+    collectionRow: '[data-testid="sidebar-collection"]',
+    collectionHandle: '[data-testid="collection-handle"]',
+    collectionUp: '[data-testid="collection-up"]',
+    collectionDown: '[data-testid="collection-down"]',
   },
 
   // === Главная страница ===
