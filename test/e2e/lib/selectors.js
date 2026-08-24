@@ -222,6 +222,8 @@ export const s = {
     songNumber: '[data-testid="import-song"] .song-number',
     songTitle: '[data-testid="import-song"] .song-title',
     songNote: '[data-testid="import-song"] .song-note',
+    nameInput: '[data-testid="import-name"]',
+    nameHint: '.import-page .name-hint',
     sameName: '[data-testid="import-same-name"]',
     mergeBtn: '[data-testid="import-merge"]',
     saveBtn: '[data-testid="import-save"]',

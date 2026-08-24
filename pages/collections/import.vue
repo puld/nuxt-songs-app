@@ -76,11 +76,24 @@
       </ul>
 
       <div v-if="saved" class="notice notice-success" data-testid="import-saved">
-        <p class="notice-title">Сохранено</p>
+        <p class="notice-title">Сохранено в «{{ saved.name }}»</p>
         <NuxtLink :to="`/collections/${saved.id}`" class="stub-link">Открыть подборку</NuxtLink>
       </div>
 
       <template v-else>
+        <div class="name-field">
+          <label class="name-label" for="import-name">Название подборки</label>
+          <input
+            id="import-name"
+            v-model="name"
+            class="name-input"
+            data-testid="import-name"
+            placeholder="Название подборки"
+            autocomplete="off"
+          >
+          <p v-if="!trimmedName" class="name-hint">Без названия подборку не сохранить.</p>
+        </div>
+
         <p v-if="sameName" class="notice notice-warning" data-testid="import-same-name">
           У вас уже есть подборка «{{ sameName.name }}». Можно добавить песни в неё
           или сохранить отдельно как «{{ freeName }}».
@@ -90,7 +103,7 @@
           <button
             v-if="sameName"
             class="primary-btn"
-            :disabled="saving || plan.toSave.length === 0"
+            :disabled="!canSave"
             data-testid="import-merge"
             @click="save({ merge: true })"
           >
@@ -99,7 +112,7 @@
           <button
             class="primary-btn"
             :class="{ secondary: !!sameName }"
-            :disabled="saving || plan.toSave.length === 0"
+            :disabled="!canSave"
             data-testid="import-save"
             @click="save({ merge: false })"
           >
@@ -151,8 +164,20 @@ const collections = ref([])
 const saved = ref(null)
 const versionStatus = ref('')
 
-const sameName = computed(() => (shared.value ? findSameNameCollection(shared.value.name, collections.value) : null))
-const freeName = computed(() => (shared.value ? uniqueCollectionName(shared.value.name, collections.value) : ''))
+/**
+ * Имя, под которым подборка ляжет в базу: из ссылки, но правится получателем.
+ *
+ * Присланное имя осмысленно у отправителя («Рождество»), а у получателя таких
+ * ссылок может быть несколько от разных людей — и различать их иначе нечем.
+ * Поэтому от этого поля, а не от имени из ссылки, считаются и совпадение с
+ * существующей подборкой, и свободное имя рядом с ней.
+ */
+const name = ref('')
+const trimmedName = computed(() => name.value.trim())
+
+const sameName = computed(() => findSameNameCollection(trimmedName.value, collections.value))
+const freeName = computed(() => uniqueCollectionName(trimmedName.value, collections.value))
+const canSave = computed(() => !saving.value && !!trimmedName.value && plan.value.toSave.length > 0)
 
 /**
  * Фрагмент читается из `location`, а не из `route.hash`: роутер отдаёт его уже
@@ -167,6 +192,7 @@ const load = async () => {
   saveError.value = ''
   saved.value = null
   shared.value = null
+  name.value = ''
   versionStatus.value = ''
   plan.value = { items: [], toSave: [], missing: 0, adjusted: 0 }
 
@@ -185,6 +211,7 @@ const load = async () => {
   }
 
   shared.value = decoded.collection
+  name.value = decoded.collection.name
   versionStatus.value = checkSongsVersion(decoded.collection.songsVersion, settings.currentSongsVersion)
 
   if (versionStatus.value !== VERSION_OUTDATED) {
@@ -215,6 +242,10 @@ const save = async ({ merge }) => {
       ? sameName.value.id
       : await createCollection(freeName.value)
 
+    // Имя могли поправить — заголовок сохранённого блока должен совпасть с тем,
+    // что легло в базу, а не с присланным.
+    const savedName = merge && sameName.value ? sameName.value.name : freeName.value
+
     // Дубликат связи — не ошибка: часть песен уже могла лежать в подборке,
     // и импорт по смыслу добавляет недостающее, а не переписывает список.
     for (const item of plan.value.toSave) {
@@ -225,7 +256,7 @@ const save = async ({ merge }) => {
       }
     }
 
-    saved.value = { id: collectionId }
+    saved.value = { id: collectionId, name: savedName }
   } catch (err) {
     console.error('Ошибка импорта подборки:', err)
     saveError.value = 'Не удалось сохранить подборку'
@@ -338,6 +369,38 @@ watch(() => route.hash, load)
   color: var(--text-secondary);
   font-size: 0.8rem;
   white-space: nowrap;
+}
+
+.name-field {
+  margin-bottom: 1rem;
+}
+
+.name-label {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.name-input {
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.name-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.name-hint {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 0.35rem;
 }
 
 .actions {

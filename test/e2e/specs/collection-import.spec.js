@@ -226,6 +226,67 @@ test.describe('Подборка по ссылке: сохранение', () => 
   })
 })
 
+test.describe('Подборка по ссылке: имя подборки', () => {
+  test.beforeEach(async ({ page }) => { await withDevMode(page) })
+
+  test('имя из ссылки подставлено в поле и правится перед сохранением', async ({ page }) => {
+    await page.goto('/')
+    const sent = uniqueCollectionName('Присланное')
+    const own = uniqueCollectionName('Своё имя')
+    const data = await buildShareData(page, { name: sent, songs: [{ songNumber: SONGS.ONE.n }] })
+
+    await openImportLink(page, data)
+    await expect(page.locator(s.collectionImport.nameInput)).toHaveValue(sent)
+
+    await page.fill(s.collectionImport.nameInput, own)
+    await page.click(s.collectionImport.saveBtn)
+
+    await expect(page.locator(s.collectionImport.saved)).toContainText(own)
+
+    await waitForHomeReady(page)
+    await openSidebar(page)
+    await expect(page.locator(s.sidebar.collectionLink, { hasText: own })).toBeVisible()
+    // Под присланным именем ничего не создалось.
+    await expect(page.locator(s.sidebar.collectionLink, { hasText: sent })).toHaveCount(0)
+  })
+
+  test('введённое имя своей подборки включает слияние', async ({ page }) => {
+    // Совпадение считается от поля, а не от имени в ссылке: получатель может
+    // сам решить, что присланное — продолжение его подборки.
+    const own = uniqueCollectionName('Уже есть')
+    await createCollectionFromSong(page, SONGS.ONE.n, own)
+
+    const data = await buildShareData(page, {
+      name: uniqueCollectionName('Чужое'),
+      songs: [{ songNumber: SONGS.TWO.n }]
+    })
+    await openImportLink(page, data)
+    await expect(page.locator(s.collectionImport.mergeBtn)).toHaveCount(0)
+
+    await page.fill(s.collectionImport.nameInput, own)
+
+    await expect(page.locator(s.collectionImport.sameName)).toContainText(own)
+    await page.click(s.collectionImport.mergeBtn)
+
+    await expect(page.locator(s.collectionImport.saved)).toContainText(own)
+    await page.locator(`${s.collectionImport.saved} a`).click()
+
+    await page.waitForURL(/\/collections\/\d+$/)
+    await expect(page.locator(s.collection.songItem)).toHaveCount(2)
+  })
+
+  test('пустое имя не даёт сохранить', async ({ page }) => {
+    await page.goto('/')
+    const data = await buildShareData(page, { name: 'Без имени', songs: [{ songNumber: SONGS.ONE.n }] })
+
+    await openImportLink(page, data)
+    await page.fill(s.collectionImport.nameInput, '   ')
+
+    await expect(page.locator(s.collectionImport.nameHint)).toBeVisible()
+    await expect(page.locator(s.collectionImport.saveBtn)).toBeDisabled()
+  })
+})
+
 test.describe('Подборка по ссылке: сквозной путь', () => {
   test('поделиться подборкой → открыть ссылку → сохранить у получателя', async ({ page }) => {
     await withDevMode(page)
