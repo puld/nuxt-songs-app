@@ -10,6 +10,7 @@ import {
   stubWebShare,
   getShareCalls,
   buildShareData,
+  buildShareDataOffline,
   openImportLink
 } from '../lib/flows'
 
@@ -32,6 +33,24 @@ test.describe('Подборка по ссылке: гейт режима раз�
 
     await expect(page.locator(s.collectionImport.stub)).toContainText('Экспериментальный экран')
     await expect(page.locator(s.collectionImport.saveBtn)).toHaveCount(0)
+  })
+})
+
+test.describe('Подборка по ссылке: навигация', () => {
+  test.beforeEach(async ({ page }) => { await withDevMode(page) })
+
+  test('стрелка «Назад» ведёт на главную, а не из приложения', async ({ page }) => {
+    // Присланную ссылку открывают из мессенджера: страница импорта — первая
+    // запись истории вкладки, возвращаться некуда ни внутри приложения, ни вне
+    // его. Поэтому и данные ссылки считаются без браузера — заход на главную
+    // ради них дал бы кнопке «Назад» страницу, которой в жизни нет.
+    const data = buildShareDataOffline({ name: 'Гости', songs: [{ songNumber: SONGS.ONE.n }] })
+
+    await openImportLink(page, data)
+    await page.click(s.navbar.backBtn)
+
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.locator(s.search.input)).toBeVisible()
   })
 })
 

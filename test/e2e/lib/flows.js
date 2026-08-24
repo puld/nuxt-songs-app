@@ -221,6 +221,19 @@ export async function buildShareData(page, { name, songsVersion = 1, songs = [] 
   }, { name, songsVersion, songs })
 }
 
+/**
+ * То же, но без браузера — когда страница импорта должна быть первой записью
+ * истории вкладки: любой предварительный `goto` даёт кнопке «Назад» чужую
+ * страницу, куда можно вернуться, и баг с уходом из приложения не воспроизводится.
+ */
+export function buildShareDataOffline({ name, songsVersion = 1, songs = [] }) {
+  const list = songs
+    .map((s) => (s.variantIndex ? `${s.songNumber}.${s.variantIndex}` : String(s.songNumber)))
+    .join(',')
+
+  return Buffer.from(['1', name, String(songsVersion), list].join('\n')).toString('base64url')
+}
+
 /** Открывает страницу приёма подборки с готовым фрагментом. */
 export async function openImportLink(page, data) {
   await page.goto(`/collections/import#${data}`)

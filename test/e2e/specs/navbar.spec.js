@@ -1,7 +1,7 @@
 import { test, expect } from '../lib/fixtures'
 import { s } from '../lib/selectors'
 import { SONGS } from '../lib/songs'
-import { waitForHomeReady, gotoSong } from '../lib/flows'
+import { waitForHomeReady, gotoSong, openSidebar } from '../lib/flows'
 
 // Навбар (глобальный chrome): заголовки per-page, гамбургер/назад,
 // Teleport-слоты. Скрытие при скролле здесь не проверяем (флаки на CI).
@@ -29,11 +29,28 @@ test.describe('Навбар', () => {
   })
 
   test('стрелка назад возвращает на предыдущую страницу', async ({ page }) => {
-    await waitForHomeReady(page)
+    // Переход внутри приложения, а не `goto`: только так в истории роутера
+    // появляется предыдущая запись, и видно, что кнопка идёт по ней, а не на
+    // главную запасным путём — со страницы песни разница заметна.
+    await gotoSong(page, SONGS.ONE.n)
+    await openSidebar(page)
+    await page.click(`${s.sidebar.link}:has-text("Настройки")`)
+    await expect(page.locator(s.navbar.backBtn)).toBeVisible()
+
+    await page.click(s.navbar.backBtn)
+
+    await expect(page).toHaveURL(new RegExp(`/song/${SONGS.ONE.n}$`))
+  })
+
+  test('стрелка назад при заходе по прямой ссылке ведёт на главную', async ({ page }) => {
+    // Приложение открыто сразу на внутреннем экране: возвращаться внутри него
+    // некуда, и `router.back()` уводил бы из приложения вовсе.
     await page.goto('/settings')
     await expect(page.locator(s.navbar.backBtn)).toBeVisible()
+
     await page.click(s.navbar.backBtn)
-    // router.back() → должны вернуться на главную.
+
     await expect(page).toHaveURL(/\/$/)
+    await expect(page.locator(s.search.input)).toBeVisible()
   })
 })
