@@ -17,6 +17,16 @@ import { useSongs } from './useSongs'
 
 let db = null
 
+// Заглушка настроек: `useSettingsStore` — авто-импорт Nuxt, в тестах его нет.
+// Нужна не ради самого стора, а чтобы видеть, что fetchSongs записывает версию
+// базы и ETag, — без неё ветка сохранения молча падала бы внутри try/catch.
+const settingsStore = {
+    setSongsEtag: vi.fn(),
+    setSongsVersion: vi.fn()
+}
+
+globalThis.useSettingsStore = () => settingsStore
+
 describe('useSongs', () => {
     beforeEach(async () => {
         db = await global.setupTestDB()
@@ -26,6 +36,8 @@ describe('useSongs', () => {
     afterEach(() => {
         mockDBRef.current = null
         clearFetchMocks()
+        settingsStore.setSongsEtag.mockClear()
+        settingsStore.setSongsVersion.mockClear()
         db = null
     })
 
@@ -64,6 +76,26 @@ describe('useSongs', () => {
             const mockFetchRestore = mockFetchResponse({ songs: songsData })
 
             await expect(useSongs().fetchSongs()).resolves.toBe(true)
+
+            mockFetchRestore()
+        })
+
+        it('сохраняет версию базы из корня файла', async () => {
+            const mockFetchRestore = mockFetchResponse({ version: 7, songs: songsData })
+
+            await useSongs().fetchSongs()
+
+            expect(settingsStore.setSongsVersion).toHaveBeenCalledWith(7)
+
+            mockFetchRestore()
+        })
+
+        it('файл без версии не срывает загрузку — версию решает нормализация', async () => {
+            // songs.json мог приехать из кэша PWA от сборки без версии.
+            const mockFetchRestore = mockFetchResponse({ songs: songsData })
+
+            await expect(useSongs().fetchSongs()).resolves.toBe(true)
+            expect(settingsStore.setSongsVersion).toHaveBeenCalledWith(undefined)
 
             mockFetchRestore()
         })

@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { checkSectionsIntegrity } = require('./sections-integrity');
+const { readVersion } = require('./version');
 
 const inputDir = process.argv[2] || __dirname;
 const outputPath = process.argv[3] || path.join(__dirname, '../public/assets/songs.json');
@@ -228,10 +229,22 @@ function main() {
     process.exitCode = 1;
   }
 
-  // 5. Собираем итоговый JSON
-  const result = { songs, sections };
+  // 5. Читаем версию базы — ручной счётчик из version.txt.
+  // Нужна шерингу подборок: ссылка несёт номера песен, а не тексты, и получателю
+  // важно знать, из какой версии базы подборка собрана. Испорченное значение
+  // роняет сборку по той же причине, что и битые разделы: тихо подставленный
+  // ноль означал бы, что каждая ссылка считает базу самой старой.
+  const { version, error: versionError } = readVersion(inputDir);
 
-  // 6. Вывод
+  if (versionError) {
+    console.error(versionError);
+    process.exitCode = 1;
+  }
+
+  // 6. Собираем итоговый JSON
+  const result = { version, songs, sections };
+
+  // 7. Вывод
   const output = JSON.stringify(result, null, 2);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, output, 'utf8');

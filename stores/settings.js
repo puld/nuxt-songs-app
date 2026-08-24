@@ -1,6 +1,7 @@
 import { useStorage } from '@vueuse/core'
 import { DEFAULT_SONGS_LIST_MODE, normalizeSongsListMode } from '~/lib/songsList'
 import { addRecent, normalizeRecent } from '~/lib/recentSongs'
+import { normalizeSongsVersion, DEFAULT_SONGS_VERSION } from '~/lib/songsVersion'
 
 export const useSettingsStore = defineStore('settings', {
     state: () => ({
@@ -8,6 +9,9 @@ export const useSettingsStore = defineStore('settings', {
         showChords: useStorage('showChords', false),
         keepScreenOn: useStorage('keepScreenOn', true),
         songsEtag: useStorage('songsEtag', ''),
+        // Версия базы песен из корня songs.json — по ней ссылка на подборку
+        // понимает, что у получателя база старее, чем у отправителя
+        songsVersion: useStorage('songsVersion', DEFAULT_SONGS_VERSION),
         lastUpdateCheck: useStorage('lastUpdateCheck', 0),
         devMode: useStorage('devMode', false), // режим разработчика: гейт экспериментальных функций
         // Режим группировки на «Все песни»: у каждого свой способ искать песню,
@@ -21,7 +25,10 @@ export const useSettingsStore = defineStore('settings', {
     getters: {
         // Значение из localStorage может быть любым — нормализуем при чтении,
         // чтобы мусор не ушёл в шаблон пустыми ссылками
-        recentSongNumbers: (state) => normalizeRecent(state.recentSongs)
+        recentSongNumbers: (state) => normalizeRecent(state.recentSongs),
+        // Значение лежит в localStorage и может оказаться мусором, а на нём
+        // держится сравнение версий при импорте подборки
+        currentSongsVersion: (state) => normalizeSongsVersion(state.songsVersion)
     },
     actions: {
         setFontSize(size) {
@@ -35,6 +42,9 @@ export const useSettingsStore = defineStore('settings', {
         },
         setSongsEtag(etag) {
             this.songsEtag = etag
+        },
+        setSongsVersion(version) {
+            this.songsVersion = normalizeSongsVersion(version)
         },
         setLastUpdateCheck(timestamp) {
             this.lastUpdateCheck = timestamp

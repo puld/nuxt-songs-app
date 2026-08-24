@@ -51,7 +51,7 @@ npm run start        # Запуск production-сервера (после build)
 
 ### Данные песен
 ```bash
-npm run songs:parse    # songs-data/songs/*.txt + sections.json → public/assets/songs.json
+npm run songs:parse    # songs-data/songs/*.txt + sections.json + version.txt → public/assets/songs.json
                        # + проверка целостности разделов: расхождение = код возврата 1
 npm run songs:lint     # Линтер формата .txt + целостность разделов
                        # (node songs-data/lint.js --staged — только staged)
@@ -134,6 +134,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
 │   ├── songsIndex.js         # Карта «номер → песня» и «номер → раздел», названия и метки вариантов
+│   ├── songsVersion.js       # Нормализация версии базы песен
 │   ├── songsList.js          # Группировка песен: по номеру, алфавиту, разделам
 │   ├── storagePersist.js     # navigator.storage: постоянное хранилище и оценка места
 │   └── wakeLock.js           # Менеджер Wake Lock
@@ -153,7 +154,9 @@ npm run test:e2e:headed / test:e2e:ui
 ├── songs-data/               # ИСТОЧНИК ДАННЫХ (см. docs/reference/song-format.md)
 │   ├── songs/NNNN.txt        # 1565 файлов песен
 │   ├── sections.json         # Разделы сборника
+│   ├── version.txt           # Версия базы: ручной счётчик (см. «Версия базы песен»)
 │   ├── parse.js              # .txt → songs.json
+│   ├── version.js            # Чтение и разбор version.txt
 │   ├── lint.js               # Линтер формата .txt
 │   ├── sections-integrity.js # Проверка согласованности sections.json с песнями
 │   ├── repeat-balance.js     # Проверка баланса маркеров повтора в строфе
@@ -314,7 +317,7 @@ Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `sear
 Страницы главной и песни берут песни и номера отсюда, а не из `useIndexDB()` напрямую.
 
 ### `useSongs` (composables/useSongs.js)
-- `fetchSongs()` — загружает `assets/songs.json` через `fetch()`, сохраняет в IndexedDB через `addSongs()` и запоминает ETag. Единая точка входа для обновления базы. После записи вызывает `invalidateSongsCache()` и `resetSearchIndex()` — кэш песен и поисковые индексы устарели. Возвращает `true/false`.
+- `fetchSongs()` — загружает `assets/songs.json` через `fetch()`, сохраняет в IndexedDB через `addSongs()`, запоминает версию базы (`setSongsVersion`) и ETag. Единая точка входа для обновления базы. После записи вызывает `invalidateSongsCache()` и `resetSearchIndex()` — кэш песен и поисковые индексы устарели. Возвращает `true/false`.
 
 ### `useAutoUpdate` (composables/useAutoUpdate.js)
 Проверка обновлений базы по ETag: HEAD-запрос к `songs.json`, сравнение с сохранённым ETag, при расхождении — `settings.updateAvailable = true`. Коулдаун 30 минут (`lib/autoUpdate.js`). Применение обновления делегируется в `useSongs().fetchSongs()`.
@@ -357,13 +360,16 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 | `showChords` | Boolean | `true` / `false` | `false` |
 | `keepScreenOn` | Boolean | `true` / `false` | `true` |
 | `songsEtag` | String | ETag последней загрузки `songs.json` | `''` |
+| `songsVersion` | Number | версия базы из корня `songs.json` (см. «Версия базы песен») | `0` |
 | `lastUpdateCheck` | Number | timestamp последней проверки (ms) | `0` |
 | `devMode` | Boolean | режим разработчика — гейт экспериментальных функций | `false` |
 | `songsListMode` | String | режим группировки на «Все песни»: `'number'`, `'alphabet'`, `'sections'` | `'number'` |
 | `recentSongs` | Array | номера недавно открытых песен, свежая первой (не более `RECENT_LIMIT`) | `[]` |
 | `updateAvailable` | Boolean | **не персистентно** — пересчитывается при запуске | `false` |
 
-Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`), `addRecentSong`, `clearRecentSongs`.
+Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setSongsVersion` (через `normalizeSongsVersion`), `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`), `addRecentSong`, `clearRecentSongs`.
+
+Геттер `currentSongsVersion` нормализует версию при чтении — на ней держится сравнение баз при импорте подборки, и `NaN` из localStorage сломал бы его молча.
 
 Геттер `recentSongNumbers` нормализует историю при чтении (`normalizeRecent`): значение приходит из localStorage, где может оказаться что угодно, а мусор ушёл бы прямо в шаблон пустыми ссылками.
 
@@ -498,6 +504,24 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 
 ### Источник данных — songs-data/, а не songs.json
 `public/assets/songs.json` **генерируется** из `songs-data/songs/*.txt` и правится только через них. Файл пересобирается автоматически в `dev`/`build`/`generate`. Ручные правки `songs.json` затрутся при следующей сборке.
+
+### Версия базы песен — ручной счётчик
+
+В корне `songs.json` лежит целое `version`. Источник — `songs-data/version.txt`
+(одно число), читает его `songs-data/version.js`, кладёт в файл `parse.js`.
+Приложение запоминает значение при загрузке базы (`songsVersion` в настройках).
+
+**Инкремент — вручную, в том же коммите, что и правка данных**, и только при
+значимых для подборок изменениях: новые песни, изменение номеров, переразбивка
+на варианты. Опечатка в тексте счётчик не двигает. Автоматической производной от
+содержимого здесь быть не должно: хеш менялся бы от любой правки, а ссылка на
+подборку ссылается на номера песен и индексы вариантов — ей важны только те
+изменения, после которых номер означает другое.
+
+Испорченное значение в `version.txt` **роняет сборку** (код возврата 1), как и
+битые разделы: молча подставленный ноль означал бы, что каждая разосланная
+ссылка считает базу самой старой, и получатели видели бы ложное «обновите базу».
+Отсутствие файла ошибкой не считается — это версия `0`.
 
 ### Путь к базе данных песен
 Файл лежит в `public/assets/songs.json` — этот путь важен для PWA-кэширования. Локально доступен как `/assets/songs.json`; загрузка в IndexedDB — `fetch('assets/songs.json')` в `useSongs.fetchSongs()`.
