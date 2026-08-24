@@ -212,17 +212,7 @@ const backupBusy = ref(false)
 const backupMessage = ref('')
 const backupSuccess = ref(false)
 
-/** Отдаёт текст файлом: в PWA это единственный способ «сохранить наружу». */
-const downloadText = (text, fileName) => {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
-}
+const { downloadText } = useFileDownload()
 
 const exportCollections = async () => {
   backupBusy.value = true

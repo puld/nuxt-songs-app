@@ -206,6 +206,9 @@ export const s = {
     editDone: '.edit-done',
     deleteSection: '.delete-collection-section',
     deleteBtn: '.delete-collection-btn',
+    // Ступень 3 деградации ссылки: подборка не влезает даже сжатой
+    shareFallback: '[data-testid="share-fallback"]',
+    shareFallbackExport: '[data-testid="share-fallback-export"]',
     empty: 'text=В этой подборке пока нет песен',
     addSongsLink: 'a:has-text("Добавить песни")',
     notFound: 'text=Подборка не найдена',
