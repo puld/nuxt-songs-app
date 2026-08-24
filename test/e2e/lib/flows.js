@@ -199,3 +199,30 @@ export async function removeWebShare(page) {
 export async function getShareCalls(page) {
   return page.evaluate(() => window.__shareCalls || [])
 }
+
+/**
+ * Собирает данные для фрагмента ссылки на подборку (формат `1`, без сжатия).
+ *
+ * Тест кодирует payload сам, а не через `lib/collectionShare.js`: так ссылку
+ * можно собрать с любой версией базы — иначе ветку «база получателя устарела»
+ * не проверить, ведь приложение всегда пишет актуальную версию.
+ */
+export async function buildShareData(page, { name, songsVersion = 1, songs = [] }) {
+  return page.evaluate(({ name, songsVersion, songs }) => {
+    const list = songs
+      .map((s) => (s.variantIndex ? `${s.songNumber}.${s.variantIndex}` : String(s.songNumber)))
+      .join(',')
+    const bytes = new TextEncoder().encode(['1', name, String(songsVersion), list].join('\n'))
+
+    let binary = ''
+    for (const byte of bytes) binary += String.fromCharCode(byte)
+
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  }, { name, songsVersion, songs })
+}
+
+/** Открывает страницу приёма подборки с готовым фрагментом. */
+export async function openImportLink(page, data) {
+  await page.goto(`/collections/import#${data}`)
+  await page.waitForSelector(s.collectionImport.page)
+}

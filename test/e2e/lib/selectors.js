@@ -212,6 +212,25 @@ export const s = {
     homeLink: 'a:has-text("На главную")',
   },
 
+  // === Страница подборки по ссылке (/collections/import#<data>) ===
+  collectionImport: {
+    page: '.import-page',
+    stub: '.import-page .stub',
+    title: '.import-title',
+    subtitle: '.import-subtitle',
+    song: '[data-testid="import-song"]',
+    songNumber: '[data-testid="import-song"] .song-number',
+    songTitle: '[data-testid="import-song"] .song-title',
+    songNote: '[data-testid="import-song"] .song-note',
+    sameName: '[data-testid="import-same-name"]',
+    mergeBtn: '[data-testid="import-merge"]',
+    saveBtn: '[data-testid="import-save"]',
+    saved: '[data-testid="import-saved"]',
+    error: '.import-page .notice-error',
+    warning: '.import-page .notice-warning',
+    updateBtn: 'button:has-text("Обновить базу песен")',
+  },
+
   // === Страница «Все песни» (список с группировкой) ===
   songsList: {
     page: '.songs-page',

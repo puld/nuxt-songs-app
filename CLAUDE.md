@@ -126,6 +126,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── autoUpdate.js         # ETag-логика автообновления
 │   ├── collectionsBackup.js  # Копия подборок: сборка, разбор, план импорта
 │   ├── collectionShare.js    # Ссылка на подборку: компактный payload + base64url
+│   ├── collectionImport.js   # Приём ссылки: сверка версии базы, план сохранения
 │   ├── collectionsOrder.js   # Порядок подборок: сортировка, план записи, перестановка
 │   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
@@ -148,7 +149,8 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── settings.vue          # Настройки
 │   ├── songs.vue             # Все песни: список с группировкой (за devMode)
 │   ├── song/[number].vue     # Страница песни
-│   └── collections/[id].vue  # Подборка: список песен
+│   ├── collections/[id].vue  # Подборка: список песен
+│   └── collections/import.vue # Приём подборки по ссылке (#<data>)
 ├── app/
 │   └── router.options.js     # Прокрутка при навигации: `scrollToTop: false` значит «страница разберётся сама»
 ├── plugins/
@@ -291,7 +293,8 @@ npm run test:e2e:headed / test:e2e:ui
 Подборки локальны, `id` в них autoIncrement — делиться `id` бессмысленно. Общая у всех
 только база песен, поэтому ссылка несёт `{ имя, версия базы, список (номер, вариант) }`,
 а тексты не передаются. Чистые функции — `lib/collectionShare.js`, кнопка — на странице
-подборки (см. «Поделиться»); страница, принимающая такую ссылку, — 4.4 дорожной карты.
+подборки (см. «Поделиться»); страница, принимающая такую ссылку, — `pages/collections/import.vue`
+(см. «Приём подборки по ссылке»).
 
 Payload — компактная строка из четырёх строк, а не JSON: она уезжает в URL, где каждый
 символ видит пользователь и считают мессенджеры.
@@ -329,7 +332,7 @@ Payload — компактная строка из четырёх строк, а
 - **Подборка** — адрес страницы импорта с payload во фрагменте
   (`/collections/import#<data>`). Фрагмент на сервер не уходит, длина ограничена только
   браузером. Кнопка **за `devMode`** и **не показывается у «Избранного»**: страница
-  импорта появится в 4.4, а своё «Избранное» есть у каждого — подменять его чужим нечего
+  импорта тоже за гейтом, а своё «Избранное» есть у каждого — подменять его чужим нечего
 
 Чистые функции — `lib/share.js` (`joinUrl`, `songPath`, `songShareTitle`,
 `collectionShareTitle`, `shareMethod`), отправка — `composables/useShare.js`, кнопка —
@@ -352,6 +355,42 @@ Payload — компактная строка из четырёх строк, а
 - **В e2e Web Share обязательно подменять** (`stubWebShare` в `test/e2e/lib/flows.js`):
   desktop-Chromium `navigator.share` заявляет, но системной шторки в автоматизации нет —
   настоящий вызов зависает, и тест падает по таймауту, а не по существу
+
+### Приём подборки по ссылке
+
+Страница `pages/collections/import.vue` (`/collections/import#<data>`) — вторая
+половина шеринга: то, что видит получатель. Чистые функции — `lib/collectionImport.js`
+(`checkSongsVersion`, `planShareImport`, `findSameNameCollection`, `uniqueCollectionName`).
+
+- **Маршрут обязан быть статическим файлом.** Без `import.vue` адрес попадает в
+  `pages/collections/[id].vue`, где `Number('import')` даёт `NaN` и экран говорит
+  «Подборка не найдена» — именно так баг и пришёл от пользователя. В статике и в PWA то
+  же самое: динамический маршрут перехватывает всё, чему нет своей страницы
+- **Импорт останавливается только когда база получателя старше ссылки.** Номеров из
+  ссылки в старой базе может не быть, и половина подборки молча превратилась бы в
+  «песня не найдена», поэтому вместо списка — предложение обновить базу. Обратный
+  случай безопасен: подборка ссылается на номера, а они стабильны; разъехаться могут
+  только варианты — отсюда мягкое предупреждение, а не стоп
+- **Отсутствующая песня не отменяет импорт целиком**: она видна в списке с пометкой и
+  не попадает в подборку. Терять из-за одной песни всю подборку хуже, чем сохранить
+  остальное. Вариант вне диапазона прижимается к основному — тоже с пометкой
+- **Правило «та же подборка» одно с резервной копией**: `normalizeCollectionName`
+  вынесен из `lib/collectionsBackup.js`, иначе слияние по ссылке и по копии считали бы
+  одинаковыми разные имена. Совпало имя — предлагаются оба пути: добавить в свою
+  подборку или сохранить рядом под свободным именем (`Рождество (2)`)
+- **Дубликат связи при слиянии — не ошибка, а пропуск**: часть песен уже могла лежать в
+  подборке, и импорт по смыслу добавляет недостающее, а не переписывает список
+- **Страница слушает `route.hash`.** Вторая ссылка, открытая при уже открытой странице,
+  меняет только фрагмент: документ не перезагружается, `onMounted` не повторяется — без
+  watch получатель видел бы прежнюю подборку и сохранил бы не то, что прислали
+- Экран за `devMode`, но маршрут не закрыт: при `ssr: false` статика генерируется для
+  всех маршрутов, поэтому прямой заход показывает объяснение, а не пустоту
+- **В e2e-фикстуре есть `version: 1`** (`test/e2e/data/fixtures/songs.fixture.json`): без
+  версии приложение записывает `0`, и любая ссылка выглядела бы собранной на более новой
+  базе. Ссылки в тестах кодирует свой хелпер (`buildShareData` в `test/e2e/lib/flows.js`),
+  а не `lib/collectionShare.js` — иначе версию в payload не подделать, и ветка «база
+  устарела» осталась бы непроверенной
+
 
 ## Composables
 
@@ -554,11 +593,11 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionsOrder.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar (в т.ч. порядок подборок), favorites, collections, add-to-collection, songs (в т.ч. переход к разделу по якорю), settings, about, song (в т.ч. раздел сборника), song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore, share
+- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar (в т.ч. порядок подборок), favorites, collections, add-to-collection, songs (в т.ч. переход к разделу по якорю), settings, about, song (в т.ч. раздел сборника), song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore, share, collection-import
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия
