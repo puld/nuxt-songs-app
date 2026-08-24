@@ -172,6 +172,84 @@ test.describe('Сайдбар: порядок подборок', () => {
     await expect(rows.nth(2)).toContainText(first)
   })
 
+  /** Смещение и переход каждой строки: transform в матрице, m42 — сдвиг по Y. */
+  const rowTransforms = (rows) => rows.evaluateAll(els => els.map(el => {
+    const style = getComputedStyle(el)
+    const matrix = new DOMMatrixReadOnly(style.transform === 'none' ? '' : style.transform)
+
+    return { y: Math.round(matrix.m42), transition: style.transitionDuration }
+  }))
+
+  test('при перетаскивании сосед расступается, а после отпускания смещения сняты', async ({ page }) => {
+    await enableDevMode(page)
+    const first = uniqueCollectionName('Первая')
+    const second = uniqueCollectionName('Вторая')
+    await withCollections(page, first, second)
+    await page.locator(s.sidebar.reorderToggle).click()
+
+    const rows = page.locator(s.sidebar.collectionRow)
+    const handle = rows.nth(1).locator(s.sidebar.collectionHandle)
+    const box = await handle.boundingBox()
+    const rowHeight = Math.round((await rows.nth(1).boundingBox()).height)
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + rowHeight, { steps: 5 })
+
+    // Замер под удерживаемой мышью: состояние жеста не транзиентное.
+    const during = await rowTransforms(rows)
+
+    // Перетаскиваемая едет за курсором и без перехода — иначе она отставала бы.
+    expect(during[1].y).toBeGreaterThan(rowHeight / 2)
+    expect(during[1].transition).toBe('0s')
+    // Сосед расступается плавно — на переходе, а не рывком.
+    expect(during[2].transition).not.toBe('0s')
+    // «Избранное» закреплено — оно не участвует в перестановке.
+    expect(during[0].y).toBe(0)
+
+    // Куда он уступает место, видно после доигрывания перехода: мышь всё ещё
+    // удерживается, так что состояние жеста никуда не денется.
+    await expect.poll(async () => Math.abs((await rowTransforms(rows))[2].y + rowHeight))
+      .toBeLessThanOrEqual(1)
+
+    await page.mouse.up()
+    await expect(rows.nth(1)).toContainText(second)
+
+    // Переход задаётся inline только на время жеста: когда состояние сброшено,
+    // смещения снимаются вместе с ним — иначе строки «догоняли» бы новые места
+    // уже после перестановки DOM, и это выглядело бы как рывок.
+    await expect.poll(() => rowTransforms(rows))
+      .toEqual([
+        { y: 0, transition: '0s' },
+        { y: 0, transition: '0s' },
+        { y: 0, transition: '0s' }
+      ])
+  })
+
+  test('строка, которую двигают стрелкой, едет поверх заменяемой', async ({ page }) => {
+    await enableDevMode(page)
+    const first = uniqueCollectionName('Первая')
+    const second = uniqueCollectionName('Вторая')
+    await withCollections(page, first, second)
+    await page.locator(s.sidebar.reorderToggle).click()
+
+    const rows = page.locator(s.sidebar.collectionRow)
+    await rows.nth(1).locator(s.sidebar.collectionDown).click()
+
+    // Пока строки меняются местами, нажатая поднята над соседкой: без этого
+    // они разъезжались бы «сквозь» друг друга.
+    await expect(rows.nth(1)).toHaveClass(/is-lifted/)
+
+    // По окончании перестановки inline-стиль исчезает вместе с состоянием.
+    await expect(rows.nth(1)).toContainText(second)
+    await expect.poll(() => rowTransforms(rows))
+      .toEqual([
+        { y: 0, transition: '0s' },
+        { y: 0, transition: '0s' },
+        { y: 0, transition: '0s' }
+      ])
+  })
+
   test('«Готово» возвращает обычный вид со счётчиками', async ({ page }) => {
     await enableDevMode(page)
     await withCollections(page, uniqueCollectionName('Первая'), uniqueCollectionName('Вторая'))
