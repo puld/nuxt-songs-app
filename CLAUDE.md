@@ -104,6 +104,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── SettingToggle.vue     # Кнопка-переключатель настроек
 │   ├── SongCard.vue          # Карточка песни (не используется в страницах)
 │   ├── SongDisplay.vue       # Текст песни с аккордами, повторами и табами вариантов
+│   ├── ShareButton.vue       # Кнопка «Поделиться» (песня и подборка)
 │   ├── SongSearchInput.vue   # Поле поиска + выдача (поиск по тексту и по номеру)
 │   └── UpdateToast.vue       # Тост «доступно обновление базы»
 ├── composables/
@@ -115,6 +116,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── useSongs.js           # Загрузка songs.json в IndexedDB
 │   ├── useSongsCache.js      # Модульный кэш песен: allSongs, songNumbers, songsMap
 │   ├── useSongSearch.js      # Vue-обёртка для поиска (индексы — синглтон)
+│   ├── useShare.js           # Отправка ссылки: Web Share или буфер обмена
 │   ├── useKeyboardOffset.js  # Смещение попапа при экранной клавиатуре
 │   ├── useWakeLock.js        # Обёртка над Wake Lock API
 │   └── utils.js              # pluralize для русского языка
@@ -134,6 +136,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── recentSongs.js        # История просмотров: нормализация и добавление
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
+│   ├── share.js              # Ссылки «поделиться»: адрес и подписи
 │   ├── songsIndex.js         # Карта «номер → песня» и «номер → раздел», названия и метки вариантов
 │   ├── songsVersion.js       # Нормализация версии базы песен
 │   ├── songsList.js          # Группировка песен: по номеру, алфавиту, разделам
@@ -287,8 +290,8 @@ npm run test:e2e:headed / test:e2e:ui
 
 Подборки локальны, `id` в них autoIncrement — делиться `id` бессмысленно. Общая у всех
 только база песен, поэтому ссылка несёт `{ имя, версия базы, список (номер, вариант) }`,
-а тексты не передаются. Чистые функции — `lib/collectionShare.js`; интерфейса пока нет
-(4.3–4.4 дорожной карты).
+а тексты не передаются. Чистые функции — `lib/collectionShare.js`, кнопка — на странице
+подборки (см. «Поделиться»); страница, принимающая такую ссылку, — 4.4 дорожной карты.
 
 Payload — компактная строка из четырёх строк, а не JSON: она уезжает в URL, где каждый
 символ видит пользователь и считают мессенджеры.
@@ -316,6 +319,39 @@ Payload — компактная строка из четырёх строк, а
   работает только через `CompressionStream`, и менять сигнатуру после появления вызовов
   в интерфейсе дороже, чем принять `await` сразу
 - Ошибки возвращаются значением (`{ ok, error }`), как в `lib/collectionsBackup.js`
+
+### Поделиться
+
+Одно слово покрывает две разные вещи, и различие видно пользователю:
+
+- **Песня** — обычный адрес приложения (`/song/115?v=1`). Открывается у любого
+  получателя без импорта, поэтому кнопка **открыта всем**, без гейтов
+- **Подборка** — адрес страницы импорта с payload во фрагменте
+  (`/collections/import#<data>`). Фрагмент на сервер не уходит, длина ограничена только
+  браузером. Кнопка **за `devMode`** и **не показывается у «Избранного»**: страница
+  импорта появится в 4.4, а своё «Избранное» есть у каждого — подменять его чужим нечего
+
+Чистые функции — `lib/share.js` (`joinUrl`, `songPath`, `songShareTitle`,
+`collectionShareTitle`, `shareMethod`), отправка — `composables/useShare.js`, кнопка —
+`components/ShareButton.vue`.
+
+- **Способ выбирается по браузеру**: `navigator.share` (телефон, установленное PWA), иначе
+  буфер обмена. Нет ни того, ни другого — кнопки нет вовсе: буфер требует защищённого
+  контекста, и по http кнопка была бы мёртвой
+- **Отказ пользователя (`AbortError`) — не ошибка**: шторку закрывают мимо цели чаще, чем
+  ошибаются приложения, и красная плашка выглядела бы поломкой. Молча копировать в буфер
+  после отказа тоже нельзя — пользователь уже сказал «нет»
+- **Адрес подборки готовится заранее**, в `watch` по составу, а не по нажатию:
+  `navigator.share` требует жеста пользователя, и вызов после `await` Safari уже не
+  считает ответом на клик. Пока адреса нет, кнопка неактивна, а не отсутствует — иначе
+  она появлялась бы в навбаре с задержкой
+- **Путь берётся у роутера** (`router.resolve`), а не собирается строкой: на GitHub Pages
+  приложение живёт не в корне домена, и `app.baseURL` иначе потерялся бы
+- **Пустые поля в payload `navigator.share` не отправляются**: часть целей вставляет
+  `text` буквально, и сообщение начиналось бы с пустой строки
+- **В e2e Web Share обязательно подменять** (`stubWebShare` в `test/e2e/lib/flows.js`):
+  desktop-Chromium `navigator.share` заявляет, но системной шторки в автоматизации нет —
+  настоящий вызов зависает, и тест падает по таймауту, а не по существу
 
 ## Composables
 
@@ -518,11 +554,11 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionsOrder.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionsOrder.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar (в т.ч. порядок подборок), favorites, collections, add-to-collection, songs (в т.ч. переход к разделу по якорю), settings, about, song (в т.ч. раздел сборника), song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
+- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar (в т.ч. порядок подборок), favorites, collections, add-to-collection, songs (в т.ч. переход к разделу по якорю), settings, about, song (в т.ч. раздел сборника), song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore, share
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия

@@ -117,6 +117,12 @@ export const s = {
     backHome: 'a:has-text("Вернуться на главную")',
   },
 
+  // === Кнопка «Поделиться» (страница песни и страница подборки) ===
+  share: {
+    button: '[data-testid="share-button"]',
+    toast: '[data-testid="share-toast"]',
+  },
+
   // === Чипы подборок на странице песни ===
   chips: {
     section: '.collections-section',

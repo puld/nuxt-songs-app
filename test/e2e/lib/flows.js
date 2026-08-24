@@ -170,3 +170,32 @@ export async function seedCollections(page, count) {
 
   await page.reload()
 }
+
+/**
+ * Подменяет `navigator.share` перехватчиком.
+ *
+ * Обязательно для любого теста, который жмёт «Поделиться»: desktop-Chromium
+ * Web Share заявляет, но системной шторки в автоматизации нет — настоящий вызов
+ * просто зависает, и тест падает по таймауту, а не по существу.
+ */
+export async function stubWebShare(page) {
+  await page.addInitScript(() => {
+    window.__shareCalls = []
+    Navigator.prototype.share = function (data) {
+      window.__shareCalls.push(data)
+      return Promise.resolve()
+    }
+  })
+}
+
+/** Убирает Web Share целиком — остаётся ветка копирования в буфер. */
+export async function removeWebShare(page) {
+  await page.addInitScript(() => {
+    delete Navigator.prototype.share
+  })
+}
+
+/** Перехваченные вызовы `navigator.share`. */
+export async function getShareCalls(page) {
+  return page.evaluate(() => window.__shareCalls || [])
+}

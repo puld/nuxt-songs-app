@@ -21,8 +21,9 @@
   </ClientOnly>
 
   <ClientOnly>
-    <!-- Навбар: звезда избранного -->
+    <!-- Навбар: поделиться песней и звезда избранного -->
     <Teleport to="#navbar-right" v-if="song">
+      <ShareButton :url="shareUrl" :title="shareTitle" aria-label="Поделиться песней"/>
       <button class="favorite-star" :class="{ active: isSongFavorite }" @click="toggleFavorite" aria-label="Избранное">
         <Icon :name="isSongFavorite ? 'mingcute:star-fill' : 'mingcute:star-line'" size="1.5rem"/>
       </button>
@@ -138,6 +139,7 @@
 import { useSettingsStore } from '~/stores/settings'
 import { buildSectionIndex, getSongSection } from '~/lib/songsIndex'
 import { sectionAnchor } from '~/lib/songsList'
+import { joinUrl, songPath, songShareTitle } from '~/lib/share'
 
 const route = useRoute();
 const router = useRouter()
@@ -254,6 +256,26 @@ const currentVariantLabel = computed(() => {
   const label = song.value.variants[currentVariantIndex.value]?.label
   return label || ''
 })
+
+// Ссылка, которой делятся: обычный адрес приложения, поэтому у получателя
+// песня открывается сразу, без импорта. Путь берётся у роутера — он добавляет
+// `app.baseURL`, а на GitHub Pages приложение живёт не в корне домена.
+const shareUrl = computed(() => {
+  if (!song.value || typeof window === 'undefined') return ''
+
+  const path = songPath(song.value.number, currentVariantIndex.value)
+  return joinUrl(window.location.origin, router.resolve(path).href)
+})
+
+const shareTitle = computed(() => (
+  song.value
+    ? songShareTitle({
+        number: song.value.number,
+        title: song.value.title,
+        variantLabel: currentVariantLabel.value
+      })
+    : ''
+))
 
 // Раздел сборника, в который входит песня. Карта строится из хранилища
 // `sections`, а не поиском по разделам на каждый рендер.
