@@ -56,10 +56,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Про выбор версии Node — комментарий в .github/workflows/ci.yml.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
