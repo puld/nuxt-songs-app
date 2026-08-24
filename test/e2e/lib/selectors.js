@@ -65,6 +65,8 @@ export const s = {
     updateBadge: '.update-badge',
     // Ручная сортировка подборок (за devMode)
     reorderToggle: '[data-testid="reorder-toggle"]',
+    collectionsList: '.sidebar-collections',
+    liftedRow: '.sidebar-collection-row.is-lifted',
     collectionRow: '[data-testid="sidebar-collection"]',
     collectionHandle: '[data-testid="collection-handle"]',
     collectionUp: '[data-testid="collection-up"]',

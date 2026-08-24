@@ -1,6 +1,6 @@
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
-import { dropIndex, moveItem, previewShift, sortCollections } from '~/lib/collectionsOrder'
+import { clampOffset, dropIndex, moveItem, previewShift, sortCollections } from '~/lib/collectionsOrder'
 
 const colorMode = useColorMode()
 const settings = useSettingsStore()
@@ -53,6 +53,7 @@ const canReorder = computed(() => movableCount.value > 1)
 
 const toggleReorder = () => {
   reordering.value = !reordering.value
+  endDrag()
   drag.value = null
 }
 
@@ -103,15 +104,116 @@ const moveBy = (index, step, event) => {
 /** Сколько строка доезжает до слота после отпускания ручки. */
 const SETTLE_MS = 140
 
+/**
+ * Скроллируемый контейнер списка на время жеста.
+ *
+ * Держим его вне `drag`, а не в состоянии: это DOM-узел, реактивность ему не
+ * нужна, а лишний ключ в объекте состояния копировался бы при каждом кадре.
+ */
+let dragList = null
+
+/**
+ * Пересчитывает смещение и целевой слот по последней позиции указателя.
+ *
+ * Отдельно от обработчика событий, потому что двигаться может не только палец:
+ * при автоскролле указатель стоит, а список едет — и строка должна оставаться
+ * там, где её держат.
+ */
+const updateDrag = () => {
+  const state = drag.value
+  if (!state || state.settling) return
+
+  // Смещение считаем в координатах содержимого, а не окна: прокрутка списка
+  // уводит строку из-под пальца ровно на `scrollTop`, и без этой поправки
+  // строка «отклеивается» от курсора.
+  const scrolled = dragList ? dragList.scrollTop - state.startScroll : 0
+  const from = state.index - pinnedCount.value
+  const offset = clampOffset(from, state.pointerY - state.startY + scrolled, state.rowHeight, movableCount.value)
+  const target = dropIndex(from, offset, state.rowHeight, movableCount.value) + pinnedCount.value
+
+  drag.value = { ...state, offset, target }
+}
+
+/** Полоса у края списка, в которой он подкручивается сам, и шаг за кадр. */
+const AUTO_SCROLL_EDGE = 36
+const AUTO_SCROLL_STEP = 10
+
+let autoScrollFrame = null
+
+const stopAutoScroll = () => {
+  if (autoScrollFrame === null) return
+
+  cancelAnimationFrame(autoScrollFrame)
+  autoScrollFrame = null
+}
+
+/**
+ * Подкручивает список, пока указатель держат у его края.
+ *
+ * Без этого подборку из конца длинного списка нельзя перенести в начало одним
+ * жестом: дотащил до края — и дальше некуда, надо отпускать и прокручивать.
+ */
+const autoScrollTick = () => {
+  autoScrollFrame = null
+
+  const state = drag.value
+  if (!state || state.settling || !dragList) return
+
+  const box = dragList.getBoundingClientRect()
+  const step = state.pointerY - box.top < AUTO_SCROLL_EDGE ? -AUTO_SCROLL_STEP
+    : box.bottom - state.pointerY < AUTO_SCROLL_EDGE ? AUTO_SCROLL_STEP
+      : 0
+  if (!step) return
+
+  const before = dragList.scrollTop
+  dragList.scrollTop = before + step
+  // Список упёрся в край — крутить кадры вхолостую незачем. Вернётся палец к
+  // краю снова — следующий `pointermove` цикл и перезапустит.
+  if (dragList.scrollTop === before) return
+
+  updateDrag()
+  autoScrollFrame = requestAnimationFrame(autoScrollTick)
+}
+
+const ensureAutoScroll = () => {
+  if (autoScrollFrame === null) autoScrollFrame = requestAnimationFrame(autoScrollTick)
+}
+
+/**
+ * Прокрутка списка во время жеста — тоже движение строки.
+ *
+ * Колесо и инерционный скролл не порождают `pointermove`, поэтому без этой
+ * подписки строка оставалась бы там, где её положил последний сдвиг пальца, и
+ * уезжала бы из-под курсора вместе с содержимым списка.
+ */
+const onDragScroll = () => updateDrag()
+
+/** Снимает всё, что живёт только на время жеста. */
+const endDrag = () => {
+  stopAutoScroll()
+  dragList?.removeEventListener('scroll', onDragScroll)
+  dragList = null
+}
+
 const onHandleDown = (index, event) => {
   // Пока предыдущая строка доезжает, новый жест не начинаем: порядок ещё не
   // записан, и индексы поехали бы относительно того, что видно на экране.
   if (drag.value?.settling) return
 
   const row = event.currentTarget.closest('.sidebar-collection-row')
+  dragList = row?.closest('.sidebar-collections') || null
+  dragList?.addEventListener('scroll', onDragScroll, { passive: true })
   // Высота строки нужна, чтобы переводить смещение пальца в шаг по списку;
   // строки одинаковые, поэтому меряем одну и один раз за жест.
-  drag.value = { index, target: index, startY: event.clientY, offset: 0, rowHeight: row?.offsetHeight || 0 }
+  drag.value = {
+    index,
+    target: index,
+    startY: event.clientY,
+    pointerY: event.clientY,
+    startScroll: dragList?.scrollTop || 0,
+    offset: 0,
+    rowHeight: row?.offsetHeight || 0
+  }
   // Захват указателя: палец уходит за пределы кнопки-ручки, а события должны
   // продолжать приходить ей — иначе перетаскивание рвётся на первом же шаге.
   event.currentTarget.setPointerCapture?.(event.pointerId)
@@ -119,14 +221,15 @@ const onHandleDown = (index, event) => {
 
 const onHandleMove = (event) => {
   if (!drag.value || drag.value.settling) return
-  const offset = event.clientY - drag.value.startY
-  const from = drag.value.index - pinnedCount.value
-  const target = dropIndex(from, offset, drag.value.rowHeight, movableCount.value) + pinnedCount.value
-  drag.value = { ...drag.value, offset, target }
+
+  drag.value = { ...drag.value, pointerY: event.clientY }
+  updateDrag()
+  ensureAutoScroll()
 }
 
 const onHandleUp = () => {
   const state = drag.value
+  endDrag()
   if (!state || state.settling) return
 
   if (state.target === state.index) {

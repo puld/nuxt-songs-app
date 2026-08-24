@@ -5,6 +5,7 @@ import {
   closeSidebar,
   waitForHomeReady,
   createCollectionFromSong,
+  seedCollections,
   uniqueCollectionName
 } from '../lib/flows'
 
@@ -248,6 +249,78 @@ test.describe('Сайдбар: порядок подборок', () => {
         { y: 0, transition: '0s' },
         { y: 0, transition: '0s' }
       ])
+  })
+
+  /**
+   * Длинный список подборок на узком экране: столько строк не помещается, и у
+   * `.sidebar-collections` появляется собственный скролл.
+   */
+  const withLongList = async (page) => {
+    await page.setViewportSize({ width: 390, height: 700 })
+    await enableDevMode(page)
+    await waitForHomeReady(page)
+    await seedCollections(page, 14)
+    await waitForHomeReady(page)
+    await openSidebar(page)
+    await page.locator(s.sidebar.reorderToggle).click()
+
+    const list = page.locator(s.sidebar.collectionsList)
+    // Если список вдруг поместился целиком, тест не проверяет ничего.
+    expect(await list.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true)
+
+    return list
+  }
+
+  const liftedTop = (page) =>
+    page.locator(s.sidebar.liftedRow).evaluate(el => Math.round(el.getBoundingClientRect().top))
+
+  test('прокрутка списка во время жеста не отрывает строку от курсора', async ({ page }) => {
+    const list = await withLongList(page)
+
+    const handle = page.locator(s.sidebar.collectionRow).nth(3).locator(s.sidebar.collectionHandle)
+    const box = await handle.boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 44, { steps: 4 })
+
+    const before = await liftedTop(page)
+
+    // Колесо не порождает `pointermove`: без подписки на прокрутку строка
+    // уехала бы вместе с содержимым списка, а курсор остался бы на месте.
+    await page.mouse.wheel(0, 150)
+    await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(100)
+
+    expect(await liftedTop(page)).toBe(before)
+
+    await page.mouse.up()
+  })
+
+  test('у края список подкручивается сам, и подборка доезжает до конца', async ({ page }) => {
+    const list = await withLongList(page)
+
+    const rows = page.locator(s.sidebar.collectionRow)
+    const moved = (await rows.nth(1).locator(s.sidebar.collectionName).textContent()).trim()
+    const handle = rows.nth(1).locator(s.sidebar.collectionHandle)
+    const box = await handle.boundingBox()
+    const listBox = await list.boundingBox()
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    // Держим у нижней границы, не двигая дальше: список должен ехать сам,
+    // иначе подборку из начала длинного списка не унести в конец одним жестом.
+    await page.mouse.move(box.x + box.width / 2, listBox.y + listBox.height - 8, { steps: 6 })
+
+    await expect.poll(() => list.evaluate(el => el.scrollTop >= el.scrollHeight - el.clientHeight - 1))
+      .toBe(true)
+
+    // Строка при этом не уезжает под край: за границей списка её обрезало бы
+    // и пользователь тащил бы вслепую.
+    expect(await page.locator(s.sidebar.liftedRow).evaluate(el =>
+      Math.round(el.getBoundingClientRect().bottom - el.closest('.sidebar-collections').getBoundingClientRect().bottom)
+    )).toBeLessThanOrEqual(0)
+
+    await page.mouse.up()
+    await expect(rows.last()).toContainText(moved)
   })
 
   test('«Готово» возвращает обычный вид со счётчиками', async ({ page }) => {
