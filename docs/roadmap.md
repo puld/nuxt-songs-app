@@ -31,7 +31,7 @@
 
 ### Фаза 5 — Аккорды и транспонирование (за dev-режимом)
 
-- **5.1.** Вернуть секцию тумблера аккордов: `showChordsSection` за `devMode`, снять `.skip` в `test/e2e/specs/settings.spec.js`. План — `docs/restore-chords-toggle.md`.
+- **5.1.** ~~Вернуть секцию тумблера аккордов~~ — **сделано.** Флаг `showChordsSection` убран, секция стоит под тем же `v-if="settings.devMode"`, что и соседние экспериментальные блоки. Гейт нужен потому, что аккордов нет пока ни в одной песне (5.4), и без них переключатель ничего не меняет на экране. `.skip` снят, покрытие расширено: отсутствие секции без `devMode`, оба перехода тумблера и переживание перезагрузки; джорни `configure-settings` снова кликает по тумблеру вместо записи в localStorage. Отдельный план возврата (`docs/restore-chords-toggle.md`) выполнен и удалён.
 - **5.2.** Хранилище `songSettings` в IndexedDB (keyPath `songNumber`, поле `transpose`, диапазон −6…+5), функции `getSongSettings(number)` / `setTranspose(number, value)` в `useIndexDB`, инкремент `DB_VERSION` в `lib/dbSchema.js` + шаг миграции в `lib/dbMigrations.js`. **Внимание:** версия базы уже 6, но хранилища `songSettings` в схеме нет — прежний план считал иначе.
 - **5.3.** UI транспонирования на странице песни (зависит от 5.2).
 - **5.4.** Расстановка аккордов в `songs-data/songs/*.txt`, начиная с популярных песен. Синтаксис — `docs/reference/song-format.md`.

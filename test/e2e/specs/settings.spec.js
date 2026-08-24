@@ -46,14 +46,47 @@ test.describe('Настройки', () => {
     await expect(page.locator(s.song.container)).toHaveClass(/font-size-small/)
   })
 
-  // ВРЕМЕННО СКИПНУТО: тумблер аккордов скрыт в UI (showChordsSection = false).
-  // Вернуть вместе с раскомментированием секции в pages/settings.vue.
-  test.skip('toggle аккордов переключает showChords', async ({ page }) => {
+  // Секция аккордов — за режимом разработчика: в текстах песен разметка аккордов
+  // ещё не расставлена, и обычному пользователю тумблер ничего не меняет.
+  test('без devMode секции аккордов нет', async ({ page }) => {
+    // Ждём отрисовки страницы: приложение SPA, и проверка отсутствия на ещё
+    // пустом DOM прошла бы при любом состоянии гейта.
+    await expect(page.locator(s.settings.section, { hasText: 'Тема приложения' }))
+      .toBeVisible()
+    await expect(page.locator(s.settings.section, { hasText: 'Отображение аккордов' }))
+      .toHaveCount(0)
+  })
+
+  test('с devMode toggle аккордов переключает showChords', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
+    await page.reload()
+
     const section = page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
     const checkbox = section.locator('input[type="checkbox"]')
-    const before = await checkbox.isChecked()
+    // По умолчанию аккорды выключены — проверяем оба перехода, иначе тест
+    // прошёл бы и на тумблере, который умеет только включаться.
+    await expect(checkbox).not.toBeChecked()
+
     await section.locator(s.settings.toggleSwitch).click()
-    await expect(checkbox).toBeChecked(!before)
+    await expect(checkbox).toBeChecked()
+
+    await section.locator(s.settings.toggleSwitch).click()
+    await expect(checkbox).not.toBeChecked()
+  })
+
+  test('состояние аккордов переживает перезагрузку', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
+    await page.reload()
+
+    const section = page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
+    await section.locator(s.settings.toggleSwitch).click()
+    await expect(section.locator('input[type="checkbox"]')).toBeChecked()
+
+    await page.reload()
+    await expect(
+      page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
+        .locator('input[type="checkbox"]')
+    ).toBeChecked()
   })
 
   test('настройки темы persists после перезагрузки', async ({ page }) => {

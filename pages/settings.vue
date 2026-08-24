@@ -30,9 +30,10 @@
       />
     </div>
 
-    <!-- ВРЕМЕННО СКРЫТО: тумблер аккордов. Функциональность (settings.showChords,
-         SongDisplay) оставлена. Вернуть через showChordsSection = true. -->
-    <div v-if="showChordsSection" class="setting-section">
+    <!-- Тумблер аккордов — за режимом разработчика: сама разметка аккордов
+         в текстах песен ещё не расставлена (5.4 в дорожной карте), поэтому
+         обычному пользователю переключатель ничего не меняет на экране. -->
+    <div v-if="settings.devMode" class="setting-section">
       <h2>Отображение аккордов:</h2>
       <label class="toggle-switch">
         <input
@@ -145,9 +146,6 @@ const { fetchSongs } = useSongs();
 const updating = ref(false);
 const updateMessage = ref('');
 const updateSuccess = ref(false);
-
-// Временно скрыто: тумблер аккордов в UI. Функциональность сохранена.
-const showChordsSection = ref(false);
 
 const updateSongs = async () => {
   updating.value = true;
