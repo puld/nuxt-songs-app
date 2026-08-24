@@ -172,6 +172,47 @@ export async function seedCollections(page, count) {
 }
 
 /**
+ * Заводит подборку сразу в IndexedDB и возвращает её id.
+ *
+ * Нужен там, где имя или состав не набрать руками: ступени деградации ссылки
+ * упираются в длину payload, а через попап создания пришлось бы вбивать
+ * несколько тысяч символов и потом искать чип с таким именем.
+ */
+export async function seedCollectionWithSongs(page, name, songNumbers) {
+  const id = await page.evaluate(async ({ collectionName, numbers }) => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('SongsDB')
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+
+    const now = new Date().toISOString()
+    const collectionId = await new Promise((resolve, reject) => {
+      const tx = db.transaction('collections', 'readwrite')
+      const request = tx.objectStore('collections')
+        .add({ name: collectionName, createdAt: now, updatedAt: now, order: 999 })
+      request.onsuccess = () => resolve(request.result)
+      tx.onerror = () => reject(tx.error)
+    })
+
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('songCollections', 'readwrite')
+      const store = tx.objectStore('songCollections')
+      numbers.forEach((songNumber) => {
+        store.add({ collectionId, songNumber, variantIndex: 0, addedAt: now })
+      })
+      tx.oncomplete = resolve
+      tx.onerror = () => reject(tx.error)
+    })
+
+    db.close()
+    return collectionId
+  }, { collectionName: name, numbers: songNumbers })
+
+  return id
+}
+
+/**
  * Подменяет `navigator.share` перехватчиком.
  *
  * Обязательно для любого теста, который жмёт «Поделиться»: desktop-Chromium

@@ -14,7 +14,7 @@
   <ClientOnly>
     <Teleport v-if="collection && songs.length > 0" to="#navbar-right">
       <ShareButton
-        v-if="canShareCollection"
+        v-if="canShareCollection && !shareTooLong"
         :url="shareUrl"
         :title="shareTitle"
         :text="shareText"
@@ -36,6 +36,22 @@
       <NuxtLink to="/">На главную</NuxtLink>
     </div>
     <div v-else>
+      <!-- Ступень 3: ссылка не влезает даже сжатой. Мессенджер обрежет её
+           молча, поэтому вместо ссылки предлагается файл. -->
+      <div v-if="shareTooLong" class="share-fallback" data-testid="share-fallback">
+        <p class="share-fallback-title">Подборка слишком велика для ссылки</p>
+        <p class="share-fallback-text">
+          Такую ссылку мессенджеры обрезают на полпути. Сохраните подборку файлом и пришлите его.
+        </p>
+        <button class="share-fallback-btn" data-testid="share-fallback-export" @click="exportCollectionFile">
+          Сохранить файлом
+        </button>
+        <p class="share-fallback-hint">
+          Получатель добавит файл в настройках, в разделе «Резервная копия подборок».
+        </p>
+        <p v-if="exportMessage" class="share-fallback-hint">{{ exportMessage }}</p>
+      </div>
+
       <div v-if="songs.length === 0" class="empty">
         <p>В этой подборке пока нет песен</p>
         <NuxtLink to="/">Добавить песни</NuxtLink>
@@ -81,19 +97,23 @@
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
 import { encodeShare } from '~/lib/collectionShare'
-import { joinUrl, songPath, collectionShareTitle, IMPORT_ROUTE } from '~/lib/share'
+import { buildBackup, serializeBackup, backupFileName } from '~/lib/collectionsBackup'
+import { joinUrl, songPath, collectionShareTitle, shareDataBudget, IMPORT_ROUTE } from '~/lib/share'
 
 const route = useRoute()
 const router = useRouter()
 const settings = useSettingsStore()
 const { pluralize } = useUtils()
 const { getSongsInCollection, getCollection, removeSongFromCollection, deleteCollection: deleteCollectionDB } = useIndexDB()
+const { downloadText } = useFileDownload()
 
 const collection = ref(null)
 const songs = ref([])
 const loading = ref(true)
 const editMode = ref(false)
 const shareUrl = ref('')
+const shareTooLong = ref(false)
+const exportMessage = ref('')
 
 const songLink = (song) => songPath(song.number, song.variantIndex)
 
@@ -115,15 +135,54 @@ const shareText = computed(() => (
  */
 const buildShareUrl = async () => {
   shareUrl.value = ''
+  shareTooLong.value = false
+  exportMessage.value = ''
   if (!canShareCollection.value || songs.value.length === 0) return
 
-  const { ok, data } = await encodeShare({
+  // Бюджет считается здесь, а не в модуле: базовый адрес зависит от домена и
+  // от `app.baseURL`, а на GitHub Pages приложение живёт не в корне.
+  const base = joinUrl(window.location.origin, `${router.resolve(IMPORT_ROUTE).href}#`)
+
+  const { ok, data, tooLong } = await encodeShare({
     name: collection.value.name,
     songsVersion: settings.currentSongsVersion,
     songs: songs.value.map((song) => ({ songNumber: song.number, variantIndex: song.variantIndex }))
-  })
+  }, { maxLength: shareDataBudget(base) })
 
-  if (ok) shareUrl.value = joinUrl(window.location.origin, `${router.resolve(IMPORT_ROUTE).href}#${data}`)
+  if (!ok) return
+
+  // Обрезанную ссылку отдавать нельзя: у получателя она откроется страницей
+  // «ссылка испорчена», и виноватым будет выглядеть приложение.
+  if (tooLong) {
+    shareTooLong.value = true
+    return
+  }
+
+  shareUrl.value = `${base}${data}`
+}
+
+/**
+ * Ступень 3: подборка уезжает файлом резервной копии.
+ *
+ * Формат тот же, что у экспорта в настройках, поэтому получателю не нужен
+ * отдельный приёмник — файл принимает существующий импорт.
+ */
+const exportCollectionFile = () => {
+  const savedAt = new Date().toISOString()
+  const links = songs.value.map((song) => ({
+    collectionId: collection.value.id,
+    songNumber: song.number,
+    variantIndex: song.variantIndex,
+    addedAt: savedAt
+  }))
+
+  try {
+    const backup = buildBackup([collection.value], links, savedAt)
+    downloadText(serializeBackup(backup), backupFileName(savedAt))
+    exportMessage.value = 'Файл сохранён'
+  } catch (error) {
+    exportMessage.value = 'Не удалось сохранить файл: ' + error.message
+  }
 }
 
 const getVariantLabel = (song) => {
@@ -179,6 +238,44 @@ watch([songs, collection, () => settings.devMode], buildShareUrl, { immediate: t
 </script>
 
 <style scoped>
+.share-fallback {
+  margin-bottom: 1.5rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background: var(--bg-secondary);
+}
+
+.share-fallback-title {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+}
+
+.share-fallback-text {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.share-fallback-btn {
+  /* Сброс задан явно: до `button` правила Tailwind в этом проекте не доходят,
+     иначе кнопка приезжает с дефолтными рамкой и фоном браузера. */
+  box-sizing: border-box;
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.share-fallback-hint {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
 .collection-page {
   max-width: 500px;
   margin: 0 auto;
