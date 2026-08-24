@@ -82,7 +82,7 @@ npm run test:e2e:headed / test:e2e:ui
 - **@nuxtjs/color-mode** — светлая/тёмная/системная тема
 - **@nuxt/icon** — иконки (mingcute)
 - **TailwindCSS** (~3.4) — CSS фреймворк
-- **Vitest** (~4.0) + **happy-dom** + **fake-indexeddb** — unit-тесты
+- **Vitest** (~4.1) + **happy-dom** + **fake-indexeddb** — unit-тесты
 - **Playwright** — e2e-тесты
 - **husky** — git-хуки (`npm run prepare`)
 
