@@ -123,6 +123,7 @@ npm run test:e2e:headed / test:e2e:ui
 ├── lib/                      # Чистые функции без Vue (+ тесты рядом)
 │   ├── autoUpdate.js         # ETag-логика автообновления
 │   ├── collectionsBackup.js  # Копия подборок: сборка, разбор, план импорта
+│   ├── collectionShare.js    # Ссылка на подборку: компактный payload + base64url
 │   ├── collectionsOrder.js   # Порядок подборок: сортировка, план записи, перестановка
 │   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
@@ -281,6 +282,40 @@ npm run test:e2e:headed / test:e2e:ui
 - Два способа: стрелки «выше/ниже» (надёжная база, работает и без указателя) и перетаскивание за ручку на pointer-событиях (`setPointerCapture`, `touch-action: none`). Шаг перетаскивания считается от высоты строки — `dropIndex`; соседи расступаются по `previewShift`
 - **Длинный список скроллится, и жест это учитывает.** Смещение считается в координатах содержимого (`pointerY - startY + (scrollTop - startScroll)`), иначе прокрутка уводит строку из-под пальца ровно на величину скролла. Прокрутка во время жеста ловится подпиской на `scroll` контейнера: колесо и инерционный скролл `pointermove` не порождают. У края списка работает автоскролл (`autoScrollStep`, цикл на `requestAnimationFrame`) — без него подборку из конца длинного списка нельзя перенести в начало одним жестом. Скорость задана в px/с (`AUTO_SCROLL_SPEED`), а шаг считается от длительности кадра: шаг «за кадр» привязал бы прокрутку к частоте обновления экрана — на 120 Гц список ехал бы вдвое быстрее, чем на 60. Кадр длиннее `MAX_FRAME_MS` урезается, иначе возврат из фоновой вкладки давал бы прыжок. Смещение ограничено крайними слотами (`clampOffset`): за границей `overflow-y: auto` строку просто обрезает, и тащат её вслепую
 - **Переход анимации задаётся inline и только на время жеста.** Порядок применяется не в момент отпускания, а после доводки строки до слота (`SETTLE_MS`): иначе DOM переставлялся сразу, а доигрывающий переход тащил строки к новым местам «вдогонку». Когда состояние сбрасывается, inline-стиль исчезает вместе с `transform`, поэтому снятие смещений одновременно с перестановкой проходит мгновенно
+
+### Ссылка на подборку
+
+Подборки локальны, `id` в них autoIncrement — делиться `id` бессмысленно. Общая у всех
+только база песен, поэтому ссылка несёт `{ имя, версия базы, список (номер, вариант) }`,
+а тексты не передаются. Чистые функции — `lib/collectionShare.js`; интерфейса пока нет
+(4.3–4.4 дорожной карты).
+
+Payload — компактная строка из четырёх строк, а не JSON: она уезжает в URL, где каждый
+символ видит пользователь и считают мессенджеры.
+
+```
+1
+Молодёжное служение — воскресенье
+3
+14,102.1,340,507,1120.2
+```
+
+- **Маркер формата в первой строке** (`1` — без сжатия, `2` — gzip из 4.5) лежит **вне**
+  сжимаемой части, поэтому читается до распаковки. Из-за этого модуль работает с
+  `Uint8Array`, а не со строкой: у сжатого тела текстового представления нет
+  (`splitShareMarker` режет байты по первому `\n`)
+- **Нулевой вариант в списке не пишется** — он у подавляющего большинства песен, а
+  символы уходят в длину ссылки
+- **Имя схлопывается в одну строку**: перевод строки внутри имени сдвинул бы остальные
+  строки, и получатель прочитал бы имя как версию базы
+- **base64url, а не base64**: `+` и `/` меняют смысл в URL, а выравнивающие `=` часть
+  мессенджеров обрезает вместе с хвостом ссылки
+- **Декодирование с `fatal: true`**: битые байты должны давать честную ошибку, а не имя
+  из подстановочных символов
+- `encodeShare` / `decodeShare` асинхронны, хотя формат `1` кодируется синхронно: gzip
+  работает только через `CompressionStream`, и менять сигнатуру после появления вызовов
+  в интерфейсе дороже, чем принять `await` сразу
+- Ошибки возвращаются значением (`{ ok, error }`), как в `lib/collectionsBackup.js`
 
 ## Composables
 
@@ -483,7 +518,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionsOrder.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionsOrder.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
