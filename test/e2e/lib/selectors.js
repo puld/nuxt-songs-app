@@ -216,7 +216,6 @@ export const s = {
   collectionImport: {
     page: '.import-page',
     stub: '.import-page .stub',
-    title: '.import-title',
     subtitle: '.import-subtitle',
     song: '[data-testid="import-song"]',
     songNumber: '[data-testid="import-song"] .song-number',
@@ -225,7 +224,7 @@ export const s = {
     nameInput: '[data-testid="import-name"]',
     nameHint: '.import-page .name-hint',
     sameName: '[data-testid="import-same-name"]',
-    mergeBtn: '[data-testid="import-merge"]',
+    separateBtn: '[data-testid="import-separate"]',
     saveBtn: '[data-testid="import-save"]',
     saved: '[data-testid="import-saved"]',
     error: '.import-page .notice-error',

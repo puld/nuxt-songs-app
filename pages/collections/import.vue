@@ -42,7 +42,32 @@
     </div>
 
     <template v-else>
-      <h1 class="import-title">{{ shared.name }}</h1>
+      <!-- Имя — первое на экране: оно решает, куда ляжет подборка, поэтому
+           показывается один раз и здесь, а не ещё и заголовком. -->
+      <div v-if="saved" class="notice notice-success" data-testid="import-saved">
+        <p class="notice-title">Сохранено в «{{ saved.name }}»</p>
+        <NuxtLink :to="`/collections/${saved.id}`" class="stub-link">Открыть подборку</NuxtLink>
+      </div>
+
+      <div v-else class="name-field">
+        <label class="name-label" for="import-name">Название подборки</label>
+        <input
+          id="import-name"
+          v-model="name"
+          class="name-input"
+          data-testid="import-name"
+          placeholder="Название подборки"
+          autocomplete="off"
+        >
+        <p v-if="!trimmedName" class="name-hint">Без названия подборку не сохранить.</p>
+        <p v-else-if="sameName" class="name-hint" data-testid="import-same-name">
+          Такая подборка у вас уже есть — песни добавятся в неё.
+          <button type="button" class="link-btn" data-testid="import-separate" @click="name = freeName">
+            Сохранить отдельно
+          </button>
+        </p>
+      </div>
+
       <p class="import-subtitle">
         {{ plan.toSave.length }} {{ pluralize(plan.toSave.length, 'песня', 'песни', 'песен') }} из ссылки
       </p>
@@ -75,48 +100,10 @@
         </li>
       </ul>
 
-      <div v-if="saved" class="notice notice-success" data-testid="import-saved">
-        <p class="notice-title">Сохранено в «{{ saved.name }}»</p>
-        <NuxtLink :to="`/collections/${saved.id}`" class="stub-link">Открыть подборку</NuxtLink>
-      </div>
-
-      <template v-else>
-        <div class="name-field">
-          <label class="name-label" for="import-name">Название подборки</label>
-          <input
-            id="import-name"
-            v-model="name"
-            class="name-input"
-            data-testid="import-name"
-            placeholder="Название подборки"
-            autocomplete="off"
-          >
-          <p v-if="!trimmedName" class="name-hint">Без названия подборку не сохранить.</p>
-        </div>
-
-        <p v-if="sameName" class="notice notice-warning" data-testid="import-same-name">
-          У вас уже есть подборка «{{ sameName.name }}». Можно добавить песни в неё
-          или сохранить отдельно как «{{ freeName }}».
-        </p>
-
+      <template v-if="!saved">
         <div class="actions">
-          <button
-            v-if="sameName"
-            class="primary-btn"
-            :disabled="!canSave"
-            data-testid="import-merge"
-            @click="save({ merge: true })"
-          >
-            Добавить в «{{ sameName.name }}»
-          </button>
-          <button
-            class="primary-btn"
-            :class="{ secondary: !!sameName }"
-            :disabled="!canSave"
-            data-testid="import-save"
-            @click="save({ merge: false })"
-          >
-            {{ sameName ? `Сохранить как «${freeName}»` : 'Сохранить подборку' }}
+          <button class="primary-btn" :disabled="!canSave" data-testid="import-save" @click="save">
+            Сохранить
           </button>
         </div>
 
@@ -233,18 +220,24 @@ const updateSongs = async () => {
   if (ok) await load()
 }
 
-const save = async ({ merge }) => {
+/**
+ * Кнопка одна, а куда ляжет подборка — говорит имя в поле.
+ *
+ * Пара кнопок «добавить в свою» / «сохранить отдельно» заставляла сравнивать
+ * два имени в кавычках, чтобы понять разницу. Совпало имя — песни идут в свою
+ * подборку, и об этом сказано под полем; не совпало — создаётся новая.
+ */
+const save = async () => {
   saving.value = true
   saveError.value = ''
 
   try {
-    const collectionId = merge && sameName.value
-      ? sameName.value.id
-      : await createCollection(freeName.value)
+    const target = sameName.value
+    const collectionId = target ? target.id : await createCollection(trimmedName.value)
 
-    // Имя могли поправить — заголовок сохранённого блока должен совпасть с тем,
-    // что легло в базу, а не с присланным.
-    const savedName = merge && sameName.value ? sameName.value.name : freeName.value
+    // Имя могли поправить — в блоке «Сохранено» должно стоять то, что легло
+    // в базу, а не присланное.
+    const savedName = target ? target.name : trimmedName.value
 
     // Дубликат связи — не ошибка: часть песен уже могла лежать в подборке,
     // и импорт по смыслу добавляет недостающее, а не переписывает список.
@@ -280,13 +273,6 @@ watch(() => route.hash, load)
   max-width: 500px;
   margin: 0 auto;
   padding: 1rem;
-}
-
-.import-title {
-  font-size: 1.4rem;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 0.25rem;
 }
 
 .import-subtitle {
@@ -404,6 +390,19 @@ watch(() => route.hash, load)
   color: var(--text-secondary);
   font-size: 0.8rem;
   margin-top: 0.35rem;
+  line-height: 1.4;
+}
+
+.link-btn {
+  /* Сброс задан явно: до input и button правила Tailwind в этом проекте не
+     доходят — та же история, что с `box-sizing` у поля. */
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .actions {

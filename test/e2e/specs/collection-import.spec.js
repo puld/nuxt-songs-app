@@ -47,7 +47,7 @@ test.describe('Подборка по ссылке: разбор', () => {
 
     await openImportLink(page, data)
 
-    await expect(page.locator(s.collectionImport.title)).toHaveText('Воскресное')
+    await expect(page.locator(s.collectionImport.nameInput)).toHaveValue('Воскресное')
     await expect(page.locator(s.collectionImport.subtitle)).toContainText('2 песни')
     await expect(page.locator(s.collectionImport.song)).toHaveCount(2)
     await expect(page.locator(s.collectionImport.song).first()).toContainText(SONGS.ONE.title)
@@ -108,11 +108,11 @@ test.describe('Подборка по ссылке: разбор', () => {
     })
 
     await openImportLink(page, first)
-    await expect(page.locator(s.collectionImport.title)).toHaveText('Первая')
+    await expect(page.locator(s.collectionImport.nameInput)).toHaveValue('Первая')
 
     await page.evaluate((data) => { window.location.hash = data }, second)
 
-    await expect(page.locator(s.collectionImport.title)).toHaveText('Вторая')
+    await expect(page.locator(s.collectionImport.nameInput)).toHaveValue('Вторая')
     await expect(page.locator(s.collectionImport.song)).toHaveCount(2)
   })
 })
@@ -187,8 +187,10 @@ test.describe('Подборка по ссылке: сохранение', () => 
 
     await openImportLink(page, data)
 
-    await expect(page.locator(s.collectionImport.sameName)).toContainText(name)
-    await page.click(s.collectionImport.mergeBtn)
+    // Кнопка одна: имя в поле совпало со своей подборкой, и под полем об этом
+    // сказано — «Сохранить» добавляет песни туда.
+    await expect(page.locator(s.collectionImport.sameName)).toContainText('уже есть')
+    await page.click(s.collectionImport.saveBtn)
 
     await expect(page.locator(s.collectionImport.saved)).toContainText('Сохранено')
     await page.locator(`${s.collectionImport.saved} a`).click()
@@ -209,7 +211,11 @@ test.describe('Подборка по ссылке: сохранение', () => 
     const data = await buildShareData(page, { name, songs: [{ songNumber: SONGS.TWO.n }] })
     await openImportLink(page, data)
 
-    await expect(page.locator(s.collectionImport.saveBtn)).toContainText(`${name} (2)`)
+    // «Сохранить отдельно» не сохраняет, а подставляет свободное имя в поле:
+    // дальше всё решает имя, и получатель видит, что именно создастся.
+    await page.click(s.collectionImport.separateBtn)
+    await expect(page.locator(s.collectionImport.nameInput)).toHaveValue(`${name} (2)`)
+    await expect(page.locator(s.collectionImport.sameName)).toHaveCount(0)
     await page.click(s.collectionImport.saveBtn)
     await expect(page.locator(s.collectionImport.saved)).toBeVisible()
 
@@ -237,6 +243,8 @@ test.describe('Подборка по ссылке: имя подборки', () 
 
     await openImportLink(page, data)
     await expect(page.locator(s.collectionImport.nameInput)).toHaveValue(sent)
+    // Присланное имя видно только в поле — заголовком оно не дублируется.
+    await expect(page.locator(s.collectionImport.subtitle)).toContainText('1 песня')
 
     await page.fill(s.collectionImport.nameInput, own)
     await page.click(s.collectionImport.saveBtn)
@@ -261,12 +269,12 @@ test.describe('Подборка по ссылке: имя подборки', () 
       songs: [{ songNumber: SONGS.TWO.n }]
     })
     await openImportLink(page, data)
-    await expect(page.locator(s.collectionImport.mergeBtn)).toHaveCount(0)
+    await expect(page.locator(s.collectionImport.sameName)).toHaveCount(0)
 
     await page.fill(s.collectionImport.nameInput, own)
 
-    await expect(page.locator(s.collectionImport.sameName)).toContainText(own)
-    await page.click(s.collectionImport.mergeBtn)
+    await expect(page.locator(s.collectionImport.sameName)).toContainText('уже есть')
+    await page.click(s.collectionImport.saveBtn)
 
     await expect(page.locator(s.collectionImport.saved)).toContainText(own)
     await page.locator(`${s.collectionImport.saved} a`).click()
@@ -318,7 +326,10 @@ test.describe('Подборка по ссылке: сквозной путь', (
     // Получатель — тот же браузер, но подборку сохраняем под свободным именем:
     // проверяем именно приём ссылки, а не слияние.
     await openImportLink(page, data)
-    await expect(page.locator(s.collectionImport.title)).toHaveText(name)
+    await expect(page.locator(s.collectionImport.nameInput)).toHaveValue(name)
+    // Подборка с таким именем у «получателя» уже есть — сохраняем рядом, чтобы
+    // проверять приём ссылки, а не слияние.
+    await page.click(s.collectionImport.separateBtn)
     await page.click(s.collectionImport.saveBtn)
 
     await expect(page.locator(s.collectionImport.saved)).toBeVisible()
