@@ -76,6 +76,36 @@
         <span>Режим разработчика включён — экспериментальные функции доступны в настройках.</span>
       </p>
     </div>
+
+    <!-- Что нового. Сразу под блоком версии: посмотрел, какая версия стоит —
+         тут же видишь, что в ней изменилось. За режимом разработчика:
+         обычному пользователю список версий ничего не даёт, а обновление PWA
+         он и так не замечает. -->
+    <section v-if="settings.devMode" class="about-section" data-testid="changelog-section">
+      <h2>Что нового</h2>
+
+      <ol class="changelog">
+        <li v-for="item in changelogEntries" :key="item.version" class="changelog-item">
+          <div class="changelog-head">
+            <span class="changelog-version">{{ item.version }}</span>
+            <span class="changelog-date">{{ formatChangelogDate(item.date) }}</span>
+          </div>
+          <ul class="changelog-changes">
+            <li v-for="line in item.changes" :key="line">{{ line }}</li>
+          </ul>
+        </li>
+      </ol>
+
+      <button
+        v-if="canExpandChangelog"
+        type="button"
+        class="changelog-toggle"
+        data-testid="changelog-toggle"
+        @click="changelogExpanded = !changelogExpanded"
+      >
+        {{ changelogExpanded ? 'Свернуть' : 'Показать все версии' }}
+      </button>
+    </section>
   </div>
 </template>
 
@@ -85,6 +115,7 @@ import { initialTapState, registerTap, shouldHint } from '~/lib/devMode'
 import { buildDiagnostics } from '~/lib/diagnostics'
 import { readPersisted, getStorageEstimate } from '~/lib/storagePersist'
 import { backupStats, readBackupFrom } from '~/lib/collectionsBackup'
+import { CHANGELOG, formatChangelogDate, hasMoreChangelog, visibleChangelog } from '~/lib/changelog'
 
 const appConfig = useAppConfig()
 const settings = useSettingsStore()
@@ -122,6 +153,12 @@ const guide = [
     text: 'Приложение можно установить на телефон кнопкой на главной — тогда оно открывается как обычное и работает без сети.'
   }
 ]
+
+// === Что нового ===
+// Свёрнутый список — только последние версии: полный длиннее самой страницы.
+const changelogExpanded = ref(false)
+const changelogEntries = computed(() => visibleChangelog(CHANGELOG, changelogExpanded.value))
+const canExpandChangelog = hasMoreChangelog(CHANGELOG)
 
 // === Диагностика хранилища ===
 const { getSongsCount, getCollections, getAllLinks } = useIndexDB()
@@ -242,6 +279,64 @@ const onVersionTap = () => {
   font-size: 0.9rem;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+.changelog {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.changelog-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.changelog-version {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.changelog-date {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.changelog-changes {
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changelog-changes li {
+  position: relative;
+  padding-left: 1rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.changelog-changes li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+}
+
+.changelog-toggle {
+  margin-top: 0.9rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .diagnostics {

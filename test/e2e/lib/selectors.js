@@ -74,6 +74,11 @@ export const s = {
     instructionText: '.instruction-text',
     instructionMore: '.instruction-more',
     installBtn: '.install-btn',
+    recent: '.recent',
+    recentTitle: '.recent-title',
+    recentItem: '.recent-item',
+    recentNumber: '.recent-number',
+    recentName: '.recent-name',
     loadingText: '.loading-text',
     updateLink: 'a:has-text("Обновить в настройках")',
   },
@@ -97,6 +102,9 @@ export const s = {
     chordUp: '.chord-up',
     repeat: '.repeat',
     stageDirection: '.stage-direction',
+    // Раздел сборника — ссылка на /songs?section=<id>, только при devMode
+    sectionLink: '.section-link',
+    sectionLinkTitle: '.section-link .section-link-title',
     notFound: 'text=Песня не найдена',
     backHome: 'a:has-text("Вернуться на главную")',
   },
@@ -161,6 +169,11 @@ export const s = {
     diagnosticsRow: '[data-testid="diagnostics-row"]',
     diagnosticsValue: '.diagnostics-value',
     diagnosticsError: '[data-testid="diagnostics-error"]',
+    // Секция «Что нового» — только в режиме разработчика
+    changelog: '[data-testid="changelog-section"]',
+    changelogItem: '.changelog-item',
+    changelogVersion: '.changelog-version',
+    changelogToggle: '[data-testid="changelog-toggle"]',
   },
 
   // === Страница подборки ===
@@ -198,6 +211,8 @@ export const s = {
     groupTitle: '.songs-page .group-title',
     groupCount: '.songs-page .group-count',
     songLink: '.songs-page .song-link',
+    // Группа по ключу — им же адресуется переход `?section=<id>`
+    groupByKey: (key) => `.songs-page .group[data-group-key="${key}"]`,
     songNumber: '.songs-page .song-link .song-number',
     songTitle: '.songs-page .song-link .song-title',
     searchBtn: '[aria-label="Найти песню"]',

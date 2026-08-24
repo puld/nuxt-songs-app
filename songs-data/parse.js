@@ -18,6 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { checkSectionsIntegrity } = require('./sections-integrity');
 
 const inputDir = process.argv[2] || __dirname;
 const outputPath = process.argv[3] || path.join(__dirname, '../public/assets/songs.json');
@@ -213,10 +214,24 @@ function main() {
     console.error(`Файл секций не найден: ${sectionsPath}`);
   }
 
-  // 4. Собираем итоговый JSON
+  // 4. Проверяем, что разделы и песни согласованы между собой.
+  // Расхождение здесь не ломает сборку данных, но тихо портит группировку на
+  // «Все песни»: номер-сирота исчезает из списка, а песня вне разделов уходит
+  // в группу «Вне разделов». Поэтому падаем, а не предупреждаем.
+  const sectionErrors = checkSectionsIntegrity(songs, sections);
+
+  if (sectionErrors.length > 0) {
+    console.error('Разделы не согласованы с песнями (sections.json):');
+    for (const error of sectionErrors) {
+      console.error(`  ${error.message}`);
+    }
+    process.exitCode = 1;
+  }
+
+  // 5. Собираем итоговый JSON
   const result = { songs, sections };
 
-  // 5. Вывод
+  // 6. Вывод
   const output = JSON.stringify(result, null, 2);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, output, 'utf8');

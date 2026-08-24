@@ -1,10 +1,15 @@
 import { test, expect } from '../lib/fixtures'
 import { s } from '../lib/selectors'
-import { SONGS } from '../lib/songs'
+import { LAST_SECTION, SONGS, sectionOfSong } from '../lib/songs'
 import { gotoSong } from '../lib/flows'
 
 // Страница песни: отображение текста, варианты, навигация между песнями,
 // обработка несуществующей песни.
+
+/** Включает режим разработчика до старта приложения. */
+async function enableDevMode(page) {
+  await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
+}
 
 test.describe('Страница песни: отображение', () => {
   test('название и структура текста (куплет/припев)', async ({ page }) => {
@@ -85,5 +90,56 @@ test.describe('Страница песни: варианты', () => {
     for (let i = 0; i < SONGS.MULTI_DESCRIPTIVE.labels.length; i++) {
       await expect(tabs.nth(i)).toHaveText(SONGS.MULTI_DESCRIPTIVE.labels[i])
     }
+  })
+})
+
+test.describe('Страница песни: раздел сборника', () => {
+  // Ссылка ведёт на `/songs`, который сам закрыт режимом разработчика,
+  // поэтому и она живёт за тем же гейтом.
+  test('без devMode ссылки на раздел нет', async ({ page }) => {
+    await gotoSong(page, SONGS.ONE.n)
+
+    await expect(page.locator(s.song.title)).toBeVisible()
+    await expect(page.locator(s.song.sectionLink)).toHaveCount(0)
+  })
+
+  test('с devMode показан раздел песни и ведёт в список к нему', async ({ page }) => {
+    const section = sectionOfSong(SONGS.ONE.n)
+    await enableDevMode(page)
+    await gotoSong(page, SONGS.ONE.n)
+
+    await expect(page.locator(s.song.sectionLinkTitle)).toHaveText(section.title)
+    await expect(page.locator(s.song.sectionLink))
+      .toHaveAttribute('href', new RegExp(`/songs#section-${section.id}$`))
+  })
+
+  test('клик по разделу раскрывает его в списке песен', async ({ page }) => {
+    const section = sectionOfSong(SONGS.MULTI.n)
+    await enableDevMode(page)
+    await gotoSong(page, SONGS.MULTI.n)
+
+    await page.locator(s.song.sectionLink).click()
+
+    await expect(page).toHaveURL(new RegExp(`/songs#section-${section.id}$`))
+    await expect(page.locator(s.songsList.modeActive)).toHaveText('По разделам')
+    // Раздел раскрыт: песня, с которой пришли, видна без лишних кликов.
+    await expect(
+      page.locator(`${s.songsList.groupByKey(`section-${section.id}`)} .song-link`)
+    ).toContainText(SONGS.MULTI.title)
+  })
+
+  test('переход по ссылке прокручивает список к разделу', async ({ page }) => {
+    // Клик — это SPA-переход, а не загрузка страницы: список песен уже в
+    // кэше, и порядок «рендер → прокрутка» здесь другой.
+    await page.setViewportSize({ width: 375, height: 500 })
+    await enableDevMode(page)
+    await gotoSong(page, LAST_SECTION.songNumbers[0])
+
+    await page.locator(s.song.sectionLink).click()
+    await page.waitForSelector(s.songsList.group, { timeout: 30000 })
+
+    const group = page.locator(s.songsList.groupByKey(`section-${LAST_SECTION.id}`))
+    await expect(group.locator('.group-header')).toBeInViewport()
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
   })
 })

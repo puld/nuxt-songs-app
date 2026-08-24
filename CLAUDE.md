@@ -21,6 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - Версия живёт **только** в `package.json`; `nuxt.config.js` читает её в `appConfig.appVersion`, страница `/about` показывает
 - Инкремент — вручную, в том же коммите, что и доработка: `npm version <patch|minor|major> --no-git-tag-version` (обновляет и `package-lock.json`, тег и коммит не создаёт)
+- В том же коммите — запись в `lib/changelog.js`: первой записью должна стоять текущая версия из `package.json`, иначе падает тест в `lib/changelog.test.js`
 - Semver по смыслу для пользователя: новые экраны и функции — `minor`, исправления и мелкие правки — `patch`, несовместимая смена схемы данных или формата песен — `major`
 - Правки только документации версию не двигают
 
@@ -51,7 +52,9 @@ npm run start        # Запуск production-сервера (после build)
 ### Данные песен
 ```bash
 npm run songs:parse    # songs-data/songs/*.txt + sections.json → public/assets/songs.json
-npm run songs:lint     # Линтер формата .txt (node songs-data/lint.js --staged — только staged)
+                       # + проверка целостности разделов: расхождение = код возврата 1
+npm run songs:lint     # Линтер формата .txt + целостность разделов
+                       # (node songs-data/lint.js --staged — только staged)
 npm run songs:convert  # Обратная операция: songs.json → songs-data/songs/*.txt
 node songs-data/verify.js  # Верификация: текст не потерян при переразбивке на строфы
 npm run parse-txt      # LEGACY: tmp/doc.txt → tmp/result.json (scripts/parseTxt.js)
@@ -122,22 +125,26 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── collectionsBackup.js  # Копия подборок: сборка, разбор, план импорта
 │   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
+│   ├── changelog.js          # История версий: данные и формат даты
 │   ├── devMode.js            # Активация режима разработчика тапами по версии
 │   ├── diagnostics.js        # Строки блока «Состояние хранилища» на /about
 │   ├── popupOffset.js        # Смещение попапа над экранной клавиатурой
+│   ├── recentSongs.js        # История просмотров: нормализация и добавление
 │   ├── repeats.js            # Разбор повторов (реприз) в тексте
 │   ├── search.js             # Поиск (Lunr.js)
-│   ├── songsIndex.js         # Карта «номер → песня», названия и метки вариантов
+│   ├── songsIndex.js         # Карта «номер → песня» и «номер → раздел», названия и метки вариантов
 │   ├── songsList.js          # Группировка песен: по номеру, алфавиту, разделам
 │   ├── storagePersist.js     # navigator.storage: постоянное хранилище и оценка места
 │   └── wakeLock.js           # Менеджер Wake Lock
 ├── pages/
 │   ├── index.vue             # Главная: поиск + подсказки
-│   ├── about.vue             # О приложении: шпаргалка, версия, dev-режим, диагностика
+│   ├── about.vue             # О приложении: шпаргалка, что нового, версия, dev-режим, диагностика
 │   ├── settings.vue          # Настройки
 │   ├── songs.vue             # Все песни: список с группировкой (за devMode)
 │   ├── song/[number].vue     # Страница песни
 │   └── collections/[id].vue  # Подборка: список песен
+├── app/
+│   └── router.options.js     # Прокрутка при навигации: `scrollToTop: false` значит «страница разберётся сама»
 ├── plugins/
 │   └── indexedDB.client.js   # Инициализация IndexedDB + миграции (client-only)
 ├── stores/
@@ -147,6 +154,8 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── sections.json         # Разделы сборника
 │   ├── parse.js              # .txt → songs.json
 │   ├── lint.js               # Линтер формата .txt
+│   ├── sections-integrity.js # Проверка согласованности sections.json с песнями
+│   ├── repeat-balance.js     # Проверка баланса маркеров повтора в строфе
 │   ├── convert.js            # songs.json → .txt (обратная операция)
 │   └── verify.js             # Проверка сохранности текста при переразбивке
 ├── scripts/parseTxt.js       # LEGACY-парсер (tmp/doc.txt)
@@ -197,6 +206,33 @@ npm run test:e2e:headed / test:e2e:ui
 - `songNumbers` — номера песен в порядке раздела (в `songs.json` поле называется `song_ns`)
 
 Разделы нужны странице «Все песни» для группировки. Лежат в базе рядом с песнями, а не отдельным файлом: оффлайн-источник остаётся единственным — и песни, и разделы приходят из одного `songs.json`. Плагин догружает базу, если хранилище разделов пусто, даже когда песни на месте — иначе у клиентов, обновившихся со старой версии, группировка по разделам осталась бы пустой навсегда.
+
+Согласованность разделов с песнями проверяет **сборка и линтер**, а не приложение. Чистая функция — `checkSectionsIntegrity` в `songs-data/sections-integrity.js`; ловит четыре случая: значение в `song_ns` не номер; номер без песни; песня в двух разделах; песня вне всех разделов.
+
+- `songs-data/parse.js` вызывает её при сборке и при расхождении ставит код возврата 1 — `dev`/`build`/`generate` до Nuxt не доходят. Файл при этом всё равно записывается: чинить данные удобнее, глядя на результат
+- `songs-data/lint.js` вызывает её при **полном** прогоне (`npm run songs:lint`), то есть в CI-job'е «Линтинг текстов песен» — обязательном для мержа в `main`. Битые разделы блокируют мерж, а не всплывают в деплое
+- В `--staged` (pre-commit) разделы проверяются только если правится сам `sections.json`: покрытие считается по всему сборнику, и при коммите одной песни эта работа лишняя
+- Проверка требует полного набора песен, поэтому номера берутся из всей директории `songs/`, а не из списка проверяемых файлов
+
+### Баланс маркеров повтора проверяет линтер
+
+Разметка реприз (`/` … `/Nр.`) не бракуется парсером: несбалансированную строфу
+`lib/repeats.js` отдаёт **сырым текстом** — слеши и «2р.» видны на экране, а
+ошибки нет ни в консоли, ни в сборке. Заметить это можно только глазами на
+конкретной песне из полутора тысяч, поэтому баланс проверяется линтером
+(`songs-data/repeat-balance.js`, правило 10 в `lint.js`).
+
+Ключевое правило формата: **у каждого закрывающего слеша обязан быть счётчик**.
+Два уровня закрываются раздельно (`/3р. /2р.`), а `//Nр.` — ошибка: слеш без
+цифры парсер читает как открывающий, то есть `//2р.` открывает два повтора
+вместо того, чтобы закрыть их. Именно так в сборнике молча лежали восемь
+сломанных строф.
+
+Порядок разбора в `repeat-balance.js` повторяет `tokenize` из `lib/repeats.js`
+(сначала `//`, потом счётчик, потом одиночный слеш) — иначе `//2р.` дало бы
+сходящийся баланс при сломанной вёрстке. Дублирование правил разбора
+сознательное: `lib/` — ESM для браузера, `songs-data/` — CommonJS-инструменты
+сборки.
 
 ### Миграции (`lib/dbMigrations.js`)
 
@@ -287,11 +323,13 @@ Vue-обёртка над `lib/search.js`: `buildIndex(songs, { force })`, `sear
 
 ## Поиск
 
-Чистые функции в `lib/search.js`: `cleanText`, `prepareSongForIndexing`, `prepareVariantsForIndexing`, `buildSearchIndex`, `performSearch`, `parseSearchRef`. Индексируется каждый вариант песни отдельно, ref формата `"number:variantIndex"`; `title` boost 10, стоп-слова отключены, последний терм запроса ищется с fuzzy `~2`.
+Чистые функции в `lib/search.js`: `stripRemarks`, `cleanText`, `prepareSongForIndexing`, `prepareVariantsForIndexing`, `buildSearchIndex`, `performSearch`, `parseSearchRef`. Индексируется каждый вариант песни отдельно, ref формата `"number:variantIndex"`; `title` boost 10, стоп-слова отключены, последний терм запроса ищется с fuzzy `~2`.
+
+`stripRemarks` убирает ремарки исполнителю (`[Припев можно петь через два куплета]`) **вместе с текстом**, а не только скобки: на экране ремарка нужна, а в индексе давала ложную выдачу — по запросу «куплет» находились песни, где такого слова нет. Вызывается из `cleanText`, поэтому чистятся оба индекса и сам запрос. Круглые скобки только снимаются — внутри них слова песни (подголоски).
 
 Детали ранжирования, ограничения Lunr и разбор известных промахов — `docs/reference/search-lunr.md`.
 
-Вспомогательные чистые функции в `lib/songsIndex.js`: `buildSongsMap`, `songNumbersFrom`, `getSongTitle`, `getVariantLabel` — выдача поиска берёт название и метку варианта из карты по номеру, а не линейным `find` по всем песням.
+Вспомогательные чистые функции в `lib/songsIndex.js`: `buildSongsMap`, `songNumbersFrom`, `getSongTitle`, `getVariantLabel` — выдача поиска берёт название и метку варианта из карты по номеру, а не линейным `find` по всем песням. Там же `buildSectionIndex` и `getSongSection` — обратная карта «номер → раздел» для страницы песни (см. «Раздел сборника на странице песни»).
 
 ## Хранилище настроек (stores/settings.js)
 
@@ -305,9 +343,13 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 | `songsEtag` | String | ETag последней загрузки `songs.json` | `''` |
 | `lastUpdateCheck` | Number | timestamp последней проверки (ms) | `0` |
 | `devMode` | Boolean | режим разработчика — гейт экспериментальных функций | `false` |
+| `songsListMode` | String | режим группировки на «Все песни»: `'number'`, `'alphabet'`, `'sections'` | `'number'` |
+| `recentSongs` | Array | номера недавно открытых песен, свежая первой (не более `RECENT_LIMIT`) | `[]` |
 | `updateAvailable` | Boolean | **не персистентно** — пересчитывается при запуске | `false` |
 
-Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`.
+Действия: `setFontSize`, `setShowChords`, `setKeepScreenOn`, `setSongsEtag`, `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`), `addRecentSong`, `clearRecentSongs`.
+
+Геттер `recentSongNumbers` нормализует историю при чтении (`normalizeRecent`): значение приходит из localStorage, где может оказаться что угодно, а мусор ушёл бы прямо в шаблон пустыми ссылками.
 
 ## Layout и навигация
 
@@ -327,8 +369,11 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 ### `pages/index.vue` — Главная
 - `SongSearchInput`: полнотекстовый поиск и переход по номеру (лимит 7 результатов)
 - Подсказки: расширенные, пока в «Избранном» пусто; в обоих вариантах последняя строка плашки — ссылка «Подробнее» на `/about`
+- Блок «Недавние» под полем поиска — до `RECENT_LIMIT` последних открытых песен, за `settings.devMode`. Номера хранятся в настройках (`recentSongs`), название берётся из карты песен; номер, которого нет в базе, из списка выпадает — после обновления базы песня могла исчезнуть, а ссылка «Неизвестная песня» бесполезна. Пустой список блок не рисует. Показ **только здесь**: дублировать историю ещё и в сайдбаре незачем
 - Ссылка «Все песни» под полем поиска — только при `settings.devMode`, как и пункт в сайдбаре
 - При пустой БД — ссылка на настройки
+
+История пишется на странице песни (`pages/song/[number].vue`) после успешной загрузки — «Песня не найдена» в неё не попадает. Запись идёт независимо от `devMode`: включив режим, пользователь сразу видит осмысленный список, а не пустой блок. При навигации стрелками страница пересоздаётся, поэтому `onMounted` достаточно — отдельного watch на `route.params.number` не нужно.
 
 ### `pages/song/[number].vue` — Страница песни
 - Навигация предыдущая/следующая (по списку номеров из `useSongsCache`)
@@ -348,15 +393,30 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 - Блок версии/сборки из `useAppConfig()` (`appVersion`, `appCommit`, `appBuildDate`)
 - **Режим разработчика**: 7 тапов по блоку версии включают `settings.devMode` (подсказка об остатке с 3 тапов до порога). Логика подсчёта — чистая, в `lib/devMode.js` (`registerTap`, окно сброса 2 сек); страница только отображает результат
 - **Блок «Состояние хранилища»** (диагностика): песен в базе, подборок, песен в подборках, постоянное хранилище, резервная копия; версия базы и занятое место — только при `devMode`. Ошибка открытия базы из `useDbStatus()` показывается **всегда и всем**: ради неё блок и сделан — на телефоне до консоли не добраться. Строки собирает `lib/diagnostics.js`; дата форматируется вручную, а не через локаль устройства, потому что эту строку пользователь пересылает как есть
+- **Секция «Что нового»** (только при `devMode`): список версий с описанием изменений, свежая первой. Данные и чистые функции — `lib/changelog.js`; свёрнутый список показывает три последние версии, кнопка разворачивает остальные. Нужна потому, что PWA обновляется незаметно: иначе новую функцию замечают случайно. Формулировки пользовательские, а не коммит-сообщения; чисто внутренние изменения в список не попадают
 
 ### `pages/songs.vue` — Все песни
 Список всех песен с тремя режимами группировки: по номеру (группы по сотням), по алфавиту (первая буква названия, внутри — по алфавиту), по разделам сборника. Группы сворачиваемые: раскрыта только первая, иначе страница рендерила бы 1565 ссылок сразу. Смена режима заново раскрывает первую группу.
+
+Выбранный режим хранится в настройках (`settings.songsListMode`, localStorage), а не в локальном `ref`: у каждого свой способ искать песню, и выбирать его заново при каждом заходе незачем. Значение из хранилища проходит через `normalizeSongsListMode` — иначе мусор или режим от будущей версии дал бы группировку по номеру при неподсвеченных кнопках, что выглядит как поломка.
 
 Группировка — чистые функции в `lib/songsList.js` (`groupSongs`, `groupByNumber`, `groupByAlphabet`, `groupBySections`); все режимы возвращают одну структуру `{ key, title, songs }`, поэтому шаблон не разветвляется по режиму. Ключ группы разделов — `id`, а не название: в сборнике есть разделы с одинаковыми названиями. Песня, не попавшая ни в один раздел, уходит в группу «Вне разделов» — сейчас разделы покрывают сборник целиком, но молча терять песню нельзя.
 
 Экран закрыт `settings.devMode`. Гейт скрывает входы (ссылка на главной, пункт сайдбара), но не закрывает маршрут — при `ssr: false` статика генерируется для всех маршрутов, поэтому прямой заход показывает объяснение, а не пустой экран.
 
 В навбаре — кнопка поиска: тот же `SongSearchInput` в попапе, что на странице песни, со смещением от клавиатуры через `useKeyboardOffset`.
+
+Переход со страницы песни приходит якорем `#section-<id>` (`sectionAnchor` / `sectionKeyFromHash` в `lib/songsList.js`): режим переключается на «по разделам» **насовсем** — пользователь пришёл смотреть разделы, и возвращать прежнюю группировку при следующем заходе было бы неожиданно. Раскрывается только нужная группа, страница прокручивается к её заголовку (`scroll-margin-top: 4rem` — иначе он уходит под навбар). Несуществующий раздел в якоре деградирует к обычному заходу: первая группа раскрыта, страница наверху.
+
+Прокруткой распоряжается сама страница, поэтому у неё `definePageMeta({ scrollToTop: false })` — а чтобы флаг значил именно это, в проекте есть `app/router.options.js` (см. «Прокрутка при навигации»).
+
+### Раздел сборника на странице песни
+
+Под названием песни — строка с разделом, в котором она лежит, и переходом в список песен этого раздела. За `devMode`, потому что ведёт на `/songs`, а тот сам за гейтом: без него ссылка приводила бы на заглушку.
+
+Под заголовком, а не в навбаре: там она встала бы вплотную к номеру и стрелкам «предыдущая/следующая», по которым промахиваться дороже всего. Ширина — по содержимому и по центру: растянутая на всю колонку строка читается панелью, а это подпись.
+
+Обратная карта «номер → раздел» строится `buildSectionIndex` из `lib/songsIndex.js` — разделы хранят списки номеров, а странице нужен обратный вопрос. Строится **только при `devMode`**: иначе каждое открытие песни делало бы лишнюю транзакцию к базе ради строки, которую никто не увидит. Песня, попавшая в два раздела, закрепляется за первым — сборник такого не допускает, но данные могут приехать из старой базы.
 
 ### `pages/collections/[id].vue` — Подборка
 - Список песен в подборке, удаление песни из подборки
@@ -401,11 +461,11 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
-- `test/e2e/specs/` — по экранам и функциям: home, navbar, sidebar, favorites, collections, add-to-collection, songs, settings, about, song, song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
+- `test/e2e/specs/` — по экранам и функциям: home (в т.ч. недавние песни), navbar, sidebar, favorites, collections, add-to-collection, songs (в т.ч. переход к разделу по якорю), settings, about, song (в т.ч. раздел сборника), song-goto, search-layout, responsive, width-linear, pwa-install, backup-restore
 - `test/e2e/journeys/` — сквозные сценарии: find-and-open-song, build-collection, favorite-flow, configure-settings
 - `test/e2e/lib/` — селекторы (`selectors.js`), сценарные хелперы (`flows.js`), фикстуры, работа с песнями
 - `test/e2e/README.md`, `PLAN.md`, `UI-TEST-CASES.md` — описание покрытия
@@ -434,6 +494,14 @@ URL песен без хеша: `/song/115`. Использовать этот �
 
 ### Плагин IndexedDB — client-only
 `plugins/indexedDB.client.js` работает только на клиенте (суффикс `.client.js`). SSR доступа к IndexedDB не имеет. `provide('indexedDB')` выполняется **до** авто-загрузки песен: `fetchSongs()` обращается к `$indexedDB`, иначе на свежей установке песни не загрузятся.
+
+### Прокрутка при навигации
+
+`app/router.options.js` переопределяет `scrollBehavior`: при `scrollToTop: false` в page meta прокрутка не трогается вовсе, назад — сохранённая позиция, смена query или якоря в пределах страницы — тоже без прыжка, остальное — наверх.
+
+Дефолт Nuxt флагу `scrollToTop: false` не подчиняется: он лишь не выставляет позицию заранее, а в конце навигации всё равно возвращает `{ top: 0 }` (`_calculatePosition` в `nuxt/dist/pages/runtime/router.options.js`). Страница «Все песни», которая сама доводит список до нужного раздела, получала из-за этого вторую прокрутку поверх своей — с видимым рывком через долю секунды после первой.
+
+Проверяется e2e «дальний раздел прокручен в видимую область» и «переход по ссылке прокручивает список к разделу»: второй тест — именно про SPA-переход, при прямом заходе по URL расхождение не воспроизводится.
 
 ### Высота страницы — только svh и только у .layout
 Высоту задаёт **единственное** правило `.layout { min-height: 100svh }` (`layouts/default.vue`). `html`, `body` и `#__nuxt` высоту не задают вовсе — фон на весь экран даёт `background-color` у `body`, браузер распространяет его на канвас даже когда `body` короче окна.

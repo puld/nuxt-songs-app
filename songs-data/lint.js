@@ -13,6 +13,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const { checkSectionsIntegrity } = require('./sections-integrity');
+const { checkRepeatBalance } = require('./repeat-balance');
 
 /**
  * Допустимые поля мета-блока
@@ -260,12 +262,68 @@ function lintSongContent(text, fileName) {
     }
   }
 
-  // TODO: правило 10 — проверка заглавных букв в начале строк строфы
-  // Отложено: строчная буква в начале строки может быть переносом (продолжением
-  // предыдущей стихотворной строки), а не ошибкой. Нужна корректная эвристика
-  // для отличия переносов от настоящих ошибок (см. техдолг).
+  // 10. Баланс маркеров повтора (реприз) в строфе.
+  //     Несбалансированную строфу парсер отдаёт сырым текстом: слеши и «2р.»
+  //     видны на экране, но ни ошибки, ни лога нет — заметить можно только
+  //     глазами на конкретной песне из полутора тысяч.
+  errors.push(...checkRepeatBalance(lines));
+
+  // Проверка заглавных букв в начале строк строфы снята (пункт 6.3 плана):
+  // строчная буква может быть визуальным переносом стихотворной строки, и
+  // наивное правило красит мерж ложными срабатываниями.
 
   return errors;
+}
+
+// ============================================================================
+// Проверка целостности разделов
+//
+// Разделы — часть базы песен, поэтому битый `sections.json` не должен уезжать
+// в main: номер-сирота исчезает из группировки на «Все песни», а песня вне
+// разделов уходит в группу «Вне разделов», где её не ищут. Сборка это уже
+// ловит (`parse.js`), но там проверка срабатывает поздно — в деплое и в e2e.
+// Здесь она попадает в быстрый job линтера, обязательный для мержа.
+//
+// Проверка требует ПОЛНОГО набора песен (иначе покрытие не посчитать), поэтому
+// номера берутся из всей директории songs/, а не из списка проверяемых файлов.
+// ============================================================================
+
+function lintSections(songsDir) {
+  const sectionsPath = path.join(path.dirname(songsDir), 'sections.json');
+
+  console.log();
+
+  if (!fs.existsSync(sectionsPath)) {
+    console.log(`\u2717 Файл разделов не найден: ${sectionsPath}`);
+    return 1;
+  }
+
+  let sections;
+  try {
+    sections = JSON.parse(fs.readFileSync(sectionsPath, 'utf8'))
+      .map((s, i) => ({ id: i, title: s.title, song_ns: s.song_ns }));
+  } catch (e) {
+    console.log(`\u2717 sections.json не разбирается: ${e.message}`);
+    return 1;
+  }
+
+  const songs = fs.readdirSync(songsDir)
+    .filter(f => f.endsWith('.txt'))
+    .map(f => ({ n: parseInt(path.basename(f, '.txt'), 10) }));
+
+  const errors = checkSectionsIntegrity(songs, sections);
+
+  if (errors.length === 0) {
+    console.log(`\u2713 Разделы согласованы с песнями (${sections.length} \u2192 ${songs.length})`);
+    return 0;
+  }
+
+  console.log('\u2717 Разделы не согласованы с песнями (sections.json)');
+  for (const error of errors) {
+    console.log(`  ${error.message}`);
+  }
+
+  return errors.length;
 }
 
 // ============================================================================
@@ -282,6 +340,11 @@ const args = process.argv.slice(2);
 // Определяем режим работы и список файлов
 let files = [];
 let songsDir = '';
+// Разделы проверяются на полном наборе песен, поэтому не при каждом прогоне:
+// всегда при проверке директории (CI, ручной запуск) и в pre-commit — только
+// если правится сам sections.json. Проверять их при коммите одной песни
+// незачем: staged-режим существует ради скорости.
+let checkSections = false;
 
 if (args.includes('--staged')) {
   // Режим pre-commit: проверяем только staged .txt файлы
@@ -292,11 +355,14 @@ if (args.includes('--staged')) {
       encoding: 'utf8'
     }).trim();
     if (staged) {
-      files = staged
-        .split('\n')
+      const stagedFiles = staged.split('\n');
+
+      files = stagedFiles
         .filter(f => f.startsWith('songs-data/songs/') && f.endsWith('.txt'))
         .map(f => path.basename(f))
         .sort();
+
+      checkSections = stagedFiles.includes('songs-data/sections.json');
     }
   } catch (e) {
     console.error('Не удалось получить список staged файлов');
@@ -311,6 +377,7 @@ if (args.includes('--staged')) {
   // По умолчанию: проверить все файлы в директории
   const inputDir = args[0] || __dirname;
   songsDir = path.join(inputDir, 'songs');
+  checkSections = true;
 }
 
 if (!fs.existsSync(songsDir)) {
@@ -332,7 +399,9 @@ const totalFiles = files.length;
 
 if (totalFiles === 0) {
   console.log('Нет .txt файлов для проверки');
-  process.exit(0);
+  // Правка одного sections.json — как раз тот случай, когда .txt не менялись,
+  // а проверять разделы обязательно.
+  process.exit(checkSections && lintSections(songsDir) > 0 ? 1 : 0);
 }
 
 for (const file of files) {
@@ -384,4 +453,6 @@ if (filesWithErrors === 0) {
   console.log(`✗ ${filesWithErrors} ${pluralize(filesWithErrors, 'файл с ошибками', 'файла с ошибками', 'файлов с ошибками')} (${totalErrors} ${pluralize(totalErrors, 'ошибка', 'ошибки', 'ошибок')})`);
 }
 
-process.exit(filesWithErrors > 0 ? 1 : 0);
+const sectionErrors = checkSections ? lintSections(songsDir) : 0;
+
+process.exit(filesWithErrors > 0 || sectionErrors > 0 ? 1 : 0);
