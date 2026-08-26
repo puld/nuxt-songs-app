@@ -1,5 +1,5 @@
 <template>
-  <div class="song-container" :class="[fontSizeClass, { 'hide-chords': !settings.showChords }]">
+  <div class="song-container" :class="[fontSizeClass, { 'hide-chords': !settings.chordsVisible }]">
     <!-- Табы вариантов (только если вариантов больше одного) -->
     <div v-if="hasMultipleVariants" class="variant-tabs">
       <button
@@ -13,7 +13,7 @@
     </div>
 
     <div class="song-content-wrapper">
-      <div class="song-sheet">
+      <div ref="sheet" class="song-sheet">
         <div v-for="(item, index) in activeVariantBody" :key="index" class="song-part" :class="item.type">
           <template v-if="item.type === 'verse'">
             <span class="part-label">{{ item.n }}.</span>
@@ -40,6 +40,8 @@
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
 import { processRepeats } from '~/lib/repeats'
+import { renderChords, hasChords as textHasChords } from '~/lib/chordMarkup'
+import { planChordShifts } from '~/lib/chordLayout'
 
 const props = defineProps({
   song: {
@@ -127,15 +129,8 @@ const processContent = (content) => {
   // 1. Обрабатываем повторы (/текст /Nр.) — не затрагивает аккорды {Am}
   let result = processRepeats(content)
 
-  if (!settings.showChords) {
-    // Удаляем аккорды в фигурных скобках (в уже обработанном HTML)
-    result = result.replace(/\{[^\}]*\}/g, '')
-  } else {
-    // Формат: {Am} → аккорд выше текста, {_G} → аккорд в строке
-    result = result.replace(/\{_/g, "<span class='chord'>")
-    result = result.replace(/\{/g, "<span class='chord chord-up'>")
-    result = result.replace(/\}/g, "</span>")
-  }
+  // 2. Аккорды: {Am} над строкой, {_G} в строке
+  result = renderChords(result, settings.chordsVisible)
 
   // Ремарки-инструкции [текст] — показываются всегда, курсивом
   result = result.replace(/\[([^\]]*)\]/g, "<span class='stage-direction'>$1</span>")
@@ -147,8 +142,74 @@ const processContent = (content) => {
 }
 
 const hasChords = (str) => {
-  return settings.showChords && /\{/.test(str)
+  return settings.chordsVisible && textHasChords(str)
 }
+
+/** Подъём надписи над своей строкой — то же значение, что в CSS у `.chord-label`. */
+const CHORD_RISE = '-0.2rem'
+
+const sheet = ref(null)
+
+/**
+ * Раскладка надписей аккордов: измерить, посчитать сдвиги, записать в стиль.
+ *
+ * Считается строфа целиком, а не строка: где именно текст переносится, заранее
+ * неизвестно — это зависит от ширины экрана и размера шрифта. Строки различает
+ * сама раскладка, по вертикали измеренных надписей.
+ */
+const layoutChords = () => {
+  const root = sheet.value
+  if (!root) return
+
+  for (const block of root.querySelectorAll('.content')) {
+    const labels = Array.from(block.querySelectorAll('.chord-label'))
+    if (!labels.length) continue
+
+    // Прежние сдвиги снимаются до замера: иначе повторная раскладка считала бы
+    // позиции от уже сдвинутых надписей и уводила их всё дальше от своих слогов
+    for (const el of labels) el.style.transform = ''
+
+    const box = block.getBoundingClientRect()
+    const boxes = labels.map((el) => {
+      const rect = el.getBoundingClientRect()
+      return { top: rect.top, left: rect.left, width: rect.width }
+    })
+
+    const shifts = planChordShifts(boxes, { minLeft: box.left, maxRight: box.right })
+    shifts.forEach((shift, i) => {
+      labels[i].style.transform = `translate(${shift}px, ${CHORD_RISE})`
+    })
+  }
+}
+
+/** Пересчёт после того, как Vue обновит DOM. */
+const scheduleLayout = () => nextTick(layoutChords)
+
+let resizeObserver = null
+
+onMounted(() => {
+  scheduleLayout()
+
+  // Пока не загрузился шрифт, ширины меряются по подставленному системному —
+  // и раскладка получилась бы не от того шрифта, который увидит читатель
+  document.fonts?.ready?.then(layoutChords)
+
+  if (typeof ResizeObserver !== 'undefined') {
+    // Переносы строк зависят от ширины колонки: поворот экрана и изменение окна
+    // требуют пересчёта, хотя сама разметка не менялась
+    resizeObserver = new ResizeObserver(layoutChords)
+    resizeObserver.observe(sheet.value)
+  }
+})
+
+onUnmounted(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+})
+
+// Текст, размер шрифта и сама настройка меняют и разметку, и переносы
+watch([activeVariantBody, () => settings.fontSize, () => settings.chordsVisible], scheduleLayout)
+
 </script>
 
 <style scoped>
@@ -348,17 +409,18 @@ const hasChords = (str) => {
   line-height: 1.7;
 }
 
-/* Line-height для текста с аккордами */
+/* Line-height для текста с аккордами: строки разводятся сильнее обычного —
+   надпись аккорда встаёт в воздух между строк, а не липнет к тексту сверху */
 .font-size-small .content-withChords {
-  line-height: 2.0;
+  line-height: 2.6;
 }
 
 .font-size-medium .content-withChords {
-  line-height: 2.0;
+  line-height: 2.6;
 }
 
 .font-size-large .content-withChords {
-  line-height: 2.0;
+  line-height: 2.6;
 }
 
 /* Стили для аккордов */
@@ -367,9 +429,30 @@ const hasChords = (str) => {
   font-weight: bold;
 }
 
-.content :deep(.chord-up) {
+/* Надпись аккорда выведена из потока, поэтому текст верстается ровно так же, как
+   без аккордов: слова не раздвигаются, переносы не смещаются. Без `left`/`top`
+   абсолютный элемент встаёт на своё место в строке (static position) — то есть
+   перед своим слогом; горизонтальный сдвиг от наложения досчитывает
+   `lib/chordLayout.js` и записывает в `transform` */
+.content :deep(.chord-label) {
   position: absolute;
-  line-height: 0;
+  /* Своё место надписи — верхняя граница строки, то есть она и так стоит чуть
+     ниже середины промежутка между строками. Аккорд относится к строке под ним,
+     поэтому от точной середины его сдвигают вниз, а подъём остаётся визуальной
+     поправкой на em-высоту самой надписи. То же значение — в CHORD_RISE */
+  transform: translateY(-0.2rem);
+  /* Свой line-height: иначе надпись унаследовала бы разведённый интервал строки
+     с аккордами и села бы заметно ниже */
+  line-height: 1;
+  color: var(--chord-color);
+  /* мельче и легче текста: аккорд — подсказка над словом, а не вторая строка
+     вровень с ним */
+  font-size: 0.75em;
+  font-style: italic;
+  font-weight: 500;
+  white-space: nowrap;
+  /* В выделение и копирование текста песни надпись попадать не должна */
+  user-select: none;
 }
 
 .hide-chords :deep(.chord) {

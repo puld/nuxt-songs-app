@@ -132,6 +132,8 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── dbMigrations.js       # Миграции IndexedDB: приведение старой базы к текущей схеме
 │   ├── dbSchema.js           # Схема IndexedDB: имя, версия, createSchema
 │   ├── changelog.js          # История версий: данные и формат даты
+│   ├── chordMarkup.js        # Разметка аккордов: надпись над строкой и в строке
+│   ├── chordLayout.js        # Раскладка надписей аккордов: сдвиги столкнувшихся
 │   ├── devMode.js            # Активация режима разработчика тапами по версии
 │   ├── diagnostics.js        # Строки блока «Состояние хранилища» на /about
 │   ├── popupOffset.js        # Смещение попапа над экранной клавиатурой
@@ -636,6 +638,75 @@ E2E-сторожа два, и оба падают без фикса: «стре�
 
 Аккорды (`{Am}` над строкой, `{_G}` инлайн) и повторы (`/.../ 2р.`) — синтаксис и правила обработки в `docs/reference/song-format.md`.
 
+### Надписи аккордов выведены из потока, а сталкиваясь — центрируются над своими слогами
+
+Разметку строит `lib/chordMarkup.js` (`renderChords`, `hasChords`), раскладку —
+`lib/chordLayout.js` (`planChordShifts`, `CHORD_GAP`), измерения и запись стилей —
+`layoutChords()` в `components/SongDisplay.vue`.
+
+Надпись (`chord-label`) вставляется **прямо перед своим слогом, без обёртки**, и выводится
+из потока стилями: `position: absolute` без `left`/`top` встаёт на static position — туда,
+где элемент стоял бы в строке. Поэтому **текст верстается ровно так же, как без аккордов**:
+ни слово, ни пробел не раздвигаются, переносы не смещаются. Это главное свойство схемы, и
+именно им она отличается от отвергнутой сетки (см. ниже).
+
+Плата за вывод из потока — наложение: там, где гармония меняется на каждом слоге, «Dm» и
+«Am/E» слиплись бы в одно слово. Поэтому надписи, которым не хватило места, раздвигаются —
+и вопрос лишь в том, куда.
+
+- **Столкнувшиеся надписи центрируются, а не толкаются вправо.** Сдвиг только вправо копит
+  ошибку по цепочке: последняя надпись группы уезжает от своего слога дальше всех. Здесь
+  цепочка укладывается плотно, и её середина совмещается с серединой желаемых позиций —
+  часть надписей уходит влево, часть вправо. На песнях 44 и 1 это дало среднее отклонение
+  11.5px против 18.6px и максимум 25px против 30px при том же числе сдвинутых надписей
+- **Обёртки вокруг слова нет сознательно.** Разметка повторов расставляется **до** аккордов,
+  её `<span>` не обязан укладываться в границы слова: аккорды и слеши повтора соседствуют в
+  273 строфах из 298. Любая обёртка перекрещивалась бы с ними — а надпись без обёртки
+  вложенности не создаёт вовсе, поэтому проверка баланса тегов (`isBalanced` прежней схемы)
+  стала ненужной
+- **Строки различает сама раскладка**, по вертикали измеренных надписей (`ROW_TOLERANCE` —
+  пиксель, иначе доли пикселя от округления разрывали бы строку надвое). Где именно текст
+  перенесётся, заранее неизвестно: это зависит от ширины экрана и размера шрифта, поэтому
+  считается строфа целиком, а не строка
+- **Края строки и уже размещённый сосед важнее центровки.** За правым краем надпись обрезает
+  или растягивает блок в скролл, наложение возвращает исходную проблему — поэтому `maxRight`,
+  `minLeft` и упор в предыдущий кластер применяются после центрирования
+- **Прежние сдвиги снимаются до замера** (`el.style.transform = ''`): иначе повторная
+  раскладка считала бы позиции от уже сдвинутых надписей и уводила их всё дальше
+- **Сдвиг применяется `transform`, а не `left`.** `left` отменил бы static position, то есть
+  ту самую привязку к своему слогу; `transform` сдвигает от неё. Вертикальный подъём — в том
+  же `transform`, поэтому значение продублировано в `CHORD_RISE` и в CSS
+- **У надписи свой `line-height: 1`** — иначе она унаследовала бы разведённый интервал строки
+  с аккордами (`line-height: 2.6`) и села бы заметно ниже своего места
+- **Подъём — поправка, а не выноска** (`-0.2rem`). Static position надписи — верхняя граница
+  её строки, то есть она и без сдвига стоит в промежутке между строками, ниже его середины на
+  половину своей высоты. Аккорд относится к строке **под** ним, поэтому от точной середины его
+  и надо держать ниже: «ничья» читается как надпись между двух строк сразу. Подъём на `0.2rem`
+  оставляет центр надписи примерно на 4px ниже середины промежутка — то же положение, что
+  давала снятая сетка (там подъём считался от высоты строки: `-2.45em`). Измерено на песне 51:
+  все 120 надписей строфы на 4.3px ниже середины, запас до глифов 11.8px сверху и 3.2px снизу
+- **Пересчёт после рендера**: `nextTick` при монтировании и при смене текста, шрифта или
+  настройки; `document.fonts.ready` — до загрузки шрифта ширины меряются по подставленному
+  системному; `ResizeObserver` на листе песни — переносы зависят от ширины колонки, а
+  поворот экрана разметку не меняет
+- **В выделение и копирование надписи не попадают** (`user-select: none`), от диктора
+  закрыты `aria-hidden`
+
+Замеры на самом плотном месте сборника (песня 51, 156 надписей): на 390px сдвинуто 109,
+максимум 97px, среднее 17px; на 1280px — 66 и 43px. Наложений и выходов за край нет ни там,
+ни там. Максимум упирается в физику: восемь обозначений над строкой из девятнадцати
+символов шире неё в любой схеме.
+
+Отвергнутые варианты: **двухрядная сетка слова** (`chord-word`/`chord-row`, распорка из
+скрытой копии текста) — привязку к слогу держала точно и работала без JS, но платила
+шириной текста: на 298 строфах сборника добавляла 57 строк, в 39 строфах появлялись лишние
+переносы, худший куплет вырастал с 4 строк до 6; распорка слога `::before` (рвала слова
+зазорами на каждом аккорде); абсолютная надпись без раздвижки («Dm» и «Am/E» слипались в
+«DmAm/E»); моноширинный блок `white-space: pre` как у holychords (горизонтальный скролл на
+телефоне); парная строка аккордов над строкой текста (разъезжается с текстом на мягком
+переносе); обёртка слова с `nowrap` (перекрещивалась с тегами повторов); `nowrap` у строки с
+обёрткой пробелов (зазоры внутри слов).
+
 ## CSS и темы
 
 ### Переменные (assets/css/main.css)
@@ -666,7 +737,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `lib/chordMarkup.test.js`, `lib/chordLayout.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)

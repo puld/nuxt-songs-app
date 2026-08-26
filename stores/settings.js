@@ -28,7 +28,12 @@ export const useSettingsStore = defineStore('settings', {
         recentSongNumbers: (state) => normalizeRecent(state.recentSongs),
         // Значение лежит в localStorage и может оказаться мусором, а на нём
         // держится сравнение версий при импорте подборки
-        currentSongsVersion: (state) => normalizeSongsVersion(state.songsVersion)
+        currentSongsVersion: (state) => normalizeSongsVersion(state.songsVersion),
+        // Аккорды показываются только в режиме разработчика: размечена малая
+        // часть сборника, и обычному читателю аккорды попадались бы через раз.
+        // Гейт стоит здесь, а не только на тумблере в настройках: тумблер был
+        // доступен всем, и у кого-то showChords остался включённым
+        chordsVisible: (state) => state.devMode && state.showChords
     },
     actions: {
         setFontSize(size) {

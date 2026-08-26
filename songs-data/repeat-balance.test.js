@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkRepeatBalance, splitStrophes } from './repeat-balance.js'
+import { checkRepeatBalance, checkStropheBalance, splitStrophes } from './repeat-balance.js'
 
 // Проверка маркеров повтора в .txt песни. Функция принимает строки файла
 // целиком (включая заголовок «#N Название») — так её и вызывает линтер.
@@ -173,5 +173,28 @@ describe('splitStrophes', () => {
 
         expect(strophes).toHaveLength(1)
         expect(strophes[0].map((l) => l.text)).toEqual(['1. Куплет'])
+    })
+})
+
+describe('аккорды', () => {
+    it('слеш баса в аккорде не считается открывающей репризой', () => {
+        expect(checkStropheBalance([{ text: '{C}Бо{G/B}же!', line: 1 }])).toEqual([])
+    })
+
+    it('несколько аккордов с басом ошибок не дают', () => {
+        const errors = checkStropheBalance([{ text: '{G/B}Свет {A7/E}Твой {D/F#}сил', line: 1 }])
+
+        expect(errors).toEqual([])
+    })
+
+    it('реприза вокруг аккордов с басом сходится', () => {
+        expect(checkStropheBalance([{ text: '/{C}Хва{G/B}ла /2р.', line: 1 }])).toEqual([])
+    })
+
+    it('настоящая незакрытая реприза ловится и при аккордах', () => {
+        const errors = checkStropheBalance([{ text: '/{C}Хва{G/B}ла', line: 1 }])
+
+        expect(errors).toHaveLength(1)
+        expect(errors[0].message).toContain('Незакрытая реприза')
     })
 })

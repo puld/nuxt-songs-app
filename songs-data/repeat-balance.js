@@ -33,6 +33,14 @@ const COUNT_WITHOUT_R_RE = /\/\s*\d+(?!\s*р)/;
 const DOUBLE_CLOSE_RE = /\/\/\s*\d+\s*р\s*\.?/;
 
 /**
+ * Аккорд: `{Am}`, `{G/B}`, `{_G}`. К репризам отношения не имеет, а слеш баса в
+ * нём читается как открывающий маркер — песня с гармонией не проходила бы
+ * линтер. Вырезается до разбора; в `lib/repeats.js` тот же случай решён иначе —
+ * там аккорд нужен на экране, поэтому проходит атомом.
+ */
+const CHORD_RE = /\{[^}]*\}/g;
+
+/**
  * Баланс маркеров в одной строфе.
  *
  * @param {Array<{text: string, line: number}>} strophe — строки строфы с номерами в файле
@@ -43,7 +51,8 @@ function checkStropheBalance(strophe) {
   // Строки файла, на которых остались неотвеченные открывающие слеши.
   const openLines = [];
 
-  for (const { text, line } of strophe) {
+  for (const { text: raw, line } of strophe) {
+    const text = raw.replace(CHORD_RE, '');
     const doubleClose = text.match(DOUBLE_CLOSE_RE);
     if (doubleClose) {
       errors.push({
