@@ -133,4 +133,33 @@ test.describe('Линейный рост ширины колонки текст�
       ).toHaveCSS('position', 'absolute')
     }
   })
+
+  // Сторож того самого дефекта: на 482px средним шрифтом «Припев:» уезжал за левый
+  // край окна. Подпись выведена из потока и висит в поле слева от листа, а поля на
+  // узком экране нет — значит inline-режим нельзя включать раньше, чем окно станет
+  // шире листа на двойной вылет подписи. Проверяется координата, а не брейкпоинт:
+  // пороги считаны от ширин листа и подписи и поедут вместе с ними.
+  for (const fontSize of ['small', 'medium', 'large']) {
+    test(`${fontSize}: «Припев:» не выходит за левый край окна ни на одной ширине`, async ({ page }) => {
+      await setFontSize(page, fontSize)
+      await gotoSong(page, SONGS.ONE.n)
+
+      const chorusLabel = page.locator(s.song.chorusLabel).first()
+      if ((await chorusLabel.count()) === 0) {
+        test.skip(true, 'Песня без припева — нечего проверять')
+        return
+      }
+
+      for (const vp of VIEWPORTS) {
+        await page.setViewportSize({ width: vp, height: 900 })
+        await page.waitForTimeout(50)
+        const box = await chorusLabel.boundingBox()
+        expect(box, `viewport ${vp}px: подпись «Припев:» не отрисована`).not.toBeNull()
+        expect(
+          box.x,
+          `${fontSize}, viewport ${vp}px: «Припев:» вылез за левый край окна (x=${box.x})`
+        ).toBeGreaterThanOrEqual(0)
+      }
+    })
+  }
 })

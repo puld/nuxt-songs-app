@@ -35,7 +35,7 @@
          обычному пользователю переключатель ничего не меняет на экране. -->
     <div v-if="settings.devMode" class="setting-section">
       <h2>Отображение аккордов:</h2>
-      <label class="toggle-switch">
+      <label class="toggle-switch chords-toggle">
         <input
             type="checkbox"
             :checked="settings.showChords"
@@ -44,6 +44,24 @@
         <span class="slider"></span>
         <span class="toggle-label">{{ settings.showChords ? 'Вкл' : 'Выкл' }}</span>
       </label>
+
+      <!-- Заблокирован, а не скрыт, пока аккорды выключены: исчезающая строка
+           дёргала бы секцию при каждом переключении, а о самой возможности
+           упростить аккорды узнать было бы неоткуда. -->
+      <label class="toggle-switch sub-toggle" :class="{ disabled: !settings.showChords }">
+        <input
+            type="checkbox"
+            :checked="settings.hideChordBass"
+            :disabled="!settings.showChords"
+            @change="handleChordBassToggle"
+        >
+        <span class="slider"></span>
+        <span class="toggle-label">Без басов: G/B → G</span>
+      </label>
+      <p class="setting-hint">
+        Прячет то, что записано после косой черты. Аккомпаниатору обращения нужны,
+        поющему по бумажке — мешают.
+      </p>
     </div>
 
     <div class="setting-section">
@@ -191,6 +209,10 @@ const handleColorModeChange = (mode) => {
 
 const handleChordsToggle = (e) => {
   settings.setShowChords(e.target.checked)
+}
+
+const handleChordBassToggle = (e) => {
+  settings.setHideChordBass(e.target.checked)
 }
 
 const handleKeepScreenOnToggle = (e) => {
@@ -349,6 +371,16 @@ input:checked + .slider:before {
 
 .toggle-label {
   user-select: none;
+}
+
+/* Уточнение к тумблеру выше — отступом показано, что строка подчинённая */
+.sub-toggle {
+  margin-top: 0.75rem;
+}
+
+.sub-toggle.disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .setting-hint {

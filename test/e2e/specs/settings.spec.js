@@ -62,15 +62,15 @@ test.describe('Настройки', () => {
     await page.reload()
 
     const section = page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
-    const checkbox = section.locator('input[type="checkbox"]')
+    const checkbox = section.locator(s.settings.chordsToggle).locator('input')
     // По умолчанию аккорды выключены — проверяем оба перехода, иначе тест
     // прошёл бы и на тумблере, который умеет только включаться.
     await expect(checkbox).not.toBeChecked()
 
-    await section.locator(s.settings.toggleSwitch).click()
+    await section.locator(s.settings.chordsToggle).click()
     await expect(checkbox).toBeChecked()
 
-    await section.locator(s.settings.toggleSwitch).click()
+    await section.locator(s.settings.chordsToggle).click()
     await expect(checkbox).not.toBeChecked()
   })
 
@@ -79,14 +79,33 @@ test.describe('Настройки', () => {
     await page.reload()
 
     const section = page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
-    await section.locator(s.settings.toggleSwitch).click()
-    await expect(section.locator('input[type="checkbox"]')).toBeChecked()
+    await section.locator(s.settings.chordsToggle).click()
+    await expect(section.locator(s.settings.chordsToggle).locator('input')).toBeChecked()
 
     await page.reload()
     await expect(
       page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
-        .locator('input[type="checkbox"]')
+        .locator(s.settings.chordsToggle).locator('input')
     ).toBeChecked()
+  })
+
+  // Саму подмену («G/B» → «G») сторожат unit-тесты `lib/transpose.test.js`:
+  // фикстура e2e — снимок, снятый до разметки аккордов, и обращений в ней нет.
+  test('тумблер «без басов» заблокирован, пока аккорды выключены', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
+    await page.reload()
+
+    const section = page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
+    const bassRow = section.locator(s.settings.chordBassToggle)
+    // Сам input спрятан вёрсткой (opacity: 0) — видимая часть это строка с ползунком
+    const bass = bassRow.locator('input')
+
+    // Заблокирован, а не скрыт: строка на месте, но не нажимается
+    await expect(bassRow).toBeVisible()
+    await expect(bass).toBeDisabled()
+
+    await section.locator(s.settings.chordsToggle).click()
+    await expect(bass).toBeEnabled()
   })
 
   test('настройки темы persists после перезагрузки', async ({ page }) => {

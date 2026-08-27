@@ -18,7 +18,12 @@ import { useIndexDB } from './useIndexDB'
 // в хранилище он лежит уже как `number`.
 const songsFixture = [
     { n: 1, title: 'Первая', variants: [{ label: '', body: [] }] },
-    { n: 2, title: 'Вторая', variants: [{ label: '', body: [] }] }
+    // У второй размечен аккорд — на ней проверяется индекс песен с аккордами
+    {
+        n: 2,
+        title: 'Вторая',
+        variants: [{ label: '', body: [{ id: 1, n: 1, type: 'verse', content: '{Am}Слава' }] }]
+    }
 ]
 
 const thirdSong = { n: 3, title: 'Третья', variants: [{ label: '', body: [] }] }
@@ -53,6 +58,17 @@ describe('useSongsCache', () => {
             expect(allSongs.value).toHaveLength(2)
             expect(songNumbers.value).toEqual([1, 2])
             expect(songsMap.value.get(2).title).toBe('Вторая')
+        })
+
+        it('индекс песен с аккордами строится вместе с картой', async () => {
+            await useIndexDB().addSongs(songsFixture)
+
+            const { loadSongs, songsWithChords } = useSongsCache()
+            const result = await loadSongs()
+
+            expect(result.withChords.has(2)).toBe(true)
+            expect(result.withChords.has(1)).toBe(false)
+            expect(songsWithChords.value.has(2)).toBe(true)
         })
 
         it('второй вызов отдаёт кэш, а не читает базу заново', async () => {
@@ -107,7 +123,7 @@ describe('useSongsCache', () => {
         it('сбрасывает реактивные поля сразу', async () => {
             await useIndexDB().addSongs(songsFixture)
 
-            const { loadSongs, allSongs, songNumbers, songsMap } = useSongsCache()
+            const { loadSongs, allSongs, songNumbers, songsMap, songsWithChords } = useSongsCache()
             await loadSongs()
 
             invalidateSongsCache()
@@ -115,6 +131,7 @@ describe('useSongsCache', () => {
             expect(allSongs.value).toEqual([])
             expect(songNumbers.value).toEqual([])
             expect(songsMap.value.size).toBe(0)
+            expect(songsWithChords.value.size).toBe(0)
         })
     })
 

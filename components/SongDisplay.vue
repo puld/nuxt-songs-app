@@ -14,22 +14,19 @@
 
     <div class="song-content-wrapper">
       <div ref="sheet" class="song-sheet">
-        <div v-for="(item, index) in activeVariantBody" :key="index" class="song-part" :class="item.type">
+        <div
+          v-for="(item, index) in activeVariantBody"
+          :key="index"
+          class="song-part"
+          :class="[item.type, { 'with-chords': hasChords(item.content) }]"
+        >
           <template v-if="item.type === 'verse'">
             <span class="part-label">{{ item.n }}.</span>
-            <div
-              class="content"
-              :class="{ 'content-withChords': hasChords(item.content) }"
-              v-html="processContent(item.content)"
-            ></div>
+            <div class="content" v-html="processContent(item.content)"></div>
           </template>
           <template v-else>
             <span class="part-label chorus-label">Припев:</span>
-            <div
-              class="content"
-              :class="{ 'content-withChords': hasChords(item.content) }"
-              v-html="processContent(item.content)"
-            ></div>
+            <div class="content" v-html="processContent(item.content)"></div>
           </template>
         </div>
       </div>
@@ -42,6 +39,7 @@ import { useSettingsStore } from '~/stores/settings'
 import { processRepeats } from '~/lib/repeats'
 import { renderChords, hasChords as textHasChords } from '~/lib/chordMarkup'
 import { planChordShifts } from '~/lib/chordLayout'
+import { transposeText, stripBassText, preferSharp, normalizeTranspose } from '~/lib/transpose'
 
 const props = defineProps({
   song: {
@@ -54,6 +52,14 @@ const props = defineProps({
     })
   },
   initialVariantIndex: {
+    type: Number,
+    default: 0
+  },
+  /**
+   * Сдвиг тональности в полутонах. Применяется при отрисовке: в базе текст
+   * лежит в исходной тональности, и сдвиг её не портит.
+   */
+  transpose: {
     type: Number,
     default: 0
   }
@@ -123,11 +129,30 @@ const fontSizeClass = computed(() => {
   return `font-size-${settings.fontSize}`
 })
 
+/**
+ * Писать ли аккорды диезами — решает целевая тональность, поэтому набор знаков
+ * считается один раз по всему варианту: иначе один куплет получил бы `Bb`,
+ * а соседний `A#`.
+ */
+const sharpSpelling = computed(() => {
+  const shift = normalizeTranspose(props.transpose)
+  if (!shift) return false
+  const text = (activeVariantBody.value || []).map((item) => item.content || '').join('\n')
+  return preferSharp(text, shift)
+})
+
 const processContent = (content) => {
   if (!content) return ''
 
+  // 0. Сдвиг тональности — до всего остального: он меняет только содержимое {…}
+  let result = transposeText(content, normalizeTranspose(props.transpose), sharpSpelling.value)
+
+  // 0.5. Упрощение аккордов — тоже по разметке {…}, до её разбора в разметку HTML.
+  // Обращения (`G/B`) нужны аккомпаниатору, а поющему только мешают читать
+  if (settings.chordBassHidden) result = stripBassText(result)
+
   // 1. Обрабатываем повторы (/текст /Nр.) — не затрагивает аккорды {Am}
-  let result = processRepeats(content)
+  result = processRepeats(result)
 
   // 2. Аккорды: {Am} над строкой, {_G} в строке
   result = renderChords(result, settings.chordsVisible)
@@ -208,13 +233,34 @@ onUnmounted(() => {
 })
 
 // Текст, размер шрифта и сама настройка меняют и разметку, и переносы
-watch([activeVariantBody, () => settings.fontSize, () => settings.chordsVisible], scheduleLayout)
+watch([
+  activeVariantBody,
+  () => settings.fontSize,
+  () => settings.chordsVisible,
+  // Упрощение меняет ширину надписей («D7/F#» вдвое шире «D7»), а от неё
+  // зависит, какие из них расходятся
+  () => settings.chordBassHidden,
+  () => props.transpose
+], scheduleLayout)
 
 </script>
 
 <style scoped>
 .song-container {
   width: 100%;
+  /* Интервал строк — одна переменная на номер куплета и на текст: они стоят в
+     соседних ячейках грида, и разный интервал разводит их первые строки */
+  --line-normal: 1.7;
+  --line-chords: 2.6;
+  --line: var(--line-normal);
+}
+
+/* С аккордами строки разводятся сильнее обычного: надпись встаёт в воздух между
+   строк, а не липнет к тексту сверху. Интервал меняется у всей части, а не у
+   одного текста — иначе номер куплета со своим интервалом 1.7 оказывался выше
+   первой строки, к которой он относится */
+.song-part.with-chords {
+  --line: var(--line-chords);
 }
 
 /* Адаптивная ширина: width: 100% с max-width гарантирует линейный
@@ -290,7 +336,6 @@ watch([activeVariantBody, () => settings.fontSize, () => settings.chordsVisible]
   text-align: left;
   color: var(--primary);
   font-weight: 500;
-  line-height: inherit;
   user-select: none;
 }
 
@@ -305,7 +350,6 @@ watch([activeVariantBody, () => settings.fontSize, () => settings.chordsVisible]
   text-align: left;
   color: var(--danger);
   font-weight: 500;
-  line-height: inherit;
   user-select: none;
 }
 
@@ -314,17 +358,40 @@ watch([activeVariantBody, () => settings.fontSize, () => settings.chordsVisible]
   grid-row: 2;
 }
 
-/* На широких экранах: номера и «Припев:» по правому краю */
+/* На широких экранах номера куплетов равняются по правому краю — к колонке текста */
 @media (min-width: 480px) {
   .verse .part-label {
     text-align: right;
   }
+}
 
-  .chorus {
+/*
+ * «Припев:» встаёт в строку с текстом только когда для него есть место.
+ *
+ * Подпись выведена из потока и висит в поле слева от листа: колонка под неё не
+ * расширяется, иначе текст всех куплетов сдвинулся бы ради одного слова. Поле
+ * это — половина того, что осталось от окна за вычетом листа, поэтому inline-режим
+ * можно включать не раньше, чем окно станет шире листа на двойной вылет подписи:
+ *
+ *     порог = max-width листа + 2 × (ширина «Припев:» − var(--label-col))
+ *
+ * По замерам: small — 720 + 2×32 ≈ 808, medium — 640 + 2×43 ≈ 750,
+ * large — 560 + 2×54 ≈ 692. Отсюда 768px для среднего и крупного и 800px для
+ * мелкого: у него лист самый широкий, а поля остаются самыми узкими.
+ *
+ * До порога подпись стоит отдельной строкой над текстом. Это не запасной вариант
+ * на всякий случай: раньше средний шрифт включал inline уже с 480px, и на экране
+ * шириной 482px «Припев:» уезжал за левый край окна — ровно то, ради чего
+ * крупному шрифту когда-то и подняли порог до 768px.
+ */
+@media (min-width: 768px) {
+  .font-size-medium .chorus,
+  .font-size-large .chorus {
     position: relative;
   }
 
-  .chorus-label {
+  .font-size-medium .chorus-label,
+  .font-size-large .chorus-label {
     position: absolute;
     right: calc(100% - var(--label-col));
     top: 0;
@@ -333,45 +400,18 @@ watch([activeVariantBody, () => settings.fontSize, () => settings.chordsVisible]
     text-align: right;
   }
 
-  .chorus .content {
+  .font-size-medium .chorus .content,
+  .font-size-large .chorus .content {
     grid-row: 1;
   }
 }
 
-/* Крупный шрифт: «Припев:» в режиме «строка выше» до 768px,
-   т.к. при inline-позиционировании он выступает за экран */
-@media (min-width: 480px) {
-  .font-size-large .verse .part-label {
-    text-align: left;
-  }
-
-  .font-size-large .chorus {
-    position: static;
-  }
-
-  .font-size-large .chorus-label {
-    position: static;
-    width: auto;
-    white-space: normal;
-    text-align: left;
-  }
-
-  .font-size-large .chorus .content {
-    grid-row: 2;
-  }
-}
-
-/* Крупный шрифт: inline «Припев:» с 768px (отступ достаточен) */
-@media (min-width: 768px) {
-  .font-size-large .verse .part-label {
-    text-align: right;
-  }
-
-  .font-size-large .chorus {
+@media (min-width: 800px) {
+  .font-size-small .chorus {
     position: relative;
   }
 
-  .font-size-large .chorus-label {
+  .font-size-small .chorus-label {
     position: absolute;
     right: calc(100% - var(--label-col));
     top: 0;
@@ -380,7 +420,7 @@ watch([activeVariantBody, () => settings.fontSize, () => settings.chordsVisible]
     text-align: right;
   }
 
-  .font-size-large .chorus .content {
+  .font-size-small .chorus .content {
     grid-row: 1;
   }
 }
@@ -394,33 +434,41 @@ watch([activeVariantBody, () => settings.fontSize, () => settings.chordsVisible]
 .font-size-small .content,
 .font-size-small .part-label {
   font-size: 15px;
-  line-height: 1.7;
+  line-height: var(--line);
 }
 
 .font-size-medium .content,
 .font-size-medium .part-label {
   font-size: 20px;
-  line-height: 1.7;
+  line-height: var(--line);
 }
 
 .font-size-large .content,
 .font-size-large .part-label {
   font-size: 25px;
-  line-height: 1.7;
+  line-height: var(--line);
 }
 
-/* Line-height для текста с аккордами: строки разводятся сильнее обычного —
-   надпись аккорда встаёт в воздух между строк, а не липнет к тексту сверху */
-.font-size-small .content-withChords {
-  line-height: 2.6;
+/* Интервал у «Припев:» зависит от того, где он стоит, поэтому собран здесь, а не
+   в правилах позиционирования: те идут до размеров шрифта и были бы перебиты.
+   В строке с текстом интервал общий с ней, отдельной строкой над текстом —
+   обычный: разведённый только оторвал бы подпись от своего припева.
+   Пороги те же, что у inline-режима выше, — иначе интервал разъедется с ним */
+.song-part .chorus-label {
+  line-height: var(--line-normal);
 }
 
-.font-size-medium .content-withChords {
-  line-height: 2.6;
+@media (min-width: 768px) {
+  .font-size-medium .song-part .chorus-label,
+  .font-size-large .song-part .chorus-label {
+    line-height: var(--line);
+  }
 }
 
-.font-size-large .content-withChords {
-  line-height: 2.6;
+@media (min-width: 800px) {
+  .font-size-small .song-part .chorus-label {
+    line-height: var(--line);
+  }
 }
 
 /* Стили для аккордов */

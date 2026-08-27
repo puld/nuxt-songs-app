@@ -24,6 +24,15 @@
           <span class="song-number">{{ result.n }}</span>
           <span class="song-title">{{ titleOf(result.n) }}</span>
           <span v-if="variantLabelOf(result.n, result.variantIndex)" class="variant-label">({{ variantLabelOf(result.n, result.variantIndex) }})</span>
+          <!-- Метка «есть аккорды» — только при включённых аккордах: иначе она
+               обещала бы то, чего на странице песни не видно -->
+          <Icon
+            v-if="settings.chordsVisible && songHasChords(chordsIndex, result.n)"
+            name="mingcute:guitar-line"
+            size="1rem"
+            class="chord-mark"
+            aria-label="с аккордами"
+          />
         </div>
       </div>
     </Transition>
@@ -32,7 +41,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { buildSongsMap, getSongTitle, getVariantLabel } from '~/lib/songsIndex'
+import { buildSongsMap, getSongTitle, getVariantLabel, buildChordsIndex, songHasChords } from '~/lib/songsIndex'
+import { useSettingsStore } from '~/stores/settings'
 
 const props = defineProps({
   songs: {
@@ -107,6 +117,13 @@ const songsMap = computed(() => buildSongsMap(props.songs))
 const titleOf = (n) => getSongTitle(songsMap.value, n)
 
 const variantLabelOf = (n, variantIndex) => getVariantLabel(songsMap.value, n, variantIndex)
+
+const settings = useSettingsStore()
+
+// Считается по тем же `props.songs`, что и карта названий: компонент получает
+// песни снаружи и в модульный кэш не лезет — иначе его нельзя было бы
+// смонтировать с другим набором песен
+const chordsIndex = computed(() => buildChordsIndex(props.songs))
 
 const focus = () => {
   searchInput.value?.focus()
@@ -199,6 +216,14 @@ defineExpose({ focus, clear })
 .song-title {
   flex-grow: 1;
   font-size: 0.9rem;
+}
+
+/* Метка «есть аккорды»: приглушена и не сжимается — укорачиваться должно
+   название песни, а не пометка */
+.chord-mark {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  opacity: 0.7;
 }
 
 .variant-label {

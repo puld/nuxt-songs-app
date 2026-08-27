@@ -29,6 +29,62 @@ describe('useIndexDB - сложные операции (fake-indexeddb)', () => 
         createCollection = null
     })
 
+    describe('сдвиг тональности песни', () => {
+        it('без сохранённой настройки песня звучит в исходной тональности', async () => {
+            const { getSongTranspose } = useIndexDB()
+
+            expect(await getSongTranspose(44)).toBe(0)
+        })
+
+        it('сохранённый сдвиг возвращается', async () => {
+            const { setSongTranspose, getSongTranspose } = useIndexDB()
+
+            await setSongTranspose(44, 3)
+
+            expect(await getSongTranspose(44)).toBe(3)
+        })
+
+        it('сдвиг у каждой песни свой', async () => {
+            const { setSongTranspose, getSongTranspose } = useIndexDB()
+
+            await setSongTranspose(44, 3)
+            await setSongTranspose(51, -2)
+
+            expect(await getSongTranspose(44)).toBe(3)
+            expect(await getSongTranspose(51)).toBe(-2)
+        })
+
+        it('повторная запись заменяет прежнее значение', async () => {
+            const { setSongTranspose, getSongTranspose } = useIndexDB()
+
+            await setSongTranspose(44, 3)
+            await setSongTranspose(44, 1)
+
+            expect(await getSongTranspose(44)).toBe(1)
+        })
+
+        it('ноль удаляет запись: исходная тональность — это отсутствие настройки', async () => {
+            const { setSongTranspose } = useIndexDB()
+
+            await setSongTranspose(44, 3)
+            await setSongTranspose(44, 0)
+
+            const request = db.transaction(['songSettings'], 'readonly')
+                .objectStore('songSettings').getAll()
+            await new Promise((resolve) => { request.onsuccess = resolve })
+
+            expect(request.result).toEqual([])
+        })
+
+        it('значение за диапазоном не сохраняется', async () => {
+            const { setSongTranspose, getSongTranspose } = useIndexDB()
+
+            await setSongTranspose(44, 42)
+
+            expect(await getSongTranspose(44)).toBe(0)
+        })
+    })
+
     describe('разделы сборника', () => {
         const sections = [
             { id: 0, title: 'Перед началом собрания', song_ns: [1, 2, 3] },
