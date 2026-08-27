@@ -1,6 +1,7 @@
 import { useNuxtApp } from 'nuxt/app'
 import { buildBackup, saveBackupTo } from '~/lib/collectionsBackup'
 import { nextOrder, orderPlan } from '~/lib/collectionsOrder'
+import { normalizeTranspose } from '~/lib/transpose'
 
 export const useIndexDB = () => {
     const {$indexedDB} = useNuxtApp();
@@ -412,6 +413,41 @@ export const useIndexDB = () => {
         })
     }
 
+    /**
+     * Сдвиг тональности песни в полутонах. Ноль — исходная тональность, и она
+     * же ответ на любую ошибку: без сохранённого сдвига песня просто звучит как
+     * в сборнике, а сорванный экран из-за настройки был бы хуже.
+     */
+    const getSongTranspose = async (number) => {
+        return new Promise((resolve) => {
+            const transaction = $indexedDB.transaction(['songSettings'], 'readonly')
+            const store = transaction.objectStore('songSettings')
+            const request = store.get(Number(number))
+            request.onsuccess = () => resolve(normalizeTranspose(request.result?.transpose))
+            request.onerror = () => resolve(0)
+        })
+    }
+
+    /**
+     * Запоминает сдвиг для песни. Ноль запись удаляет: это исходная тональность,
+     * то есть отсутствие настройки, и держать её строкой незачем.
+     */
+    const setSongTranspose = async (number, value) => {
+        const transpose = normalizeTranspose(value)
+        return new Promise((resolve, reject) => {
+            const transaction = $indexedDB.transaction(['songSettings'], 'readwrite')
+            const store = transaction.objectStore('songSettings')
+            const key = Number(number)
+            if (transpose === 0) {
+                store.delete(key)
+            } else {
+                store.put({ songNumber: key, transpose })
+            }
+            transaction.oncomplete = () => resolve(transpose)
+            transaction.onerror = (event) => reject(event.target.error)
+        })
+    }
+
     const getFavoriteCollection = async () => {
         return new Promise((resolve) => {
             try {
@@ -527,6 +563,8 @@ export const useIndexDB = () => {
         addSections: guardWrite(addSections),
         getSections: guardRead(getSections, []),
         getSectionsCount: guardRead(getSectionsCount, 0),
+        getSongTranspose: guardRead(getSongTranspose, 0),
+        setSongTranspose: guardWrite(setSongTranspose),
         getAllLinks: guardRead(getAllLinks, []),
         getFavoriteCollection: guardRead(getFavoriteCollection, null),
         isSongInFavorite: guardRead(isSongInFavorite, false),

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { useIndexDB } from './useIndexDB'
-import { buildSongsMap, songNumbersFrom } from '~/lib/songsIndex'
+import { buildSongsMap, songNumbersFrom, buildChordsIndex } from '~/lib/songsIndex'
 
 // Кэш песен на уровне модуля: `getAllSongs()` тянет из IndexedDB 1565 записей
 // с полным текстом, а страница песни вызывала его при каждом переходе. Грузим
@@ -8,6 +8,9 @@ import { buildSongsMap, songNumbersFrom } from '~/lib/songsIndex'
 const allSongs = ref([])
 const songNumbers = ref([])
 const songsMap = ref(new Map())
+// Номера песен с размеченными аккордами: признак считается по тексту здесь же,
+// пока песни в руках, — иначе список и выдача поиска перебирали бы их сами
+const songsWithChords = ref(new Set())
 
 // Промис первой загрузки: если два компонента запросят песни одновременно,
 // транзакция к БД будет одна.
@@ -22,6 +25,7 @@ export const invalidateSongsCache = () => {
     allSongs.value = []
     songNumbers.value = []
     songsMap.value = new Map()
+    songsWithChords.value = new Set()
 }
 
 export const useSongsCache = () => {
@@ -42,11 +46,13 @@ export const useSongsCache = () => {
                 allSongs.value = songs
                 songNumbers.value = songNumbersFrom(songs)
                 songsMap.value = buildSongsMap(songs)
+                songsWithChords.value = buildChordsIndex(songs)
 
                 return {
                     songs: allSongs.value,
                     numbers: songNumbers.value,
-                    map: songsMap.value
+                    map: songsMap.value,
+                    withChords: songsWithChords.value
                 }
             })().catch((error) => {
                 // Ошибку не кэшируем — иначе неудачная загрузка залипнет
@@ -63,6 +69,7 @@ export const useSongsCache = () => {
         allSongs,
         songNumbers,
         songsMap,
+        songsWithChords,
         loadSongs,
         invalidateSongsCache
     }

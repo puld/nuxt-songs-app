@@ -104,11 +104,24 @@
         <span class="section-link-title">{{ songSection.title }}</span>
         <Icon name="mingcute:right-line" size="1rem" class="section-link-arrow" />
       </NuxtLink>
+
+      <!-- Тональность — в шапке песни, вместе с остальными метаданными и по
+           ширине той же колонки. За devMode: размечена малая часть сборника,
+           и обычному читателю аккорды попадались бы через раз. -->
+      <ChordControls
+        v-if="settings.devMode"
+        :transpose="transpose"
+        :key-name="currentKey"
+        :has-chords="songHasChords"
+        @step="onTransposeStep"
+        @reset="onTransposeChange(0)"
+      />
     </div>
 
     <SongDisplay
       :song="song"
       :initialVariantIndex="currentVariantIndex"
+      :transpose="transpose"
       @variant-change="onVariantChange"
     />
 
@@ -140,6 +153,8 @@ import { useSettingsStore } from '~/stores/settings'
 import { buildSectionIndex, getSongSection } from '~/lib/songsIndex'
 import { sectionAnchor } from '~/lib/songsList'
 import { joinUrl, songPath, songShareTitle } from '~/lib/share'
+import { hasChords as textHasChords } from '~/lib/chordMarkup'
+import { songKey, normalizeTranspose, stepTranspose } from '~/lib/transpose'
 
 const route = useRoute();
 const router = useRouter()
@@ -155,7 +170,9 @@ const {
   isSongInFavorite,
   addToFavorite,
   removeFromFavorite,
-  getSections
+  getSections,
+  getSongTranspose,
+  setSongTranspose
 } = useIndexDB();
 
 const {allSongs, songNumbers, loadSongs} = useSongsCache();
@@ -172,6 +189,8 @@ const showAddPopup = ref(false);
 const searchComponent = ref(null);
 const isSongFavorite = ref(false);
 const sectionIndex = ref(new Map());
+/** Сдвиг тональности этой песни в полутонах: 0 — как в сборнике. */
+const transpose = ref(0);
 const popupContentEl = ref(null);
 const gotoPopoverEl = ref(null);
 
@@ -283,6 +302,39 @@ const songSection = computed(() => (
   song.value ? getSongSection(sectionIndex.value, song.value.number) : null
 ));
 
+/** Текст активного варианта одной строкой — по нему видно и аккорды, и тональность. */
+const activeVariantText = computed(() => {
+  if (!song.value) return ''
+  const variants = song.value.variants || []
+  const body = variants[currentVariantIndex.value]?.body || song.value.body || []
+  return body.map((item) => item.content || '').join('\n')
+});
+
+/** Есть ли в песне размеченные аккорды: размечена пока малая часть сборника. */
+const songHasChords = computed(() => textHasChords(activeVariantText.value));
+
+/** Тональность с учётом сдвига — та же функция понадобится нотам (9.6). */
+const currentKey = computed(() => songKey(activeVariantText.value, transpose.value));
+
+/**
+ * Новый сдвиг: сначала на экран, потом в базу. Отказ базы транспонирование не
+ * отменяет — песню дочитывают в подобранной тональности, теряется только
+ * запоминание.
+ */
+const onTransposeChange = async (value) => {
+  transpose.value = normalizeTranspose(value)
+  if (!song.value) return
+  try {
+    await setSongTranspose(song.value.number, transpose.value)
+  } catch (error) {
+    console.error('Не удалось запомнить тональность:', error)
+  }
+};
+
+// Шаг считается здесь, от актуального `transpose`, а не в панели от её `props`:
+// props обновляются к следующему рендеру, и два быстрых тапа давали один полутон
+const onTransposeStep = (delta) => onTransposeChange(stepTranspose(transpose.value, delta))
+
 onMounted(async () => {
   try {
     const songNumber = parseInt(route.params.number);
@@ -314,6 +366,9 @@ onMounted(async () => {
     // без dev-режима это была бы лишняя транзакция на каждое открытие песни.
     if (settings.devMode) {
       sectionIndex.value = buildSectionIndex(await getSections());
+      // Подобранная тональность закреплена за песней и переживает уход со
+      // страницы: подбирают её под свой голос один раз, а не каждый раз заново
+      transpose.value = await getSongTranspose(songNumber);
     }
   } catch (error) {
     console.error('Ошибка загрузки песни:', error);

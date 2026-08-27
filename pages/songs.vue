@@ -102,6 +102,16 @@
             >
               <span class="song-number">{{ song.number }}</span>
               <span class="song-title">{{ song.title }}</span>
+              <!-- Метка «есть аккорды» — только когда аккорды включены: с
+                   выключенным тумблером она обещала бы то, чего на странице
+                   песни не видно -->
+              <Icon
+                v-if="settings.chordsVisible && songHasChords(songsWithChords, song.number)"
+                name="mingcute:guitar-line"
+                size="1rem"
+                class="chord-mark"
+                aria-label="с аккордами"
+              />
             </NuxtLink>
           </div>
         </section>
@@ -113,6 +123,7 @@
 <script setup>
 import { useSettingsStore } from '~/stores/settings'
 import { groupSongs, normalizeSongsListMode, sectionKeyFromHash } from '~/lib/songsList'
+import { songHasChords } from '~/lib/songsIndex'
 
 // Прокруткой распоряжается страница: список появляется только после чтения
 // базы, и до раздела её доводит `scrollToGroup` ниже. Флаг разбирает
@@ -132,7 +143,7 @@ const route = useRoute()
 const router = useRouter()
 const settings = useSettingsStore()
 const { getSections } = useIndexDB()
-const { allSongs, songNumbers, loadSongs } = useSongsCache()
+const { allSongs, songNumbers, songsWithChords, loadSongs } = useSongsCache()
 
 const sections = ref([])
 const loading = ref(true)
@@ -357,6 +368,14 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Метка «есть аккорды»: приглушена и не сжимается — это пометка строки,
+   а не действие, и укорачиваться при длинном названии должно название */
+.chord-mark {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  opacity: 0.7;
 }
 
 .empty {

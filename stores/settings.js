@@ -7,6 +7,9 @@ export const useSettingsStore = defineStore('settings', {
     state: () => ({
         fontSize: useStorage('fontSize', 'medium'), // 'small', 'medium', 'large'
         showChords: useStorage('showChords', false),
+        // Прятать басовую часть аккорда (`G/B` → `G`): обращения нужны
+        // аккомпаниатору, а поющему по бумажке только мешают читать
+        hideChordBass: useStorage('hideChordBass', false),
         keepScreenOn: useStorage('keepScreenOn', true),
         songsEtag: useStorage('songsEtag', ''),
         // Версия базы песен из корня songs.json — по ней ссылка на подборку
@@ -28,7 +31,17 @@ export const useSettingsStore = defineStore('settings', {
         recentSongNumbers: (state) => normalizeRecent(state.recentSongs),
         // Значение лежит в localStorage и может оказаться мусором, а на нём
         // держится сравнение версий при импорте подборки
-        currentSongsVersion: (state) => normalizeSongsVersion(state.songsVersion)
+        currentSongsVersion: (state) => normalizeSongsVersion(state.songsVersion),
+        // Аккорды показываются только в режиме разработчика: размечена малая
+        // часть сборника, и обычному читателю аккорды попадались бы через раз.
+        // Гейт стоит здесь, а не только на тумблере в настройках: тумблер был
+        // доступен всем, и у кого-то showChords остался включённым
+        chordsVisible: (state) => state.devMode && state.showChords,
+        // Упрощение считается только там, где аккорды вообще видны: иначе
+        // настройка жила бы своей жизнью и всплывала при включении показа
+        chordBassHidden() {
+            return this.chordsVisible && this.hideChordBass
+        }
     },
     actions: {
         setFontSize(size) {
@@ -36,6 +49,9 @@ export const useSettingsStore = defineStore('settings', {
         },
         setShowChords(value) {
             this.showChords = value
+        },
+        setHideChordBass(value) {
+            this.hideChordBass = value
         },
         setKeepScreenOn(value) {
             this.keepScreenOn = value

@@ -27,6 +27,8 @@ export const s = {
     resultNumber: '.result-item .song-number',
     resultTitle: '.result-item .song-title',
     resultVariant: '.result-item .variant-label',
+    // Метка «есть аккорды» — только при включённых аккордах
+    resultChordMark: '.result-item .chord-mark',
   },
 
   // === Navbar (глобальный chrome) ===
@@ -106,8 +108,16 @@ export const s = {
     variantTabs: '.variant-tabs',
     variantTab: '.variant-tab',
     variantTabActive: '.variant-tab.active',
+    // Аккорды: `{_G}` в строке — `.chord`, `{Am}` над строкой — `.chord-label`
     chord: '.chord',
-    chordUp: '.chord-up',
+    chordLabel: '.chord-label',
+    // Панель подбора тональности (за devMode + включёнными аккордами)
+    chordBar: '.chord-bar',
+    chordKeyName: '.chord-key-name',
+    chordKeyShift: '.chord-key-shift',
+    chordDown: '[aria-label="Тоном ниже"]',
+    chordUp: '[aria-label="Тоном выше"]',
+    chordReset: '[aria-label="Исходная тональность"]',
     repeat: '.repeat',
     stageDirection: '.stage-direction',
     // Раздел сборника — ссылка на /songs?section=<id>, только при devMode
@@ -159,6 +169,9 @@ export const s = {
   settings: {
     section: '.setting-section',
     toggleSwitch: '.toggle-switch',
+    // В секции аккордов тумблеров два — общий селектор там неоднозначен
+    chordsToggle: '.toggle-switch.chords-toggle',
+    chordBassToggle: '.toggle-switch.sub-toggle',
     slider: '.slider',
     toggleLabel: '.toggle-label',
     hint: '.setting-hint',
@@ -252,6 +265,8 @@ export const s = {
     groupByKey: (key) => `.songs-page .group[data-group-key="${key}"]`,
     songNumber: '.songs-page .song-link .song-number',
     songTitle: '.songs-page .song-link .song-title',
+    // Метка «есть аккорды» — только при включённых аккордах
+    chordMark: '.songs-page .song-link .chord-mark',
     searchBtn: '[aria-label="Найти песню"]',
     // Входы на экран — оба под флагом режима разработчика
     homeLink: '.songs-link',

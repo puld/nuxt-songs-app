@@ -27,8 +27,8 @@ test.describe('Джорни: настройки → отображение пе�
 
     // 3. Аккорды — тумблером в настройках.
     const chordsSection = page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
-    await chordsSection.locator(s.settings.toggleSwitch).click()
-    await expect(chordsSection.locator('input[type="checkbox"]')).toBeChecked()
+    await chordsSection.locator(s.settings.chordsToggle).click()
+    await expect(chordsSection.locator(s.settings.chordsToggle).locator('input')).toBeChecked()
 
     // 4. Открываем песню — настройки применились.
     await gotoSong(page, SONGS.ONE.n)

@@ -27,6 +27,7 @@ test/e2e/
 │   ├── collections.spec.js       # страница подборки, редактирование
 │   ├── songs.spec.js             # «Все песни»: гейт devMode, три режима группировки
 │   ├── settings.spec.js          # тема, шрифт, аккорды
+│   ├── chords.spec.js            # аккорды: надписи, метка «есть аккорды», тональность
 │   ├── sidebar.spec.js           # сайдбар
 │   ├── navbar.spec.js            # навбар
 │   └── responsive.spec.js        # мобильный viewport
@@ -100,6 +101,13 @@ npx playwright show-report
 Фикстура — снимок 60 песен (1–50 + 11 мульти-вариантных) из реальной БД
 плюс разделы сборника, суженные до этих песен: без них режим «по разделам»
 на странице «Все песни» показал бы всё одной группой «Вне разделов».
+
+В снимок обязательно входит `version` из корня `songs.json`: без него приложение
+записывает `0`, и любая ссылка на подборку выглядела бы собранной на более новой
+базе — ветка «база устарела» перестала бы проверяться. В подмножество попали 22
+песни с размеченными аккордами (из них 19 — с обращениями вида `G/B`), поэтому
+метка «есть аккорды», отрисовка надписей и тумблер «без басов» покрыты e2e.
+
 Чтобы обновить снимок (если изменились форматы или нужны другие песни):
 
 ```bash
@@ -112,10 +120,12 @@ const numbers = new Set(subset.map(s => s.n));
 const sections = (data.sections || [])
   .map(sec => ({...sec, song_ns: sec.song_ns.filter(n => numbers.has(n))}))
   .filter(sec => sec.song_ns.length > 0);
-require('fs').writeFileSync('test/e2e/data/fixtures/songs.fixture.json', JSON.stringify({songs:subset, sections}, null, 2));
+require('fs').writeFileSync('test/e2e/data/fixtures/songs.fixture.json', JSON.stringify({version: data.version, songs: subset, sections}, null, 2));
 console.log('Updated:', subset.length, 'songs,', sections.length, 'sections');
 "
 ```
 
 После обновления фикстуры проверьте, что `lib/songs.js` и
 `data/search-cases.js` согласованы с новыми данными, и прогоните тесты.
+Списки песен с аккордами (`SONGS_WITH_CHORDS`, `SONGS_WITHOUT_CHORDS` в
+`lib/songs.js`) вычисляются из фикстуры и обновятся сами.

@@ -40,6 +40,56 @@ export async function gotoSong(page, n) {
 }
 
 /**
+ * Включает показ аккордов до загрузки страницы.
+ *
+ * Условие показа — геттер `chordsVisible`, то есть **оба** флага: аккорды
+ * закрыты режимом разработчика, и одного `showChords` мало. Через
+ * `addInitScript`, а не кликами по настройкам: тумблер проверяется своим
+ * тестом в `settings.spec.js`, а здесь аккорды — предусловие, а не предмет.
+ *
+ * Вызывать до `page.goto` — иначе приложение прочитает настройки прежними.
+ */
+export async function enableChords(page, { bassHidden = false } = {}) {
+  await page.addInitScript((hideBass) => {
+    window.localStorage.setItem('devMode', 'true')
+    window.localStorage.setItem('showChords', 'true')
+    window.localStorage.setItem('hideChordBass', String(hideBass))
+  }, bassHidden)
+}
+
+/**
+ * Ждёт, пока подобранная тональность действительно ляжет в IndexedDB.
+ *
+ * Панель обновляет подпись синхронно, а запись в `songSettings` идёт отдельной
+ * транзакцией — и `page.goto` сразу после клика рвёт документ раньше, чем она
+ * завершится. Пользователю это почти не грозит (между тапом и переходом у него
+ * не миллисекунды), но тест без ожидания флакует. Ждать факт записи, а не
+ * фиксированную паузу: пауза либо мала на медленной машине, либо тратится зря.
+ */
+export async function waitForStoredTranspose(page, songNumber, expected) {
+  await page.waitForFunction(
+    ([number, value]) =>
+      new Promise((resolve) => {
+        const request = indexedDB.open('SongsDB')
+        request.onsuccess = () => {
+          const db = request.result
+          const get = db.transaction('songSettings').objectStore('songSettings').get(number)
+          get.onsuccess = () => {
+            db.close()
+            resolve((get.result?.transpose ?? 0) === value)
+          }
+          get.onerror = () => {
+            db.close()
+            resolve(false)
+          }
+        }
+        request.onerror = () => resolve(false)
+      }),
+    [songNumber, expected]
+  )
+}
+
+/**
  * Открывает goto-popover «Перейти к песне» на странице песни.
  * Ожидает, что страница песни уже загружена.
  */

@@ -18,6 +18,29 @@ const byN = (n) => fixture.songs.find((s) => s.n === n)
 /** Метки вариантов песни (или [] если один вариант). */
 const labelsOf = (song) => (song?.variants || []).map((v) => v.label)
 
+/**
+ * Есть ли в песне размеченные аккорды.
+ *
+ * Критерий повторяет `hasChords` из `lib/chordMarkup.js` — фигурная скобка в
+ * тексте. Импортировать оттуда нельзя без сборки Nuxt-алиасов, а правило
+ * простое настолько, что дублирование дешевле связывания.
+ */
+const songHasChords = (song) =>
+  (song?.variants || [{ body: song?.body || [] }]).some((v) =>
+    (v.body || []).some((p) => String(p.content || '').includes('{'))
+  )
+
+/** Есть ли в песне обращения — аккорды с басом (`G/B`). */
+const songHasBassChords = (song) => /\{_?[A-G][#b]?[^}]*\/[A-G]/.test(JSON.stringify(song))
+
+// Номера песен с аккордами и без них — вычисляются из фикстуры, поэтому
+// пересборка снимка не требует правки тестов.
+export const SONGS_WITH_CHORDS = fixture.songs.filter(songHasChords).map((s) => s.n)
+export const SONGS_WITHOUT_CHORDS = fixture.songs.filter((s) => !songHasChords(s)).map((s) => s.n)
+
+const firstWithoutChords = fixture.songs.find((s) => !songHasChords(s))
+const firstWithBass = fixture.songs.find(songHasBassChords)
+
 export const SONGS = {
   // Песня с одним вариантом — базовые тесты отображения и навигации.
   ONE: { n: byN(1).n, title: byN(1).title, labels: labelsOf(byN(1)) },
@@ -34,6 +57,18 @@ export const SONGS = {
     title: byN(1254).title,
     labels: labelsOf(byN(1254)),
   },
+
+  // Песня с размеченными аккордами — отрисовка надписей и подбор тональности.
+  // Тональность (`key`) записана буквально, а не вычислена `lib/transpose.js`:
+  // иначе тест повторял бы реализацию и не поймал бы ошибку в ней.
+  CHORDS: { n: 1, title: byN(1).title, key: 'A', keyUp1: 'Bb' },
+
+  // Песня без аккордов — метки в списке у неё быть не должно. Номер берётся из
+  // фикстуры: пересобранный снимок может разметить аккордами и вторую песню.
+  NO_CHORDS: { n: firstWithoutChords.n, title: firstWithoutChords.title },
+
+  // Песня с обращениями (`G/B`) — на ней виден тумблер «без басов».
+  CHORDS_BASS: { n: firstWithBass.n, title: firstWithBass.title },
 
   // Несуществующий номер — проверка «Песня не найдена».
   NONEXISTENT: 999999,
