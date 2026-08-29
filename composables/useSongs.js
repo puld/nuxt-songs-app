@@ -1,6 +1,7 @@
 import { useIndexDB } from './useIndexDB'
 import { invalidateSongsCache } from './useSongsCache'
 import { resetSearchIndex } from './useSongSearch'
+import { songsJsonUrl, SONGS_FETCH_INIT } from '~/lib/songsSource'
 
 /**
  * Composable для загрузки песен из JSON файла.
@@ -18,7 +19,11 @@ export const useSongs = () => {
      */
     const fetchSongs = async () => {
         try {
-            const response = await fetch('assets/songs.json')
+            // Адрес и политика кэша — в `lib/songsSource.js`: относительный
+            // путь ломается при заходе по прямой ссылке, а ответ из кэша
+            // браузера даёт «успешное» обновление старым файлом.
+            const url = songsJsonUrl(useRuntimeConfig().app.baseURL)
+            const response = await fetch(url, SONGS_FETCH_INIT)
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`)

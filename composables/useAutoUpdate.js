@@ -1,4 +1,5 @@
 import { shouldCheck, checkForUpdate } from '~/lib/autoUpdate'
+import { songsJsonUrl } from '~/lib/songsSource'
 
 /**
  * Composable для автоматической проверки обновлений базы данных песен.
@@ -30,10 +31,21 @@ export const useAutoUpdate = () => {
 
     settings.setLastUpdateCheck(Date.now())
 
-    const result = await checkForUpdate('assets/songs.json', settings.songsEtag)
+    const result = await checkForUpdate(
+      songsJsonUrl(useRuntimeConfig().app.baseURL),
+      settings.songsEtag
+    )
 
     if (result.changed) {
       settings.setUpdateAvailable(true)
+      return
+    }
+
+    // ETag неизвестен (база приехала до появления автообновления или её
+    // сохранение не удалось) — запоминаем текущий. Сравнивать было не с чем,
+    // и без этой записи клиент оставался бы слеп к обновлениям навсегда.
+    if (!settings.songsEtag && result.newEtag) {
+      settings.setSongsEtag(result.newEtag)
     }
   }
 

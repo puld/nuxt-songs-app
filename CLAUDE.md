@@ -146,6 +146,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── search.js             # Поиск (Lunr.js)
 │   ├── share.js              # Ссылки «поделиться»: адрес, подписи, бюджет длины
 │   ├── songsIndex.js         # Карта «номер → песня» и «номер → раздел», названия и метки вариантов
+│   ├── songsSource.js        # Адрес базы песен и политика кэша запроса
 │   ├── songsVersion.js       # Нормализация версии базы песен
 │   ├── songsList.js          # Группировка песен: по номеру, алфавиту, разделам
 │   ├── storagePersist.js     # navigator.storage: постоянное хранилище и оценка места
@@ -945,7 +946,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `lib/chordMarkup.test.js`, `lib/chordLayout.test.js`, `lib/transpose.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsSource.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `lib/chordMarkup.test.js`, `lib/chordLayout.test.js`, `lib/transpose.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useAutoUpdate.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)
@@ -985,8 +986,38 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 ссылка считает базу самой старой, и получатели видели бы ложное «обновите базу».
 Отсутствие файла ошибкой не считается — это версия `0`.
 
-### Путь к базе данных песен
-Файл лежит в `public/assets/songs.json` — этот путь важен для PWA-кэширования. Локально доступен как `/assets/songs.json`; загрузка в IndexedDB — `fetch('assets/songs.json')` в `useSongs.fetchSongs()`.
+### Путь к базе данных песен и её кэш
+
+Файл лежит в `public/assets/songs.json` — этот путь важен для PWA-кэширования.
+Адрес и опции запроса собраны в `lib/songsSource.js` (`songsJsonUrl`,
+`SONGS_FETCH_INIT`); оттуда их берут `useSongs.fetchSongs()` и HEAD-проверка
+автообновления. Три правила, каждое — из боевого бага «в песне 1533 нет аккордов»:
+
+- **Путь абсолютный, от `app.baseURL`.** Относительный `assets/songs.json`
+  разрешается от адреса страницы, а он не всегда корневой: GitHub Pages
+  редиректит `/nuxt-songs-app/about` на `/about/`, и запрос уходил в
+  `/nuxt-songs-app/about/assets/songs.json` → 404, база не загружалась вовсе.
+  Внутри SPA-навигации завершающего слэша нет, поэтому путь случайно
+  разрешался верно — ломались только заход по присланной ссылке, закладка и
+  ярлык PWA, то есть ровно то, чем пользуются на телефоне
+- **Запрос ревалидируется (`cache: 'no-cache'`).** Файл отдаётся с
+  `cache-control: max-age=600`, и без этой опции браузер десять минут отвечает
+  из своего кэша **старой** копией: статус 200, JSON валиден, запись в базу
+  проходит — кнопка «Обновить базу» честно рапортует успех, обновив базу тем
+  же старым файлом. Пользователь нажал её два десятка раз, а аккорды появились
+  через двенадцать минут — когда истёк `max-age`. `no-cache` кэш не отключает,
+  а обязывает спросить сервер: не изменилось — 304 и та же копия почти без
+  трафика. По той же причине опция нужна и HEAD-запросу: ETag, прочитанный из
+  кэша, всегда равен сохранённому, и обновление не находилось никогда
+- **`urlPattern` в `nuxt.config.js` пишется с `pathHost`.** Строковый паттерн
+  Workbox сравнивает адрес целиком: правило `'/assets/songs.json'` не совпадало
+  на боевом ни с одним запросом, и `NetworkFirst`/`songs-cache` не работали
+  вовсе. Проверять после сборки: `grep registerRoute .output/public/sw.js`
+
+Пустой сохранённый ETag `performCheck` теперь **запоминает** вместо того чтобы
+промолчать: сравнивать было не с чем, `checkForUpdate` всегда возвращал
+`changed: false`, а нового ETag никто не сохранял — клиент оставался слеп к
+обновлениям навсегда.
 
 ### Хеширование в URL
 URL песен без хеша: `/song/115`. Использовать этот формат везде — и в dev, и в production.
