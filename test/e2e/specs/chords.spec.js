@@ -125,6 +125,21 @@ test.describe('Аккорды: повтор с пометкой прохода �
     await expect(sheet).not.toContainText('1:')
     await expect(page.locator(s.song.chordLabel)).toHaveCount(0)
   })
+
+  test('с выключенным тумблером повтор не разворачивается, а показывает слеши', async ({ page }) => {
+    // Без аккордов копии неотличимы друг от друга: строфа выглядела бы просто
+    // набранной дважды, да ещё и потеряла бы привычные слеши со счётчиком
+    await gotoSong(page, SONGS.CHORD_PASSES.n)
+
+    const part = page.locator(s.song.part).first()
+    const text = await textWithoutChords(part.locator(s.song.repeat))
+    expect(countOf(text, SONGS.CHORD_PASSES.line)).toBe(1)
+
+    const markers = part.locator(s.song.repeatMarker)
+    await expect(markers).toHaveCount(2)
+    await expect(markers.first()).toHaveText('/')
+    await expect(markers.last()).toHaveText(`/${SONGS.CHORD_PASSES.passes}р.`)
+  })
 })
 
 test.describe('Аккорды: метка «есть аккорды» в списке песен', () => {

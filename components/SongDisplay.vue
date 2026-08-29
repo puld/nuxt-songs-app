@@ -151,8 +151,11 @@ const processContent = (content) => {
   // Обращения (`G/B`) нужны аккомпаниатору, а поющему только мешают читать
   if (settings.chordBassHidden) result = stripBassText(result)
 
-  // 1. Обрабатываем повторы (/текст /Nр.) — не затрагивает аккорды {Am}
-  result = processRepeats(result)
+  // 1. Обрабатываем повторы (/текст /Nр.) — не затрагивает аккорды {Am}.
+  // Разворот помеченного повтора в копии разрешён только при показанных
+  // аккордах: без них копии неотличимы друг от друга, и строфа читалась бы
+  // просто набранной дважды — да ещё и без привычных слешей со счётчиком
+  result = processRepeats(result, { expand: settings.chordsVisible })
 
   // 2. Аккорды: {Am} над строкой, {_G} в строке
   result = renderChords(result, settings.chordsVisible)
