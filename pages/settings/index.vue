@@ -45,22 +45,12 @@
         <span class="toggle-label">{{ settings.showChords ? 'Вкл' : 'Выкл' }}</span>
       </label>
 
-      <!-- Заблокирован, а не скрыт, пока аккорды выключены: исчезающая строка
-           дёргала бы секцию при каждом переключении, а о самой возможности
-           упростить аккорды узнать было бы неоткуда. -->
-      <label class="toggle-switch sub-toggle" :class="{ disabled: !settings.showChords }">
-        <input
-            type="checkbox"
-            :checked="settings.hideChordBass"
-            :disabled="!settings.showChords"
-            @change="handleChordBassToggle"
-        >
-        <span class="slider"></span>
-        <span class="toggle-label">Без басов: G/B → G</span>
-      </label>
-      <p class="setting-hint">
-        Прячет то, что записано после косой черты. Аккомпаниатору обращения нужны,
-        поющему по бумажке — мешают.
+      <!-- Упрощение, диезы/бемоли, немецкая нотация — на отдельной странице:
+           тогглов набралось четыре, и они заслоняли собой остальные настройки
+           приложения. Ссылка скрыта, пока аккорды выключены: настраивать
+           там пока нечего — вся страница была бы неактивна. -->
+      <p v-if="settings.showChords" class="setting-hint">
+        <NuxtLink to="/settings/chords">Упрощение, диезы и нотация аккордов →</NuxtLink>
       </p>
     </div>
 
@@ -209,10 +199,6 @@ const handleColorModeChange = (mode) => {
 
 const handleChordsToggle = (e) => {
   settings.setShowChords(e.target.checked)
-}
-
-const handleChordBassToggle = (e) => {
-  settings.setHideChordBass(e.target.checked)
 }
 
 const handleKeepScreenOnToggle = (e) => {
@@ -373,21 +359,16 @@ input:checked + .slider:before {
   user-select: none;
 }
 
-/* Уточнение к тумблеру выше — отступом показано, что строка подчинённая */
-.sub-toggle {
-  margin-top: 0.75rem;
-}
-
-.sub-toggle.disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .setting-hint {
   font-size: 0.8rem;
   color: var(--text-secondary);
   margin-top: 0.4rem;
   margin-bottom: 0;
+}
+
+.setting-hint a {
+  color: var(--primary);
+  text-decoration: none;
 }
 
 .experimental-hint {

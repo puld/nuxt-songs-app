@@ -171,9 +171,12 @@ export const s = {
   settings: {
     section: '.setting-section',
     toggleSwitch: '.toggle-switch',
-    // В секции аккордов тумблеров два — общий селектор там неоднозначен
+    // Главный тоггл — на /settings, остальные три — на /settings/chords,
+    // где общий селектор неоднозначен
     chordsToggle: '.toggle-switch.chords-toggle',
-    chordBassToggle: '.toggle-switch.sub-toggle',
+    simplifyChordsToggle: '.toggle-switch.simplify-toggle',
+    forceSharpToggle: '.toggle-switch.force-sharp-toggle',
+    germanNotationToggle: '.toggle-switch.german-notation-toggle',
     slider: '.slider',
     toggleLabel: '.toggle-label',
     hint: '.setting-hint',

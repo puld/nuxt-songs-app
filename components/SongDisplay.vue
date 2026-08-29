@@ -39,7 +39,7 @@ import { useSettingsStore } from '~/stores/settings'
 import { processRepeats } from '~/lib/repeats'
 import { renderChords, hasChords as textHasChords } from '~/lib/chordMarkup'
 import { planChordShifts } from '~/lib/chordLayout'
-import { transposeText, stripBassText, preferSharp, normalizeTranspose } from '~/lib/transpose'
+import { transposeText, simplifyChordsText, preferSharp, normalizeTranspose } from '~/lib/transpose'
 
 const props = defineProps({
   song: {
@@ -130,11 +130,13 @@ const fontSizeClass = computed(() => {
 })
 
 /**
- * Писать ли аккорды диезами — решает целевая тональность, поэтому набор знаков
- * считается один раз по всему варианту: иначе один куплет получил бы `Bb`,
- * а соседний `A#`.
+ * Писать ли аккорды диезами. Обычно решает целевая тональность (набор знаков
+ * считается один раз по всему варианту — иначе один куплет получил бы `Bb`,
+ * а соседний `A#`), но при принудительном тумблере конвенция не спрашивается
+ * вовсе: диезы читаются диезами независимо от тональности и даже без сдвига.
  */
 const sharpSpelling = computed(() => {
+  if (settings.sharpForced) return true
   const shift = normalizeTranspose(props.transpose)
   if (!shift) return false
   const text = (activeVariantBody.value || []).map((item) => item.content || '').join('\n')
@@ -144,12 +146,22 @@ const sharpSpelling = computed(() => {
 const processContent = (content) => {
   if (!content) return ''
 
-  // 0. Сдвиг тональности — до всего остального: он меняет только содержимое {…}
-  let result = transposeText(content, normalizeTranspose(props.transpose), sharpSpelling.value)
+  // 0. Сдвиг тональности — до всего остального: он меняет только содержимое {…}.
+  // При принудительных диезах/немецкой нотации и нулевом сдвиге функция всё
+  // равно проходит по тексту — раннего выхода при semitones=0 в ней больше нет
+  // ради этих случаев
+  let result = transposeText(
+    content,
+    normalizeTranspose(props.transpose),
+    sharpSpelling.value,
+    settings.germanNotationOn
+  )
 
-  // 0.5. Упрощение аккордов — тоже по разметке {…}, до её разбора в разметку HTML.
-  // Обращения (`G/B`) нужны аккомпаниатору, а поющему только мешают читать
-  if (settings.chordBassHidden) result = stripBassText(result)
+  // 0.5. Упрощение для гитары: снимает бас и сворачивает сложные обозначения
+  // (sus4/sus2/dim/dim7/m7b5/+) — по той же разметке {…}, до её разбора в
+  // HTML. Аккорды сняты с партитуры для фортепиано, а не под гитару, и то и
+  // другое там избыточно
+  if (settings.chordsSimplified) result = simplifyChordsText(result)
 
   // 1. Обрабатываем повторы (/текст /Nр.) — не затрагивает аккорды {Am}.
   // Разворот помеченного повтора в копии разрешён только при показанных
@@ -240,9 +252,11 @@ watch([
   activeVariantBody,
   () => settings.fontSize,
   () => settings.chordsVisible,
-  // Упрощение меняет ширину надписей («D7/F#» вдвое шире «D7»), а от неё
-  // зависит, какие из них расходятся
-  () => settings.chordBassHidden,
+  // Упрощение меняет ширину надписей («D7/F#» вдвое шире «D7», «Bb7(sus4)»
+  // шире «Bb7»), а от неё зависит, какие из них расходятся
+  () => settings.chordsSimplified,
+  () => settings.sharpForced,
+  () => settings.germanNotationOn,
   () => props.transpose
 ], scheduleLayout)
 

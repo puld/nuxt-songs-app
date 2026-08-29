@@ -313,8 +313,14 @@ const activeVariantText = computed(() => {
 /** Есть ли в песне размеченные аккорды: размечена пока малая часть сборника. */
 const songHasChords = computed(() => textHasChords(activeVariantText.value));
 
-/** Тональность с учётом сдвига — та же функция понадобится нотам (9.6). */
-const currentKey = computed(() => songKey(activeVariantText.value, transpose.value));
+/**
+ * Тональность с учётом сдвига — та же функция понадобится нотам (9.6).
+ * `forceSharp`/`germanNotationOn` — те же настройки, что двигают надписи в
+ * `SongDisplay`: без них панель показывала бы конвенцию, а лист — тумблер.
+ */
+const currentKey = computed(() =>
+  songKey(activeVariantText.value, transpose.value, settings.sharpForced, settings.germanNotationOn)
+);
 
 /**
  * Новый сдвиг: сначала на экран, потом в базу. Отказ базы транспонирование не
