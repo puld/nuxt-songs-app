@@ -59,6 +59,74 @@ test.describe('Аккорды: отрисовка в тексте песни', (
   })
 })
 
+test.describe('Аккорды: повтор с пометкой прохода разворачивается', () => {
+  // Пометка `{2:Dm}` относится к ближайшему охватывающему повтору `/…/Nр.`:
+  // такой повтор печатается столько раз, сколько его поют, и каждая копия
+  // получает свои аккорды. Маркеры / и /Nр. у него не выводятся — иначе экран
+  // обещал бы повторить то, что уже напечатано дважды.
+  //
+  // В фикстуре помечена первая строфа песни CHORD_PASSES, вторая осталась
+  // обычным повтором — она же и сторожит, что развернулось не всё подряд.
+
+  /** Текст фрагмента без надписей аккордов: они стоят внутри слов и рвут фразу. */
+  const textWithoutChords = (locator) =>
+    locator.evaluate((el) => {
+      const clone = el.cloneNode(true)
+      clone.querySelectorAll('.chord-label').forEach((label) => label.remove())
+      return clone.textContent
+    })
+
+  const countOf = (haystack, needle) => haystack.split(needle).length - 1
+
+  test('помеченная строфа печатается дважды и без маркеров повтора', async ({ page }) => {
+    await enableChords(page)
+    await gotoSong(page, SONGS.CHORD_PASSES.n)
+
+    const part = page.locator(s.song.part).first()
+    const repeat = part.locator(s.song.repeat)
+    await expect(repeat).toHaveCount(1)
+
+    const text = await textWithoutChords(repeat)
+    expect(countOf(text, SONGS.CHORD_PASSES.line)).toBe(SONGS.CHORD_PASSES.passes)
+
+    await expect(part.locator(s.song.repeatMarker)).toHaveCount(0)
+  })
+
+  test('аккорд прохода стоит только в своей копии, а непомеченный — в обеих', async ({ page }) => {
+    await enableChords(page)
+    await gotoSong(page, SONGS.CHORD_PASSES.n)
+
+    const repeat = page.locator(s.song.part).first().locator(s.song.repeat)
+    const label = (text) => repeat.locator(`${s.song.chordLabel}:text-is("${text}")`)
+
+    await expect(label(SONGS.CHORD_PASSES.firstPassChord)).toHaveCount(1)
+    await expect(label(SONGS.CHORD_PASSES.secondPassChord)).toHaveCount(1)
+    await expect(label(SONGS.CHORD_PASSES.everyPassChord)).toHaveCount(SONGS.CHORD_PASSES.passes)
+  })
+
+  test('повтор без пометок по-прежнему показывает слеши и счётчик', async ({ page }) => {
+    await enableChords(page)
+    await gotoSong(page, SONGS.CHORD_PASSES.n)
+
+    const markers = page.locator(s.song.part).nth(1).locator(s.song.repeatMarker)
+
+    await expect(markers).toHaveCount(2)
+    await expect(markers.first()).toHaveText('/')
+    await expect(markers.last()).toHaveText(`/${SONGS.CHORD_PASSES.passes}р.`)
+  })
+
+  test('с выключенным тумблером номера проходов на экран не попадают', async ({ page }) => {
+    // Разметка `{2:C#m}` уходит вместе с аккордом: «2:» на листе читалось бы
+    // как часть текста песни
+    await gotoSong(page, SONGS.CHORD_PASSES.n)
+
+    const sheet = page.locator(s.song.contentWrapper)
+    await expect(sheet).not.toContainText('2:')
+    await expect(sheet).not.toContainText('1:')
+    await expect(page.locator(s.song.chordLabel)).toHaveCount(0)
+  })
+})
+
 test.describe('Аккорды: метка «есть аккорды» в списке песен', () => {
   // Экран «Все песни» сам за devMode, поэтому оба флага ставит enableChords
   test('метка стоит ровно у песен с аккордами', async ({ page }) => {

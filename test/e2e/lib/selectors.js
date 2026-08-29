@@ -119,6 +119,8 @@ export const s = {
     chordUp: '[aria-label="Тоном выше"]',
     chordReset: '[aria-label="Исходная тональность"]',
     repeat: '.repeat',
+    // Маркеры / и /Nр. — у развёрнутого повтора их нет
+    repeatMarker: '.repeat-marker',
     stageDirection: '.stage-direction',
     // Раздел сборника — ссылка на /songs?section=<id>, только при devMode
     sectionLink: '.section-link',
