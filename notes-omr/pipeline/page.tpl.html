@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ — ноты</title>
+<style>/*__AUDIOCSS__*/</style>
+<style>
+  :root { --bg:#f5f5f4; --fg:#1c1917; --muted:#78716c; --line:#d6d3d1; --accent:#1d4ed8;
+          --hl:#dc2626; --panel:#fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#18181b; --fg:#e7e5e4; --muted:#a1a1aa; --line:#3f3f46; --accent:#93c5fd;
+            --hl:#f87171; --panel:#fafaf9; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:16px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding:14px 16px 10px; border-bottom:1px solid var(--line); }
+  h1 { margin:0; font-size:1.15rem; font-weight:650; }
+  .sub { color:var(--muted); font-size:.82rem; margin-top:2px; }
+  /* Подписи шапки печатного оригинала: автор слов слева, автор музыки справа,
+     эпиграф посередине. Три колонки одной ширины держат их по местам и на
+     узком экране, где строка переносится. */
+  .credits { display:grid; grid-template-columns:1fr 1fr 1fr; gap:2px 10px;
+             margin-top:8px; font-size:.82rem; color:var(--fg); }
+  .credits i { font-style:italic; color:var(--muted); }
+  /* колонка задаётся явно: при автоматическом потоке эпиграф занимал бы
+     ячейку, оставшуюся от строки с авторами, и уезжал к левому краю */
+  .credits .l { text-align:left; grid-column:1; }
+  .credits .c { text-align:center; grid-column:2; }
+  .credits .r { text-align:right; grid-column:3; }
+  /* Курсор проигрывания сам подкручивает страницу к звучащей ноте, поэтому панель
+     держится наверху: иначе к середине песни кнопку «стоп» уже не догнать —
+     прокрутка возвращает к нотам быстрее, чем успеваешь долистать до плеера. */
+  .controls { position:sticky; top:0; z-index:20; background:var(--bg);
+              border-bottom:1px solid var(--line); padding-bottom:8px; }
+  .controls .bar { border-bottom:none; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px 14px; padding:10px 16px;
+         border-bottom:1px solid var(--line); align-items:center; }
+  .grp { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .grp > span { color:var(--muted); font-size:.78rem; }
+  .bar button { font:inherit; font-size:.82rem; padding:5px 10px; border-radius:8px;
+                border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer; }
+  .bar button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:#fff; }
+  #player { max-width:1100px; margin:10px auto 0; padding:0 12px; }
+  #status { max-width:1100px; margin:6px auto 0; padding:0 14px; color:var(--muted);
+            font-size:.8rem; display:flex; gap:10px; align-items:baseline; }
+  #status b { color:var(--fg); font-weight:600; }
+  /* Ноты занимают всю доступную ширину: чем шире экран, тем больше тактов в строке
+     и тем меньше прокрутки при пении — колонка в 1100px оставляла бы поля пустыми. */
+  /* без боковых полей: abcjs ставит svg ширину в пикселях по clientWidth, и поля
+     ушли бы в горизонтальную прокрутку страницы */
+  #paper { background:var(--panel); margin:10px 0; padding:6px 6px;
+           border-radius:10px; overflow-x:hidden; color:#1c1917; }
+  #player, #status { max-width:none; }
+  #paper svg { display:block; width:100%; height:auto; }
+  footer { color:var(--muted); font-size:.78rem; padding:0 16px 24px; max-width:1100px; margin:0 auto; }
+
+  /* Подсветка звучащего: класс abcjs кладёт на группу БЕЗ класса abcjs-note,
+     поэтому селектор по одному abcjs-note-playing, и заодно по вложенным path. */
+  #paper .abcjs-note-playing,
+  #paper .abcjs-note-playing path { fill: var(--hl); }
+  #paper line.abcjs-cursor { stroke: var(--hl); stroke-width: 1.8; opacity:.7; }
+
+  /* На узком экране панель липнет к верху, поэтому её высота — отнятые у нот пиксели:
+     кнопки уходят в одну прокручиваемую строку вместо трёх-четырёх рядов. */
+  @media (max-width:640px) {
+    .bar { flex-wrap:nowrap; overflow-x:auto; padding:8px 12px; gap:6px 12px;
+           scrollbar-width:none; }
+    .bar::-webkit-scrollbar { display:none; }
+    .grp { flex-wrap:nowrap; flex:0 0 auto; }
+    #status { display:none; }              /* строка состояния дублирует кнопки куплетов */
+  }
+
+  /* Панель плеера: штатный CSS выше, здесь только посадка в тему страницы. */
+  .abcjs-inline-audio { border-radius:10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>__TITLE__ <span style="color:var(--muted);font-weight:400">№&nbsp;__NUM__</span></h1>
+  <div class="sub">Распознано из PDF по координатам глифов · __SUB__</div>
+  __CREDITS__
+</header>
+
+<div class="controls">
+<div class="bar">
+  <div class="grp" id="voices"><span>Голоса:</span>
+    <button data-v="satb" aria-pressed="true">четыре</button>
+    <button data-v="s">мелодия</button>
+  </div>
+  <div class="grp" id="verses"><span>Куплет:</span></div>
+  <div class="grp" id="lyrics"><span>Текст:</span>
+    <button data-w="all" aria-pressed="true" title="все куплеты подстрочно, как в сборнике">все куплеты</button>
+    <button data-w="one" title="под нотами только тот куплет, что выбран">выбранный</button>
+  </div>
+  <div class="grp" id="keys"><span>Тональность:</span>
+    <button data-d="-1" title="на полтона ниже">−</button>
+    <button id="keyname" disabled style="min-width:4.2em">__KEYNAME__</button>
+    <button data-d="1" title="на полтона выше">+</button>
+  </div>
+  <div class="grp" id="loopmode"><span>Играть:</span>
+    <button data-l="one" aria-pressed="true">один куплет</button>
+    <button data-l="all">все куплеты</button>
+  </div>
+  <div class="grp" id="tones"><span>Звук:</span>
+    <button data-i="acoustic_grand_piano" aria-pressed="true">фортепиано</button>
+    <button data-i="choir_aahs">хор</button>
+  </div>
+  <div class="grp" id="chords"><span>Аккорды:</span>
+    <button data-c="1" aria-pressed="true" title="аккомпанемент по буквенным обозначениям">играть</button>
+    <button data-c="0" title="звучат только голоса с нотоносца">не играть</button>
+  </div>
+</div>
+
+<div id="player"></div>
+<div id="status"></div>
+</div>
+
+<div id="paper"></div>
+<footer id="note"></footer>
+
+<script>/*__SOUNDFONT__*/</script>
+<script>
+/* Семплы вшиты в файл: abcjs грузит их XMLHttpRequest'ом (не fetch), поэтому
+   перехватывается open — путь к семплу подменяется на blob: с вшитыми байтами.
+   Страница остаётся автономной: ни одного обращения в сеть, работает и через file://. */
+(function () {
+  const NOTE = /([a-z_0-9]+)-mp3\/([A-G][b#]?\d)\.mp3$/;
+  const cache = {};
+  function localUrl(inst, note) {
+    const key = inst + "/" + note;
+    if (!cache[key]) {
+      const bin = atob(SOUNDFONT[inst][note]);
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      cache[key] = URL.createObjectURL(new Blob([buf], { type: "audio/mpeg" }));
+    }
+    return cache[key];
+  }
+  const open = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    const m = NOTE.exec(String(url));
+    if (m && SOUNDFONT[m[1]] && SOUNDFONT[m[1]][m[2]]) url = localUrl(m[1], m[2]);
+    return open.call(this, method, url, ...rest);
+  };
+})();
+</script>
+<script>/*__ABCJS__*/</script>
+<script>
+const META = __META__;
+const FULL = __ABC__;
+let mode = "satb", verse = 1, instrument = "acoustic_grand_piano", shift = 0;
+let chords = true;                   // аккомпанемент по буквенным обозначениям
+let loopAll = false;                      // проходить все куплеты подряд
+// текст всех куплетов подстрочно, как в печатном сборнике. Так набран PDF, и
+// начинать разумно с него: строка одного куплета — это выбор «показать только
+// то, что поётся сейчас», а не вид по умолчанию
+let lyricsAll = true;
+let drawnLyrics = -1;                     // какой текст сейчас на экране (0 — все куплеты)
+const VERSES = META.verses;
+// состав голосов читается из самой записи: в «мелодии с аккомпанементом» (974)
+// хоровых партий нет вовсе, и выбор «четыре голоса / мелодия» там нечего значит
+const VOICES = [...new Set([...FULL.matchAll(/^V:([SATB])\s/gm)].map(m => m[1]))];
+const PAUSE_BETWEEN_VERSES = 700;   // вздох между куплетами, как у живого пения
+// −6…+5 полутонов: все двенадцать тональностей, каждая по разу. Симметричный
+// диапазон дал бы дубль — по кругу +6 и −6 звучат одинаково. Тот же диапазон
+// заводит песенник под общее с аккордами транспонирование (5.2 дорожной карты)
+const KEY_MIN = -6, KEY_MAX = 5;
+const KEYS = ["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+let visualObj = null, synth = null, audioSeq = 0, stale = 0;
+
+/** ABC под текущий выбор: лишние голоса и куплеты вырезаются из исходного текста.
+ *
+ * `verse = 0` оставляет строки всех куплетов — abcjs печатает их подстрочно, как
+ * в PDF.
+ */
+function abcFor(mode, verse) {
+  const out = [];
+  let voice = null, wIdx = 0;
+  for (const ln of FULL.split("\n")) {
+    if (ln.startsWith("%%score")) { out.push(mode === "s" ? "%%score S" : ln); continue; }
+    if (/^V:\S+/.test(ln)) {
+      // счётчик куплетов ведётся внутри блока голоса: партитура разбита по системам,
+      // и строки w: каждой системы нумеруются заново.
+      // имя голоса читается целиком: у фортепиано это P1/P2/P3, не одна буква
+      voice = ln.slice(2).split(/\s/)[0]; wIdx = 0;
+      if (mode === "s" && voice !== "S") continue;
+      out.push(ln); continue;
+    }
+    if (ln.startsWith("w:")) { wIdx++; if (!verse || wIdx === verse) out.push(ln); continue; }
+    if (voice && mode === "s" && voice !== "S") continue;
+    out.push(ln);
+  }
+  return out.join("\n");
+}
+
+/** Тактов в строке — от ширины: на узком экране их должно быть мало, иначе ноты слипаются. */
+function measuresPerLine(w) {
+  if (w < 420) return 2;
+  if (w < 700) return 3;
+  if (w < 950) return 4;
+  if (w < 1400) return 5;
+  if (w < 1900) return 6;
+  return 7;
+}
+
+function clearHighlight() {
+  document.querySelectorAll("#paper .abcjs-note-playing")
+    .forEach(el => el.classList.remove("abcjs-note-playing"));
+}
+
+/** Вертикальная линия курсора: создаётся один раз на отрисовку. */
+function cursorLine() {
+  let line = document.querySelector("#paper line.abcjs-cursor");
+  if (line) return line;
+  const svg = document.querySelector("#paper svg");
+  if (!svg) return null;
+  line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("class", "abcjs-cursor");
+  line.setAttribute("x1", 0); line.setAttribute("x2", 0);
+  line.setAttribute("y1", 0); line.setAttribute("y2", 0);
+  svg.appendChild(line);
+  return line;
+}
+
+/** Клик по ноте — перемотка воспроизведения на неё.
+ *
+ * Время ноты не вычисляется нами, а берётся у abcjs: собирая звук, он проставляет
+ * `currentTrackMilliseconds` тем самым элементам модели, которые приходят в
+ * обработчик клика. Своя арифметика по темпу разошлась бы на повторах, вольтах и
+ * смене куплета.
+ *
+ * У ноты внутри повтора значений несколько — она звучит дважды, — и берётся
+ * ближайшее к текущей позиции: иначе клик по припеву во втором проходе
+ * отбрасывал бы плеер в первый.
+ *
+ * Звук собирается лениво, поэтому первый клик по ноте сам его и заряжает — см.
+ * ветку с `setUpAudio` ниже.
+ *
+ * `seek` сам различает состояния: на ходу он перезапускает звук с новой точки
+ * (о чём и просили), на паузе — только сдвигает позицию. Но остановленный плеер
+ * ничем не покажет, куда переехал, поэтому ноту подсвечиваем и ставим на неё
+ * курсор вручную.
+ */
+let seekArming = false;               // сборка звука по клику уже идёт
+
+async function seekToNote(abcElem) {
+  if (!abcElem || !synth) return;
+  let at = abcElem.currentTrackMilliseconds;
+  if (at === undefined || at === null) {
+    // Звук заряжается лениво: до первого нажатия play у нот нет времени, и клик
+    // раньше просто ничего не делал. Но клик — тот самый жест пользователя,
+    // которого не хватало, чтобы поднять AudioContext: собираем звук здесь же и
+    // повторяем попытку. Флаг — от повторного входа: сборка занимает заметное
+    // время, и второй клик за это время запускал бы её ещё раз.
+    if (seekArming) return;
+    seekArming = true;
+    let ok = false;
+    try { ok = await setUpAudio(true); } finally { seekArming = false; }
+    at = ok ? abcElem.currentTrackMilliseconds : null;
+    if (at === undefined || at === null) return;
+  }
+  if (!synth.midiBuffer) return;
+  const dur = synth.midiBuffer.duration || 0;
+  const now = (synth.percent || 0) * dur * 1000;
+  const ms = Array.isArray(at)
+    ? at.reduce((a, b) => Math.abs(b - now) < Math.abs(a - now) ? b : a)
+    : at;
+  try { synth.seek(ms / 1000, "seconds"); } catch (e) { return; }
+  if (synth.isStarted) return;                      // на ходу подсветку ведёт таймер
+  clearHighlight();
+  const set = (abcElem.abselem && abcElem.abselem.elemset) || [];
+  set.forEach(el => el.classList && el.classList.add("abcjs-note-playing"));
+  const g = set[0], line = cursorLine();
+  if (!g || !line || !g.getBBox) return;
+  // курсор тянется по станам системы, а не по высоте одной ноты
+  const wrap = g.closest(".abcjs-staff-wrapper");
+  const staves = wrap ? wrap.querySelectorAll(".abcjs-staff") : [];
+  const box = g.getBBox();
+  let top = box.y, bottom = box.y + box.height;
+  staves.forEach(st => {
+    const b = st.getBBox();
+    top = Math.min(top, b.y); bottom = Math.max(bottom, b.y + b.height);
+  });
+  line.setAttribute("x1", box.x - 2); line.setAttribute("x2", box.x - 2);
+  line.setAttribute("y1", top);       line.setAttribute("y2", bottom);
+}
+
+/** Курсор проигрывания: подсветка звучащих нот и вертикальная линия по позиции. */
+const cursor = {
+  onStart() { cursorLine(); },
+  onEvent(ev) {
+    if (ev.measureStart && ev.left === null) return;   // конец строки: элементов нет
+    clearHighlight();
+    const attached = [];
+    (ev.elements || []).forEach(group => group.forEach(el => {
+      // элемент из прежней отрисовки означает, что звучит устаревшая партитура
+      if (document.contains(el)) { el.classList.add("abcjs-note-playing"); attached.push(el); }
+      else stale++;
+    }));
+    const line = document.querySelector("#paper line.abcjs-cursor");
+    if (line && ev.left != null) {
+      line.setAttribute("x1", ev.left - 2); line.setAttribute("x2", ev.left - 2);
+      line.setAttribute("y1", ev.top);      line.setAttribute("y2", ev.top + ev.height);
+    }
+    if (attached.length) {
+      // первый **прикреплённый** элемент, а не ev.elements[0][0]: у события бывает
+      // пустая первая группа — невидимая пауза `x` рисунка не имеет, — и обращение
+      // по индексу роняло обработчик, а с ним замирали курсор и подсветка
+      const el = attached[0], r = el.getBoundingClientRect();
+      // нижний край липкой панели — это и есть верх видимой области нот
+      const top = (document.querySelector(".controls") || {}).getBoundingClientRect
+                  ? document.querySelector(".controls").getBoundingClientRect().bottom : 60;
+      if (r.top < top + 8 || r.bottom > innerHeight - 20)
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  },
+  onFinished() {
+    clearHighlight();
+    const line = document.querySelector("#paper line.abcjs-cursor");
+    if (line) { line.setAttribute("y1", 0); line.setAttribute("y2", 0); }
+    if (!loopAll) return;
+    if (verse >= VERSES) { showStatus(); return; }
+    // Следующий куплет запускается из таймаута, а не отсюда: onFinished вызывается
+    // изнутри finished() контроллера, и play() в этот момент застаёт его на полпути.
+    setTimeout(() => { setVerse(verse + 1); synth.play(); }, PAUSE_BETWEEN_VERSES);
+  }
+};
+
+async function setUpAudio(userAction) {
+  if (!ABCJS.synth.supportsAudio()) {
+    document.getElementById("player").textContent = "Браузер не поддерживает воспроизведение.";
+    return;
+  }
+  if (!synth) {
+    synth = new ABCJS.synth.SynthController();
+    synth.load("#player", cursor,
+      { displayLoop: true, displayRestart: true, displayPlay: true, displayProgress: true, displayWarp: true });
+  }
+  // Одного setTune мало: он лишь подменяет ссылку на партитуру, а play пересобирает
+  // звук только при !isLoaded (см. runWhenReady в abcjs). Без сброса играл бы прежний
+  // буфер — четыре голоса вместо мелодии, — а старый таймер подсвечивал бы ноты,
+  // уже выброшенные из DOM перерисовкой.
+  try { synth.pause(); } catch (e) {}
+  synth.destroy();                  // убивает старый таймер и буфер
+  synth.isLoaded = false;           // destroy флаг не снимает, а go() смотрит именно на него
+  clearHighlight();
+  const my = ++audioSeq;
+  // userAction=true — партитура готовится сразу, поэтому play стартует без задержки;
+  // при самой первой отрисовке жеста пользователя ещё не было, там false.
+  const params = {
+    // URL фиктивный: запросы перехватываются и отдаются из вшитых семплов;
+    // папку инструмента abcjs выводит из program (GM), поэтому тембр задаётся им
+    soundFontUrl: "local://sf",
+    program: instrument === "choir_aahs" ? 52 : 0,
+    midiTranspose: shift,           // звук едет вместе с нотами
+    // Буквенные аккорды abcjs озвучивает отдельным треком — басовая нота плюс
+    // созвучие. В песнях с запевом это слышно как голоса, которых на нотоносце
+    // нет вовсе: в 1473 первые восемь тактов поёт одно сопрано, а в звуке идёт
+    // бас по «Fm», «B♭m». Разбор тут ни при чём, но «слышу не то, что вижу»
+    // выглядит поломкой, поэтому аккомпанемент отключаемый
+    chordsOff: !chords
+  };
+  try {
+    await synth.setTune(visualObj, userAction, params);
+  } catch (e) {
+    // без жеста пользователя AudioContext не поднять (например, пересборка по resize):
+    // заряжаем лениво — звук соберётся при первом нажатии play
+    await synth.setTune(visualObj, false, params);
+  }
+  return my === audioSeq;           // false — пока грузились, выбор успел смениться
+}
+
+/** Номер такта — только в начале нотной строки, как в печатном сборнике.
+ *
+ * При включённом `wrap` abcjs подписывает **каждый** такт и шаг из
+ * `%%barnumbers N` игнорирует (без wrap шаг работает). Строки заранее неизвестны:
+ * при адаптивной вёрстке ширина решает, сколько тактов поместится, — поэтому
+ * лишние подписи убираются уже по отрисованному SVG.
+ *
+ * Отбор идёт по классу `abcjs-bar-number`, а не по «текст из одних цифр»:
+ * прежнее правило гасило заодно номера вольт («1.», «2.» над станом) — они тоже
+ * цифры и стоят далеко от края строки. Класс появился вместе с `add_classes`,
+ * включённым ради переноса репризы.
+ */
+function thinBarNumbers() {
+  const rows = new Map();
+  for (const t of document.querySelectorAll("#paper .abcjs-bar-number")) {
+    const line = (t.getAttribute("class").match(/abcjs-l\d+/) || ["?"])[0];
+    const cur = rows.get(line);
+    if (!cur || +t.getAttribute("x") < +cur.getAttribute("x")) rows.set(line, t);
+    t.style.display = "none";
+  }
+  // и только если он стоит у самого края строки: в первой строке такт 1 abcjs не
+  // подписывает, и «оставить самый левый» вывесило бы там номер над вторым тактом
+  const left = Math.min(...Array.from(rows.values(), t => +t.getAttribute("x")));
+  for (const t of rows.values()) if (+t.getAttribute("x") <= left + 20) t.style.display = "";
+}
+
+/** Открывающая реприза с конца строки — в начало следующей.
+ *
+ * В модели abcjs тактовая черта — элемент **конца** такта, и `|:` не исключение:
+ * когда перенос строки приходится ровно на неё, знак остаётся в конце предыдущей
+ * строки, а такт, с которого начинается повтор, открывается голой чертой. В
+ * печатных нотах наоборот — знак переносится в начало новой строки, и именно
+ * так это набрано в PDF.
+ *
+ * Разметкой ABC не лечится: `||:`, и явный перенос строки перед `|:` дают тот же
+ * элемент в конце строки. Подбор `preferredMeasuresPerLine` уводит разрыв с
+ * репризы, но не всегда: в 655 на широком экране чист только вариант с пятью
+ * строками вместо трёх — раскладка портится сильнее, чем сам дефект. Поэтому
+ * знак переносится по нарисованному SVG, как и лишние номера тактов
+ * (`thinBarNumbers`).
+ *
+ * Место в начале строки — зазор между ключом и первой нотой, около десяти
+ * пунктов при ширине знака в четырнадцать, поэтому копия сжимается по
+ * горизонтали. Сжатие сильнее чем вдвое знак уже не читается — тогда лучше
+ * оставить как было.
+ */
+function moveRepeatsToLineStart(vo) {
+  const lines = vo.lines.filter(l => l.staff);
+  const svg = document.querySelector("#paper svg");
+  if (!svg) return;
+  for (let li = 0; li < lines.length - 1; li++) {
+    lines[li].staff.forEach((st, si) => {
+      const voice = ((st.voices || [])[0]) || [];
+      const last = voice[voice.length - 1];
+      if (!last || last.el_type !== "bar" || last.type !== "bar_left_repeat") return;
+      const g = last.abselem && last.abselem.elemset && last.abselem.elemset[0];
+      const nextStaff = (lines[li + 1].staff || [])[si];
+      const next = ((nextStaff && nextStaff.voices) || [])[0] || [];
+      const bar = next.find(e => e.el_type === "bar");
+      const note = next.find(e => e.el_type === "note");
+      if (!g || g.children.length < 4 || !bar || !note) return;
+      const target = bar.abselem.elemset[0];
+      const head = note.abselem.elemset[0];
+      if (!target || !head || !target.children.length) return;
+      // стан берётся по индексу из модели, а не по близости: станы системы стоят
+      // вплотную, и «ближайший» у нижнего голоса легко оказывается верхним
+      const staffOf = el => {
+        const wrap = el.closest && el.closest(".abcjs-staff-wrapper");
+        return wrap && wrap.querySelectorAll(".abcjs-staff")[si];
+      };
+      const src = staffOf(g), dst = staffOf(target);
+      if (!src || !dst) return;
+      const sb = src.getBBox(), db = dst.getBBox();
+      // место знака — за ключом и знаками при ключе **своего** голоса: у станов
+      // системы ключи разные (скрипичный и басовый), и по чужому знак сядет на ноты
+      const tags = (head.getAttribute("class") || "").split(" ")
+        .filter(c => /^abcjs-[lv]\d+$/.test(c)).map(c => "." + c).join("");
+      let left = db.x + 1;
+      svg.querySelectorAll(".abcjs-clef" + tags + ",.abcjs-key-signature" + tags)
+        .forEach(el => { const b = el.getBBox(); left = Math.max(left, b.x + b.width + 2); });
+      const gb = g.getBBox();
+      const s = Math.min(1, (note.abselem.x - 2 - left) / gb.width);
+      if (s < 0.45) return;                       // сжатие сильнее чем вдвое — знак нечитаем
+      // высоту вертикалей задаёт черта новой строки: у нижнего стана черта тянется
+      // через всю систему, а расстояние между станами у строк разное — копия чужой
+      // высоты повисала бы поперёк межстанного промежутка. Берётся именно линия:
+      // первым в группе черты лежит `<text>` номера такта, и по нему знак садился
+      // выше стана и вдвое короче нужного
+      const line = Array.prototype.find.call(target.children, k => k.tagName === "path");
+      if (!line) return;
+      const tb = line.getBBox();
+      const dx = left - gb.x * s, dyDots = db.y - sb.y;
+      const clone = g.cloneNode(true);
+      target.parentNode.appendChild(clone);
+      Array.prototype.forEach.call(g.children, (k, i) => {
+        const b = k.getBBox(), c = clone.children[i];
+        if (!c) return;
+        // номер такта принадлежит старому месту и на новое не едет
+        if (k.tagName !== "path") { c.remove(); return; }
+        if (b.height > gb.height * 0.5) {         // вертикаль: тянется во всю высоту знака
+          const sy = tb.height / b.height;
+          c.setAttribute("transform",
+            "translate(" + dx + "," + (tb.y - b.y * sy) + ") scale(" + s + "," + sy + ")");
+        } else {                                  // точка повтора: переезжает в свой стан
+          c.setAttribute("transform", "translate(" + dx + "," + dyDots + ") scale(" + s + ",1)");
+        }
+      });
+      // на старом месте остаётся обычная тонкая черта, прижатая к краю стана:
+      // строку нельзя обрывать на полуслове, а жирная с точками там уже неверна
+      // из знака остаётся одна тонкая линия: толстая и точки принадлежат уже
+      // перенесённой репризе
+      const paths = Array.prototype.filter.call(g.children, k => k.tagName === "path");
+      const thin = paths.length > 1 ? paths[1] : paths[0];
+      Array.prototype.slice.call(g.children).forEach(k => { if (k !== thin) k.remove(); });
+      if (!thin) return;
+      const thb = thin.getBBox();
+      g.setAttribute("transform",
+        "translate(" + (sb.x + sb.width - thb.x - thb.width) + ",0)");
+    });
+  }
+}
+
+/** Пауза, которую в стане не с кем делить, — на середину стана.
+ *
+ * Голосов в стане два, поэтому abcjs разводит их паузы: верхнему поднимает знак
+ * над станом, нижнему опускает под него. Когда партнёр в это время молчит
+ * невидимо (`x`), разводить не с кем — знак остаётся один и висит за пределами
+ * стана, тогда как в печатных нотах одиночная пауза сидит посередине.
+ *
+ * Смещение у abcjs постоянное — ровно два межлинейных интервала при любой
+ * длительности (проверено на z1…z12), поэтому знак возвращается на место
+ * сдвигом, а не подгонкой по центру: у половинной и целой паузы своя посадка
+ * относительно линий, и центрирование по рамке сбило бы её.
+ *
+ * Разметкой ABC не лечится: ни `stem=`, ни `[I:stem auto]` на паузу не влияют —
+ * abcjs смотрит на число голосов в стане, а не на направление штилей.
+ */
+function centerLoneRests(vo) {
+  vo.lines.forEach(line => (line.staff || []).forEach((staff, si) => {
+    const vs = (staff.voices || []).map(v => {
+      let t = 0;
+      return v.map(e => { const at = t; t += e.duration || 0; return { e, at, dur: e.duration || 0 }; });
+    });
+    if (vs.length < 2) return;
+    vs.forEach((voice, vi) => voice.forEach(item => {
+      const rest = item.e.rest;
+      if (!rest || rest.type !== "rest") return;
+      // партнёр молчит невидимо всё то время, что длится знак
+      const lone = vs.every((other, oi) => oi === vi || other.every(o =>
+        o.at + o.dur <= item.at + 1e-6 || o.at >= item.at + item.dur - 1e-6 ||
+        (o.e.rest && o.e.rest.type === "invisible")));
+      if (!lone) return;
+      const set = (item.e.abselem && item.e.abselem.elemset) || [];
+      const g = set[0];
+      if (!g || !g.closest) return;
+      // стан берётся по индексу из модели, а не по близости: у знака, унесённого
+      // за стан, соседний стан системы может оказаться не дальше своего
+      const wrap = g.closest(".abcjs-staff-wrapper");
+      const st = wrap && wrap.querySelectorAll(".abcjs-staff")[si];
+      if (!st) return;
+      const sb = st.getBBox(), top = wrap.querySelector(".abcjs-top-line");
+      const space = (sb.height - (top ? top.getBBox().height : 0)) / 4;
+      const rb = g.getBBox();
+      const dy = (rb.y + rb.height / 2 < sb.y + sb.height / 2 ? 2 : -2) * space;
+      set.forEach(el => {
+        if (!el.setAttribute) return;
+        const prev = el.getAttribute("transform");
+        el.setAttribute("transform", "translate(0," + dy + ")" + (prev ? " " + prev : ""));
+      });
+    }));
+  }));
+}
+
+/** Отрисовка нот. Звук не трогает: музыка у всех куплетов одна и та же. */
+function drawScore() {
+  const paper = document.getElementById("paper");
+  const w = Math.max(260, paper.clientWidth - 10);
+  drawnLyrics = lyricsAll ? 0 : verse;
+  visualObj = ABCJS.renderAbc("paper", abcFor(mode, drawnLyrics), {
+    visualTranspose: shift,         // ноты переписываются в новую тональность
+    staffwidth: w,
+    add_classes: true,              // по классам ищем ключ и линии стана
+    clickListener: seekToNote,      // клик по ноте — перемотка на неё
+    wrap: { minSpacing: 1.6, maxSpacing: 2.6, preferredMeasuresPerLine: measuresPerLine(w) },
+    responsive: "resize",
+    paddingleft: 2, paddingright: 2, paddingtop: 4, paddingbottom: 8,
+    format: { vocalfont: "serif 13", titlefont: "serif 17", composerfont: "serif 11" }
+  })[0];
+  moveRepeatsToLineStart(visualObj);
+  centerLoneRests(visualObj);
+  thinBarNumbers();
+  document.getElementById("note").textContent =
+    (VOICES.length < 2 ? "Один голос: мелодия. "
+     : mode === "satb" ? "Четыре голоса: сопрано и альт на верхнем стане, тенор и бас на нижнем. "
+                       : "Только мелодия (сопрано). ") +
+    "Звук и семплы вшиты в файл — сеть не нужна.";
+  showStatus();
+}
+
+function showStatus() {
+  document.getElementById("status").innerHTML =
+    `Сейчас поётся: <b>куплет ${verse} из ${VERSES}</b>` +
+    (loopAll ? ` · дальше ${verse < VERSES ? "куплет " + (verse + 1) : "конец песни"}`
+             : " · режим «один куплет»");
+}
+
+/** Полная пересборка: ноты и звук. Нужна при смене голосов, тембра, тональности. */
+function render(userAction) {
+  drawScore();
+  return setUpAudio(userAction === true);
+}
+
+/** Смена куплета БЕЗ пересборки звука: меняются только слова под нотами.
+    Буфер продолжает играть, таймеру подсовывается новая отрисовка — поэтому
+    куплет переключается на ходу, без паузы и без повторной загрузки семплов. */
+function setVerse(v) {
+  verse = v;
+  document.querySelectorAll("#verses button").forEach(b =>
+    b.setAttribute("aria-pressed", String(+b.dataset.k === verse)));
+  // при подстрочном тексте под нотами и так все куплеты: перерисовка ничего не
+  // изменила бы, зато сбивала бы подсветку посреди пения
+  if ((lyricsAll ? 0 : verse) === drawnLyrics) { showStatus(); return; }
+  const t = synth && synth.timer;
+  const wasRunning = !!(t && synth.isStarted);
+  const at = t ? t.currentMillisecond() : 0;      // где сейчас играем
+  const total = t ? t.lastMoment : 0;
+  drawScore();
+  if (synth) {
+    synth.visualObj = visualObj;                  // подсветка идёт по свежей отрисовке
+    if (t) {
+      t.replaceTarget(visualObj);                 // сбрасывает тайминги под новую партитуру
+      if (wasRunning) t.start(total ? at / total : 0);   // и возвращает на прежнее место
+    }
+  }
+}
+
+function group(id, onPick) {
+  const box = document.getElementById(id);
+  box.querySelectorAll("button").forEach(b => {
+    b.onclick = () => {
+      box.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      onPick(b); render(true);
+    };
+  });
+}
+
+const vbox = document.getElementById("verses");
+for (let i = 1; i <= VERSES; i++) {
+  const b = document.createElement("button");
+  b.textContent = i; b.dataset.k = i;
+  b.setAttribute("aria-pressed", i === 1 ? "true" : "false");
+  vbox.appendChild(b);
+}
+document.querySelectorAll("#verses button").forEach(b => {
+  b.onclick = () => setVerse(+b.dataset.k);      // на ходу, звук не прерывается
+});
+// режим проигрывания меняется без пересборки звука — иначе включение «всех куплетов»
+// во время игры обрывало бы то, что сейчас звучит
+document.querySelectorAll("#loopmode button").forEach(b => {
+  b.onclick = () => {
+    loopAll = b.dataset.l === "all";
+    document.querySelectorAll("#loopmode button").forEach(x =>
+      x.setAttribute("aria-pressed", String(x === b)));
+    showStatus();
+  };
+});
+document.querySelectorAll("#keys button[data-d]").forEach(b => {
+  b.onclick = () => {
+    const next = shift + (+b.dataset.d);
+    if (next < KEY_MIN || next > KEY_MAX) return;
+    shift = next;
+    document.getElementById("keyname").textContent =
+      KEYS[(META.key + shift % 12 + 12) % 12] + (shift ? ` (${shift > 0 ? "+" : ""}${shift})` : "");
+    render(true);
+  };
+});
+// режим текста меняется как куплет — перерисовкой без пересборки звука: ноты и
+// тайминги от числа подписанных строк не зависят
+document.querySelectorAll("#lyrics button").forEach(b => {
+  b.onclick = () => {
+    lyricsAll = b.dataset.w === "all";
+    document.querySelectorAll("#lyrics button").forEach(x =>
+      x.setAttribute("aria-pressed", String(x === b)));
+    setVerse(verse);
+  };
+});
+// куплет один — выбирать нечего
+if (VERSES < 2) document.getElementById("lyrics").style.display = "none";
+group("voices", b => { mode = b.dataset.v; });
+// выбирать не из чего — кнопки убираются, а не показываются неработающими
+if (VOICES.length < 2) document.getElementById("voices").style.display = "none";
+group("tones",  b => { instrument = b.dataset.i; });
+group("chords", b => { chords = b.dataset.c === "1"; });
+// в песне без буквенных обозначений выключать нечего
+if (!/"[A-G][b#]?m?/.test(FULL)) document.getElementById("chords").style.display = "none";
+
+let t = null;
+addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => render(true), 120); });
+render();
+
+// отладочный доступ для проверок из браузера
+window.player = { abcFor, get synth() { return synth; }, get mode() { return mode; },
+                  get staleHits() { return stale; } };
+</script>
+</body>
+</html>

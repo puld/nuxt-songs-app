@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const { checkSectionsIntegrity } = require('./sections-integrity');
 const { checkRepeatBalance } = require('./repeat-balance');
+const { checkChordPasses } = require('./chord-passes');
 
 /**
  * Допустимые поля мета-блока
@@ -267,6 +268,12 @@ function lintSongContent(text, fileName) {
   //     видны на экране, но ни ошибки, ни лога нет — заметить можно только
   //     глазами на конкретной песне из полутора тысяч.
   errors.push(...checkRepeatBalance(lines));
+
+  // 11. Пометки прохода в аккордах (`{2:Dm}` — только во втором проходе повтора).
+  //     Ошибка в пометке ничего не ломает, она молча меняет смысл: `{0:F}`
+  //     превращается в «звучит всегда», а пометка вне повтора печатается как
+  //     обычный аккорд — ни лога, ни падения.
+  errors.push(...checkChordPasses(lines));
 
   // Проверка заглавных букв в начале строк строфы снята (пункт 6.3 плана):
   // строчная буква может быть визуальным переносом стихотворной строки, и
