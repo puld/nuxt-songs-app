@@ -300,23 +300,89 @@ test.describe('Аккорды: подбор тональности', () => {
   })
 })
 
-test.describe('Аккорды: тумблер «без басов»', () => {
-  test('по умолчанию обращения показываются целиком', async ({ page }) => {
+// Тумблеры «без басов» и «упростить сложные аккорды» слиты в один
+// («Упростить для гитары», settings.simplifyChords) — обе оси одновременно:
+// бас снимается тем же переключателем, что и sus4/dim/m7b5/+.
+test.describe('Аккорды: тумблер «упростить для гитары»', () => {
+  test('по умолчанию обращения и сложные обозначения показываются как есть', async ({ page }) => {
     await enableChords(page)
     await gotoSong(page, SONGS.CHORDS_BASS.n)
 
     const texts = await page.locator(s.song.chordLabel).allTextContents()
 
     expect(texts.some((t) => t.includes('/'))).toBe(true)
+    for (const chord of SONGS.CHORDS_BASS.complexOriginal) {
+      expect(texts).toContain(chord)
+    }
   })
 
-  test('с включённым тумблером бас у аккорда пропадает', async ({ page }) => {
-    await enableChords(page, { bassHidden: true })
+  // Четвёртый куплет SONGS.CHORDS_BASS — единственный с sus4/dim/m7b5/+
+  test('с включённым тумблером бас пропадает, а сложные обозначения сворачиваются к простым', async ({ page }) => {
+    await enableChords(page, { simplifyChords: true })
     await gotoSong(page, SONGS.CHORDS_BASS.n)
 
     const texts = await page.locator(s.song.chordLabel).allTextContents()
 
     expect(texts.length).toBeGreaterThan(0)
     expect(texts.some((t) => t.includes('/'))).toBe(false)
+    for (const chord of SONGS.CHORDS_BASS.complexOriginal) {
+      expect(texts).not.toContain(chord)
+    }
+    for (const chord of SONGS.CHORDS_BASS.complexSimplified) {
+      expect(texts).toContain(chord)
+    }
+  })
+})
+
+test.describe('Аккорды: тумблер «диезы вместо бемолей»', () => {
+  test('по умолчанию корень песни пишется бемолем', async ({ page }) => {
+    await enableChords(page)
+    await gotoSong(page, SONGS.CHORDS_FLAT.n)
+
+    await expect(page.locator(s.song.chordLabel).first()).toHaveText(SONGS.CHORDS_FLAT.rootFlat)
+  })
+
+  test('с включённым тумблером — диезом, даже без сдвига тональности', async ({ page }) => {
+    await enableChords(page, { forceSharp: true })
+    await gotoSong(page, SONGS.CHORDS_FLAT.n)
+
+    await expect(page.locator(s.song.chordLabel).first()).toHaveText(SONGS.CHORDS_FLAT.rootSharp)
+  })
+})
+
+test.describe('Аккорды: тумблер «немецкая нотация»', () => {
+  test('по умолчанию — английские буквы: си-бемоль Bb, си B', async ({ page }) => {
+    await enableChords(page)
+    await gotoSong(page, SONGS.CHORDS_FLAT.n)
+    await expect(page.locator(s.song.chordLabel).first()).toHaveText(SONGS.CHORDS_FLAT.rootFlat)
+
+    await gotoSong(page, SONGS.CHORDS_NATURAL_B.n)
+    const texts = await page.locator(s.song.chordLabel).allTextContents()
+    expect(texts).toContain(SONGS.CHORDS_NATURAL_B.chord)
+  })
+
+  test('с включённым тумблером си-бемоль — B, си — H', async ({ page }) => {
+    await enableChords(page, { germanNotation: true })
+    await gotoSong(page, SONGS.CHORDS_FLAT.n)
+    await expect(page.locator(s.song.chordLabel).first()).toHaveText(SONGS.CHORDS_FLAT.rootGerman)
+
+    await gotoSong(page, SONGS.CHORDS_NATURAL_B.n)
+    const texts = await page.locator(s.song.chordLabel).allTextContents()
+    expect(texts).toContain(SONGS.CHORDS_NATURAL_B.germanChord)
+    expect(texts).not.toContain(SONGS.CHORDS_NATURAL_B.chord)
+  })
+
+  test('перебивает принудительные диезы на этой паре ступеней', async ({ page }) => {
+    await enableChords(page, { forceSharp: true, germanNotation: true })
+    await gotoSong(page, SONGS.CHORDS_FLAT.n)
+
+    await expect(page.locator(s.song.chordLabel).first()).toHaveText(SONGS.CHORDS_FLAT.rootGerman)
+  })
+
+  test('панель тональности тоже показывает немецкую нотацию', async ({ page }) => {
+    await enableChords(page, { germanNotation: true })
+    await gotoSong(page, SONGS.CHORDS_FLAT.n)
+
+    await expect(page.locator(s.song.chordKeyName)).toHaveText(SONGS.CHORDS_FLAT.rootGerman)
   })
 })

@@ -27,6 +27,11 @@ const settingsStore = {
 
 globalThis.useSettingsStore = () => settingsStore
 
+// `useRuntimeConfig` — тоже авто-импорт Nuxt. Нужен потому, что адрес базы
+// строится от `app.baseURL`: относительный путь ломался при заходе по прямой
+// ссылке (см. `lib/songsSource.js`).
+globalThis.useRuntimeConfig = () => ({ app: { baseURL: '/nuxt-songs-app/' } })
+
 describe('useSongs', () => {
     beforeEach(async () => {
         db = await global.setupTestDB()
@@ -42,6 +47,21 @@ describe('useSongs', () => {
     })
 
     describe('fetchSongs', () => {
+        it('запрашивает базу по абсолютному пути и с ревалидацией кэша', async () => {
+            mockFetchResponse(songsData)
+            const { fetchSongs } = useSongs()
+
+            await fetchSongs()
+
+            const [url, init] = global.fetch.mock.calls[0]
+            // Абсолютный путь: относительный разрешался от адреса страницы, и на
+            // `/about/` уходил в `/about/assets/songs.json` → 404.
+            expect(url).toBe('/nuxt-songs-app/assets/songs.json')
+            // Без ревалидации браузер десять минут отдаёт старую копию, а
+            // обновление при этом рапортует успех.
+            expect(init).toMatchObject({ cache: 'no-cache' })
+        })
+
         it('должен успешно загружать песни из JSON', async () => {
             const mockFetchRestore = mockFetchResponse({ songs: songsData })
 
@@ -49,7 +69,11 @@ describe('useSongs', () => {
             const result = await fetchSongs()
 
             // Проверяем что fetch вызван с правильным путем
-            expect(global.fetch).toHaveBeenCalledWith('assets/songs.json')
+            // (адрес и опции разбираются отдельным тестом ниже)
+            expect(global.fetch).toHaveBeenCalledWith(
+                '/nuxt-songs-app/assets/songs.json',
+                expect.objectContaining({ cache: 'no-cache' })
+            )
 
             expect(result).toBe(true)
 

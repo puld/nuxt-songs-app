@@ -89,23 +89,20 @@ test.describe('Настройки', () => {
     ).toBeChecked()
   })
 
-  // Саму подмену («G/B» → «G») сторожат unit-тесты `lib/transpose.test.js`:
-  // фикстура e2e — снимок, снятый до разметки аккордов, и обращений в ней нет.
-  test('тумблер «без басов» заблокирован, пока аккорды выключены', async ({ page }) => {
+  // Ссылка на дополнительные настройки аккордов (/settings/chords) — четыре
+  // тумблера туда вынесены, чтобы не заслонять остальные настройки
+  // приложения. Скрыта, пока аккорды выключены: настраивать там нечего.
+  test('ссылка на настройки аккордов появляется только при включённом показе', async ({ page }) => {
     await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
     await page.reload()
 
     const section = page.locator(s.settings.section, { hasText: 'Отображение аккордов' })
-    const bassRow = section.locator(s.settings.chordBassToggle)
-    // Сам input спрятан вёрсткой (opacity: 0) — видимая часть это строка с ползунком
-    const bass = bassRow.locator('input')
-
-    // Заблокирован, а не скрыт: строка на месте, но не нажимается
-    await expect(bassRow).toBeVisible()
-    await expect(bass).toBeDisabled()
+    const link = section.getByRole('link', { name: /аккордов/i })
+    await expect(link).toHaveCount(0)
 
     await section.locator(s.settings.chordsToggle).click()
-    await expect(bass).toBeEnabled()
+    await expect(link).toBeVisible()
+    await expect(link).toHaveAttribute('href', '/settings/chords')
   })
 
   test('настройки темы persists после перезагрузки', async ({ page }) => {
@@ -115,5 +112,53 @@ test.describe('Настройки', () => {
 
     await page.reload()
     await expect(page.locator(s.layout.root)).toHaveClass(/dark/)
+  })
+})
+
+// Четыре тумблера, вынесенные с общей страницы настроек: без басов больше
+// нет отдельно — «Упростить для гитары» покрывает и его (см. lib/transpose.test.js
+// и chords.spec.js). Саму подмену в тексте песни сторожат unit-тесты
+// `lib/transpose.test.js` и e2e `chords.spec.js`; здесь — только гейт и вход.
+test.describe('Настройки аккордов (/settings/chords)', () => {
+  test('без devMode — заглушка со ссылкой назад', async ({ page }) => {
+    await page.goto('/settings/chords')
+
+    await expect(page.locator('.stub-title')).toBeVisible()
+    await page.locator('.stub-link').click()
+    await expect(page).toHaveURL(/\/settings$/)
+  })
+
+  test('тумблеры заблокированы, пока показ аккордов выключен', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('devMode', 'true'))
+    await page.goto('/settings/chords')
+
+    const simplify = page.locator(s.settings.simplifyChordsToggle).locator('input')
+    const sharp = page.locator(s.settings.forceSharpToggle).locator('input')
+    const german = page.locator(s.settings.germanNotationToggle).locator('input')
+
+    await expect(simplify).toBeDisabled()
+    await expect(sharp).toBeDisabled()
+    await expect(german).toBeDisabled()
+
+    await page.evaluate(() => window.localStorage.setItem('showChords', 'true'))
+    await page.reload()
+
+    await expect(simplify).toBeEnabled()
+    await expect(sharp).toBeEnabled()
+    await expect(german).toBeEnabled()
+  })
+
+  // «Без басов» был отдельным ключом (`hideChordBass`) до объединения тогглов
+  // и уже жил в localStorage у части пользователей — при слиянии его значение
+  // переносится в `simplifyChords`, иначе апдейт молча выключил бы упрощение.
+  test('старое значение «без басов» переносится в объединённый тоггл', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('devMode', 'true')
+      window.localStorage.setItem('showChords', 'true')
+      window.localStorage.setItem('hideChordBass', 'true')
+    })
+    await page.goto('/settings/chords')
+
+    await expect(page.locator(s.settings.simplifyChordsToggle).locator('input')).toBeChecked()
   })
 })

@@ -60,7 +60,11 @@ export default {
             globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
             runtimeCaching: [
                 {
-                    urlPattern: '/assets/songs.json',
+                    // Строковый паттерн Workbox сравнивает адрес целиком, а на
+                    // GitHub Pages приложение живёт не в корне: без `pathHost`
+                    // правило не совпадало ни с одним запросом, и songs.json в
+                    // `songs-cache` не попадал вовсе.
+                    urlPattern: pathHost + 'assets/songs.json',
                     handler: 'NetworkFirst',
                     options: {
                         cacheName: 'songs-cache',
