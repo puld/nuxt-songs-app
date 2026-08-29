@@ -332,6 +332,19 @@ test.describe('Аккорды: тумблер «упростить для гит
       expect(texts).toContain(chord)
     }
   })
+
+  // Регрессия: немецкая нотация меняет `B` на `H` ещё в тексте, а `parseChord`
+  // понимает только A–G — если упрощение идёт после неё, разбор аккорда с
+  // басом на `H` проваливается молча, и дробь остаётся на экране
+  test('вместе с немецкой нотацией дробь всё равно снимается', async ({ page }) => {
+    await enableChords(page, { simplifyChords: true, germanNotation: true })
+    await gotoSong(page, SONGS.CHORDS_BASS.n)
+
+    const texts = await page.locator(s.song.chordLabel).allTextContents()
+
+    expect(texts.length).toBeGreaterThan(0)
+    expect(texts.some((t) => t.includes('/'))).toBe(false)
+  })
 })
 
 test.describe('Аккорды: тумблер «диезы вместо бемолей»', () => {
