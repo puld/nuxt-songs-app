@@ -34,6 +34,10 @@ export const useSettingsStore = defineStore('settings', {
             // доминантсептаккорда. Аккорды сняты с партитуры для фортепиано,
             // а не под гитару, и такие обозначения там избыточны
             simplifyChords: useStorage('simplifyChords', false),
+            // Схлопывает подряд идущие аккорды с одним корнем (`C → C7 → C`
+            // остаётся просто `C`) — подчинён `simplifyChords`, это его
+            // уточнение, а не независимая настройка
+            collapseRepeats: useStorage('collapseRepeats', false),
             // Писать аккорды диезами всегда, а не по конвенции целевой тональности
             // (`preferSharp`): на гитаре диезы читать привычнее бемолей
             forceSharp: useStorage('forceSharp', false),
@@ -74,6 +78,12 @@ export const useSettingsStore = defineStore('settings', {
         chordsSimplified() {
             return this.chordsVisible && this.simplifyChords
         },
+        // Зависит от chordsSimplified, а не от chordsVisible напрямую: схлопывать
+        // повторы корня без базового упрощения означало бы показывать сырые
+        // sus4/dim/+ вперемешку с решением их не повторять — непоследовательно
+        chordsRepeatsCollapsed() {
+            return this.chordsSimplified && this.collapseRepeats
+        },
         sharpForced() {
             return this.chordsVisible && this.forceSharp
         },
@@ -90,6 +100,9 @@ export const useSettingsStore = defineStore('settings', {
         },
         setSimplifyChords(value) {
             this.simplifyChords = value
+        },
+        setCollapseRepeats(value) {
+            this.collapseRepeats = value
         },
         setForceSharp(value) {
             this.forceSharp = value

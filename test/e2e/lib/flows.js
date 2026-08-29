@@ -49,14 +49,15 @@ export async function gotoSong(page, n) {
  *
  * Вызывать до `page.goto` — иначе приложение прочитает настройки прежними.
  */
-export async function enableChords(page, { simplifyChords = false, forceSharp = false, germanNotation = false } = {}) {
-  await page.addInitScript(([simplify, sharp, german]) => {
+export async function enableChords(page, { simplifyChords = false, collapseRepeats = false, forceSharp = false, germanNotation = false } = {}) {
+  await page.addInitScript(([simplify, collapse, sharp, german]) => {
     window.localStorage.setItem('devMode', 'true')
     window.localStorage.setItem('showChords', 'true')
     window.localStorage.setItem('simplifyChords', String(simplify))
+    window.localStorage.setItem('collapseRepeats', String(collapse))
     window.localStorage.setItem('forceSharp', String(sharp))
     window.localStorage.setItem('germanNotation', String(german))
-  }, [simplifyChords, forceSharp, germanNotation])
+  }, [simplifyChords, collapseRepeats, forceSharp, germanNotation])
 }
 
 /**

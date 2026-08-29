@@ -177,6 +177,7 @@ export const s = {
     simplifyChordsToggle: '.toggle-switch.simplify-toggle',
     forceSharpToggle: '.toggle-switch.force-sharp-toggle',
     germanNotationToggle: '.toggle-switch.german-notation-toggle',
+    collapseRepeatsToggle: '.toggle-switch.collapse-repeats-toggle',
     slider: '.slider',
     toggleLabel: '.toggle-label',
     hint: '.setting-hint',

@@ -58,6 +58,7 @@ npm run songs:parse    # songs-data/songs/*.txt + sections.json + version.txt �
 npm run songs:lint     # Линтер формата .txt + целостность разделов
                        # (node songs-data/lint.js --staged — только staged)
 npm run songs:convert  # Обратная операция: songs.json → songs-data/songs/*.txt
+npm run songs:chord-candidates  # Кандидаты на «проходящий аккорд» — только вывод, ничего не меняет
 node songs-data/verify.js  # Верификация: текст не потерян при переразбивке на строфы
 npm run parse-txt      # LEGACY: tmp/doc.txt → tmp/result.json (scripts/parseTxt.js)
 ```
@@ -175,6 +176,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── sections-integrity.js # Проверка согласованности sections.json с песнями
 │   ├── repeat-balance.js     # Проверка баланса маркеров повтора в строфе
 │   ├── chord-passes.js       # Проверка пометок прохода в аккордах ({2:Dm})
+│   ├── chord-passing-candidates.js # Прототип: выгрузка кандидатов на проходящий аккорд (только вывод)
 │   ├── convert.js            # songs.json → .txt (обратная операция)
 │   └── verify.js             # Проверка сохранности текста при переразбивке
 ├── scripts/parseTxt.js       # LEGACY-парсер (tmp/doc.txt)
@@ -572,6 +574,7 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 | `fontSize` | String | `'small'`, `'medium'`, `'large'` | `'medium'` |
 | `showChords` | Boolean | `true` / `false` | `false` |
 | `simplifyChords` | Boolean | упрощение для гитары: снимает бас (`G/B` → `G`) и сворачивает sus4/sus2/dim/dim7/m7b5/+ до мажора, минора или септаккорда | `false` |
+| `collapseRepeats` | Boolean | схлопывать подряд идущие аккорды с одним корнем (`C → C7 → C` → `C`); подчинён `simplifyChords` | `false` |
 | `forceSharp` | Boolean | писать аккорды диезами всегда, а не по конвенции целевой тональности | `false` |
 | `germanNotation` | Boolean | немецкая (H) нотация: си — `H`, си-бемоль — `B` | `false` |
 | `keepScreenOn` | Boolean | `true` / `false` | `true` |
@@ -583,11 +586,11 @@ Pinia store с `useStorage` от VueUse (персистентность в local
 | `recentSongs` | Array | номера недавно открытых песен, свежая первой (не более `RECENT_LIMIT`) | `[]` |
 | `updateAvailable` | Boolean | **не персистентно** — пересчитывается при запуске | `false` |
 
-Действия: `setFontSize`, `setShowChords`, `setSimplifyChords`, `setForceSharp`, `setGermanNotation`, `setKeepScreenOn`, `setSongsEtag`, `setSongsVersion` (через `normalizeSongsVersion`), `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`), `addRecentSong`, `clearRecentSongs`.
+Действия: `setFontSize`, `setShowChords`, `setSimplifyChords`, `setCollapseRepeats`, `setForceSharp`, `setGermanNotation`, `setKeepScreenOn`, `setSongsEtag`, `setSongsVersion` (через `normalizeSongsVersion`), `setLastUpdateCheck`, `setDevMode`, `setUpdateAvailable`, `setSongsListMode` (значение проходит через `normalizeSongsListMode`), `addRecentSong`, `clearRecentSongs`.
 
 Геттер `currentSongsVersion` нормализует версию при чтении — на ней держится сравнение баз при импорте подборки, и `NaN` из localStorage сломал бы его молча.
 
-Геттер `chordsSimplified` (`chordsVisible && simplifyChords`) — условие упрощения аккордов. Считается от `chordsVisible`, а не от `simplifyChords` напрямую: иначе настройка жила бы своей жизнью при выключенных аккордах и всплывала бы неожиданно при их включении. Той же схемой построены `sharpForced` (`chordsVisible && forceSharp`) и `germanNotationOn` (`chordsVisible && germanNotation`) — см. «Аккорды упрощаются для гитары по настройке» и «Диезы вместо бемолей — принудительно».
+Геттер `chordsSimplified` (`chordsVisible && simplifyChords`) — условие упрощения аккордов. Считается от `chordsVisible`, а не от `simplifyChords` напрямую: иначе настройка жила бы своей жизнью при выключенных аккордах и всплывала бы неожиданно при их включении. Той же схемой построены `sharpForced` (`chordsVisible && forceSharp`) и `germanNotationOn` (`chordsVisible && germanNotation`) — см. «Аккорды упрощаются для гитары по настройке» и «Диезы вместо бемолей — принудительно». Геттер `chordsRepeatsCollapsed` (`chordsSimplified && collapseRepeats`) собран не от `chordsVisible`, а от `chordsSimplified` — это уточнение упрощения, а не параллельная настройка, и без базового упрощения включённым бессмысленно.
 
 Геттер `chordsVisible` (`devMode && showChords`) — единственное условие показа аккордов. Гейт стоит в store, а не только на тумблере в настройках: тумблер какое-то время был доступен всем, и у кого-то `showChords` остался включённым — без геттера такой пользователь увидел бы аккорды в 581 песне из 1565 — больше чем у каждой третьей.
 
@@ -676,6 +679,7 @@ E2E-сторожа два, и оба падают без фикса: «стре�
 неоднозначен, когда тогглов больше одного.
 
 - **Упростить для гитары** (`simplifyChords`) — см. «Аккорды упрощаются для гитары по настройке». До объединения тогглов бас (`G/B` → `G`) прятался отдельным ключом `hideChordBass`; при первом обращении к стору `hideChordBass: true` **мигрирует** в `simplifyChords`, чтобы у тех, кто уже включал старый тоггл, аккорды после обновления не перестали упрощаться молча
+  - **Схлопывать повтор корня** (`collapseRepeats`) — вложенный тоггл, заблокирован, пока выключено само упрощение (не `settings.showChords`, а именно `settings.simplifyChords` — это его уточнение). См. «Схлопывание повтора корня»
 - **Диезы вместо бемолей** (`forceSharp`) — см. «Диезы вместо бемолей — принудительно»
 - **Немецкая нотация** (`germanNotation`) — си → `H`, си-бемоль → `B` вместо
   английских `B`/`Bb`. Мнемоника гитариста: аккорд Am без баррэ, баррэ на
@@ -909,6 +913,78 @@ E2E-сторожа два, и оба падают без фикса: «стре�
   миграция старого значения). Разбор самих правил — unit-тестами
   `lib/transpose.test.js`
 
+### Схлопывание повтора корня
+
+Аккорды сняты с партитуры для фортепиано: там, где гармония держится на месте,
+но голос под ней движется, ноты часто получают отдельный аккорд на каждую —
+`{E}спас! {E7}Бог» (песня 1, реальный случай) — хотя корень (E) не меняется
+вовсе. Для гитариста это один и тот же аккорд, зафиксированный дважды.
+
+Тоггл `collapseRepeats` (геттер `chordsRepeatsCollapsed`) снимает разметку у
+второго и последующих аккордов серии с одинаковым корнем — `simplifyChordsText`
+меняет обозначение, `collapseRepeatedRootsText` в `lib/transpose.js` решает
+вообще не показывать повтор. Функции разные и обе экспортированы отдельно:
+первая — подмена, вторая — решение о показе.
+
+- **Группировка — только по корню**, не по всему аккорду. Суффикс и бас
+  игнорируются: `C`, `Cm`, `C7`, `C/E` — один и тот же корень `C`, и после
+  первого показа остальные снимаются, что бы у них ни было дальше. Это
+  единственный уровень плотности, который решается **без разночтений**: если
+  корень не изменился, гармония для гитариста не изменилась — в отличие от
+  прохода по нисходящему басу (`G/B` между `C` и `Am`) или от плотности
+  «аккорд на каждую ноту мотива», которые остаются решением на слух, а не
+  расчётом (см. handoff и обсуждение в истории задачи)
+- **Подчинён `simplifyChords`, а не `chordsVisible` напрямую.** Схлопывать
+  повтор корня без базового упрощения означало бы показывать сырые
+  необработанные обозначения (`sus4`, обращения) вперемешку с решением их не
+  повторять — непоследовательно. Тоггл на `/settings/chords` вложен визуально
+  (отступ, класс `nested-toggle`) и заблокирован, пока выключено именно
+  `settings.simplifyChords` — не общий показ аккордов
+- **Разные проходы повтора не схлопываются между собой**, даже при совпавшем
+  корне: `{1:C}` и `{2:C}` — разная гармония по смыслу (два прохода), а не
+  один и тот же корень, зафиксированный дважды. Группировка учитывает номер
+  прохода как часть ключа
+- **Нераспознанное прерывает серию**, а не встраивается в неё: `parseChord`
+  вернёт `null` для строк вроде `N.C.`, и функция на этом сбрасывает
+  накопленный корень, а саму пометку возвращает как есть
+- **Идёт тем же первым шагом конвейера**, что и `simplifyChordsText` — до
+  сдвига тональности и выбора нотации, по той же причине (см. «Диезы вместо
+  бемолей — принудительно», пункт про порядок шагов): `parseChord` внутри понимает
+  только буквы A–G, а немецкая нотация могла бы подставить `H` раньше времени
+- E2E — `chords.spec.js` (пятый куплет `CHORDS_BASS`: `C, C7, C/E, G` →
+  `C, G`, плюс гейт «заблокирован, пока выключено само упрощение»). Разбор
+  правил группировки — unit-тестами `lib/transpose.test.js`
+
+### Прототип: кандидаты на проходящий аккорд (только вывод)
+
+`npm run songs:chord-candidates` (`songs-data/chord-passing-candidates.js`) —
+разведка перед следующим шагом упрощения аккордов, а не готовая функция
+приложения: **ничего не пишет** в `songs-data/songs/*.txt`, только печатает
+список для ручного просмотра. У «Схлопывания повтора корня» есть объективный
+критерий (корень не менялся), у прохода — нет: `{C}...{G/B}...{Am}` в песне 3
+(бас идёт вниз по ступеням C→B→A) — это законная гармония, а не ошибка
+разметки, и решение убрать такой аккорд или оставить — вкус аранжировщика.
+
+Найти **паттерн**, тем не менее, можно мехточно — признак проходящего
+аккорда: это обращение (есть бас), корень которого не совпадает ни с одним
+соседом, а бас лежит не дальше двух полутонов от нижней звучащей ноты
+(бас, если есть, иначе корень) каждого соседа. Разбор — свой, а не из
+`lib/transpose.js`: та же причина дублирования, что у `repeat-balance.js` —
+`lib/` для браузера ESM, `songs-data/` — CommonJS-инструменты сборки.
+
+- **Игнорирует аккорды без баса** — трезвучие посередине без обращения не
+  про проходящий бас, это другой случай (общая плотность «аккорд на каждую
+  ноту»), для которого этого признака недостаточно
+- **Разные проходы повтора не считаются соседями** — та же логика, что в
+  `collapseRepeatedRootsText`: `{1:C}` и `{2:G/B}` рядом в тексте, но по
+  смыслу это не соседние аккорды одного прохода
+- **Граница блока — пустая строка**, как и везде в формате: куплет/припев
+  не «видит» аккорды соседнего блока
+- **Первый прогон нашёл 5873 кандидата в 467 песнях** — заведомо больше, чем
+  стоит убирать не глядя; список для отбора глазами, а не готовая правка
+- Покрыт `songs-data/chord-passing-candidates.test.js`, включая реальный
+  случай `G/B` между `C` и `Am` из песни 3
+
 ### Диезы вместо бемолей — принудительно
 
 `preferSharp` выбирает знаки по конвенции целевой тональности (Bb-мажор пишется
@@ -927,6 +1003,14 @@ E2E-сторожа два, и оба падают без фикса: «стре�
   проигнорируют
 - **Настройка входит в `watch` пересчёта раскладки** — по той же причине, что
   и упрощение аккордов: смена нотации меняет ширину надписей
+- **Упрощение и схлопывание повтора корня обязаны идти до этого шага, а не
+  после.** `parseChord` понимает только буквы A–G; немецкая нотация (шаг
+  «Немецкая нотация» ниже) подставляет `H` уже в тексте, и аккорд с басом на
+  `H` (например, `G7/H`) `parseChord` больше не разбирает — `stripChordBass`
+  возвращает его как есть, и дробь остаётся на экране. Ровно так и было в
+  баге, зафиксированном в 1.17.1: порядок шагов в `processContent` был
+  обратным, и «Упростить для гитары» переставало снимать бас при включённой
+  «Немецкой нотации»
 - E2E — `chords.spec.js` (`SONGS.CHORDS_FLAT`, песня 7 с бемольным корнем
   первого аккорда). Сама подстановка нот — unit-тестами `lib/transpose.test.js`
 
@@ -1039,7 +1123,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsSource.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `lib/chordMarkup.test.js`, `lib/chordLayout.test.js`, `lib/transpose.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useAutoUpdate.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsSource.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `lib/chordMarkup.test.js`, `lib/chordLayout.test.js`, `lib/transpose.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useAutoUpdate.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`, `songs-data/chord-passing-candidates.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)

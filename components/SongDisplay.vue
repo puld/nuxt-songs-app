@@ -39,7 +39,7 @@ import { useSettingsStore } from '~/stores/settings'
 import { processRepeats } from '~/lib/repeats'
 import { renderChords, hasChords as textHasChords } from '~/lib/chordMarkup'
 import { planChordShifts } from '~/lib/chordLayout'
-import { transposeText, simplifyChordsText, preferSharp, normalizeTranspose } from '~/lib/transpose'
+import { transposeText, simplifyChordsText, collapseRepeatedRootsText, preferSharp, normalizeTranspose } from '~/lib/transpose'
 
 const props = defineProps({
   song: {
@@ -146,22 +146,32 @@ const sharpSpelling = computed(() => {
 const processContent = (content) => {
   if (!content) return ''
 
-  // 0. Сдвиг тональности — до всего остального: он меняет только содержимое {…}.
-  // При принудительных диезах/немецкой нотации и нулевом сдвиге функция всё
-  // равно проходит по тексту — раннего выхода при semitones=0 в ней больше нет
-  // ради этих случаев
-  let result = transposeText(
-    content,
+  // 0. Упрощение для гитары — первым шагом, пока аккорды ещё в исходной
+  // английской нотации (A–G): снимает бас и сворачивает сложные обозначения
+  // (sus4/sus2/dim/dim7/m7b5/+). `parseChord` понимает только буквы A–G, а
+  // немецкая нотация (шаг ниже) может подставить `H` — после неё разбор
+  // аккорда с басом на `H` проваливался бы молча, и дробь оставалась на экране
+  let result = content
+  if (settings.chordsSimplified) result = simplifyChordsText(result)
+
+  // Схлопывание повтора корня — уточнение упрощения, а не отдельный шаг:
+  // без него на экране осталась бы прежняя плотность, просто с более
+  // простыми обозначениями. Та же причина порядка: должно идти до сдвига
+  // тональности/нотации ниже, пока аккорды в исходной нотации A–G
+  if (settings.chordsRepeatsCollapsed) result = collapseRepeatedRootsText(result)
+
+  // 0.5. Сдвиг тональности и выбор нотации — после упрощения, по той же
+  // причине: `transposeChord` тоже разбирает только A–G, но именно этот шаг
+  // подставляет диезы/бемоли и немецкие `H`/`B`, поэтому обязан идти следом,
+  // а не раньше. При принудительных диезах/немецкой нотации и нулевом
+  // сдвиге функция всё равно проходит по тексту — раннего выхода при
+  // semitones=0 в ней больше нет ради этих случаев
+  result = transposeText(
+    result,
     normalizeTranspose(props.transpose),
     sharpSpelling.value,
     settings.germanNotationOn
   )
-
-  // 0.5. Упрощение для гитары: снимает бас и сворачивает сложные обозначения
-  // (sus4/sus2/dim/dim7/m7b5/+) — по той же разметке {…}, до её разбора в
-  // HTML. Аккорды сняты с партитуры для фортепиано, а не под гитару, и то и
-  // другое там избыточно
-  if (settings.chordsSimplified) result = simplifyChordsText(result)
 
   // 1. Обрабатываем повторы (/текст /Nр.) — не затрагивает аккорды {Am}.
   // Разворот помеченного повтора в копии разрешён только при показанных
@@ -255,6 +265,7 @@ watch([
   // Упрощение меняет ширину надписей («D7/F#» вдвое шире «D7», «Bb7(sus4)»
   // шире «Bb7»), а от неё зависит, какие из них расходятся
   () => settings.chordsSimplified,
+  () => settings.chordsRepeatsCollapsed,
   () => settings.sharpForced,
   () => settings.germanNotationOn,
   () => props.transpose
