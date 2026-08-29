@@ -58,6 +58,7 @@ npm run songs:parse    # songs-data/songs/*.txt + sections.json + version.txt �
 npm run songs:lint     # Линтер формата .txt + целостность разделов
                        # (node songs-data/lint.js --staged — только staged)
 npm run songs:convert  # Обратная операция: songs.json → songs-data/songs/*.txt
+npm run songs:chord-candidates  # Кандидаты на «проходящий аккорд» — только вывод, ничего не меняет
 node songs-data/verify.js  # Верификация: текст не потерян при переразбивке на строфы
 npm run parse-txt      # LEGACY: tmp/doc.txt → tmp/result.json (scripts/parseTxt.js)
 ```
@@ -175,6 +176,7 @@ npm run test:e2e:headed / test:e2e:ui
 │   ├── sections-integrity.js # Проверка согласованности sections.json с песнями
 │   ├── repeat-balance.js     # Проверка баланса маркеров повтора в строфе
 │   ├── chord-passes.js       # Проверка пометок прохода в аккордах ({2:Dm})
+│   ├── chord-passing-candidates.js # Прототип: выгрузка кандидатов на проходящий аккорд (только вывод)
 │   ├── convert.js            # songs.json → .txt (обратная операция)
 │   └── verify.js             # Проверка сохранности текста при переразбивке
 ├── scripts/parseTxt.js       # LEGACY-парсер (tmp/doc.txt)
@@ -953,6 +955,36 @@ E2E-сторожа два, и оба падают без фикса: «стре�
   `C, G`, плюс гейт «заблокирован, пока выключено само упрощение»). Разбор
   правил группировки — unit-тестами `lib/transpose.test.js`
 
+### Прототип: кандидаты на проходящий аккорд (только вывод)
+
+`npm run songs:chord-candidates` (`songs-data/chord-passing-candidates.js`) —
+разведка перед следующим шагом упрощения аккордов, а не готовая функция
+приложения: **ничего не пишет** в `songs-data/songs/*.txt`, только печатает
+список для ручного просмотра. У «Схлопывания повтора корня» есть объективный
+критерий (корень не менялся), у прохода — нет: `{C}...{G/B}...{Am}` в песне 3
+(бас идёт вниз по ступеням C→B→A) — это законная гармония, а не ошибка
+разметки, и решение убрать такой аккорд или оставить — вкус аранжировщика.
+
+Найти **паттерн**, тем не менее, можно мехточно — признак проходящего
+аккорда: это обращение (есть бас), корень которого не совпадает ни с одним
+соседом, а бас лежит не дальше двух полутонов от нижней звучащей ноты
+(бас, если есть, иначе корень) каждого соседа. Разбор — свой, а не из
+`lib/transpose.js`: та же причина дублирования, что у `repeat-balance.js` —
+`lib/` для браузера ESM, `songs-data/` — CommonJS-инструменты сборки.
+
+- **Игнорирует аккорды без баса** — трезвучие посередине без обращения не
+  про проходящий бас, это другой случай (общая плотность «аккорд на каждую
+  ноту»), для которого этого признака недостаточно
+- **Разные проходы повтора не считаются соседями** — та же логика, что в
+  `collapseRepeatedRootsText`: `{1:C}` и `{2:G/B}` рядом в тексте, но по
+  смыслу это не соседние аккорды одного прохода
+- **Граница блока — пустая строка**, как и везде в формате: куплет/припев
+  не «видит» аккорды соседнего блока
+- **Первый прогон нашёл 5873 кандидата в 467 песнях** — заведомо больше, чем
+  стоит убирать не глядя; список для отбора глазами, а не готовая правка
+- Покрыт `songs-data/chord-passing-candidates.test.js`, включая реальный
+  случай `G/B` между `C` и `Am` из песни 3
+
 ### Диезы вместо бемолей — принудительно
 
 `preferSharp` выбирает знаки по конвенции целевой тональности (Bb-мажор пишется
@@ -1091,7 +1123,7 @@ TailwindCSS расширяет цвета из CSS-переменных (`tailwi
 - Глобальные хелперы `setupTestDB()`, `cleanupTestDB()` (`test/setup.js`); моки Nuxt и fetch — в `test/helpers/`
 - Версия БД в тестах берётся из `lib/dbSchema.js` — отдельно в тестах не задаётся
 - Покрытие: `lib/**/*.js`, `composables/**/*.js`, provider v8, отчёты text/json/html
-- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsSource.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `lib/chordMarkup.test.js`, `lib/chordLayout.test.js`, `lib/transpose.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useAutoUpdate.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`
+- Тесты: `lib/search.test.js`, `lib/repeats.test.js`, `lib/autoUpdate.test.js`, `lib/wakeLock.test.js`, `lib/dbSchema.test.js`, `lib/dbMigrations.test.js`, `lib/devMode.test.js`, `lib/songsIndex.test.js`, `lib/storagePersist.test.js`, `lib/collectionsBackup.test.js`, `lib/collectionShare.test.js`, `lib/collectionImport.test.js`, `lib/collectionsOrder.test.js`, `lib/songsSource.test.js`, `lib/songsVersion.test.js`, `lib/diagnostics.test.js`, `lib/recentSongs.test.js`, `lib/changelog.test.js`, `lib/chordMarkup.test.js`, `lib/chordLayout.test.js`, `lib/transpose.test.js`, `composables/useSongSearch.test.js`, `composables/useIndexDB.complex.test.js`, `composables/useIndexDB.unavailable.test.js`, `composables/useSongs.test.js`, `composables/useAutoUpdate.test.js`, `composables/useSongsCache.test.js`, `composables/useCollectionsBackup.test.js`, `lib/songsList.test.js`, `lib/popupOffset.test.js`, `lib/share.test.js`, `composables/useShare.test.js`, `songs-data/sections-integrity.test.js`, `songs-data/repeat-balance.test.js`, `songs-data/version.test.js`, `songs-data/chord-passing-candidates.test.js`
 - Модульные синглтоны сбрасываются в `beforeEach`: `resetSearchIndex()` в тестах поиска, `invalidateSongsCache()` в тестах кэша — иначе состояние течёт между тестами
 
 ### E2E (Playwright)

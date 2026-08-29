@@ -13,6 +13,7 @@
     "songs:lint": "node songs-data/lint.js songs-data",
     "songs:parse": "node songs-data/parse.js",
     "songs:convert": "node songs-data/convert.js",
+    "songs:chord-candidates": "node songs-data/chord-passing-candidates.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
