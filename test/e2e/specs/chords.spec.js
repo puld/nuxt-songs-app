@@ -347,6 +347,43 @@ test.describe('Аккорды: тумблер «упростить для гит
   })
 })
 
+test.describe('Аккорды: тумблер «схлопывать повтор корня»', () => {
+  // Пятый куплет SONGS.CHORDS_BASS: C, C7, C/E, G — три подряд с корнем C
+  const fifthVerse = (page) => page.locator(s.song.part).nth(4)
+
+  test('без тумблера показываются все аккорды, даже с упрощением', async ({ page }) => {
+    await enableChords(page, { simplifyChords: true })
+    await gotoSong(page, SONGS.CHORDS_BASS.n)
+
+    const texts = await fifthVerse(page).locator(s.song.chordLabel).allTextContents()
+
+    expect(texts).toEqual(SONGS.CHORDS_BASS.repeatedRootOriginal)
+  })
+
+  test('с тумблером повтор корня схлопывается в один аккорд', async ({ page }) => {
+    await enableChords(page, { simplifyChords: true, collapseRepeats: true })
+    await gotoSong(page, SONGS.CHORDS_BASS.n)
+
+    const texts = await fifthVerse(page).locator(s.song.chordLabel).allTextContents()
+
+    expect(texts).toEqual(SONGS.CHORDS_BASS.repeatedRootCollapsed)
+  })
+
+  test('заблокирован, пока выключено само упрощение', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('devMode', 'true')
+      window.localStorage.setItem('showChords', 'true')
+    })
+    await page.goto('/settings/chords')
+
+    const toggle = page.locator(s.settings.collapseRepeatsToggle).locator('input')
+    await expect(toggle).toBeDisabled()
+
+    await page.locator(s.settings.simplifyChordsToggle).click()
+    await expect(toggle).toBeEnabled()
+  })
+})
+
 test.describe('Аккорды: тумблер «диезы вместо бемолей»', () => {
   test('по умолчанию корень песни пишется бемолем', async ({ page }) => {
     await enableChords(page)

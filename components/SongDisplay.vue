@@ -39,7 +39,7 @@ import { useSettingsStore } from '~/stores/settings'
 import { processRepeats } from '~/lib/repeats'
 import { renderChords, hasChords as textHasChords } from '~/lib/chordMarkup'
 import { planChordShifts } from '~/lib/chordLayout'
-import { transposeText, simplifyChordsText, preferSharp, normalizeTranspose } from '~/lib/transpose'
+import { transposeText, simplifyChordsText, collapseRepeatedRootsText, preferSharp, normalizeTranspose } from '~/lib/transpose'
 
 const props = defineProps({
   song: {
@@ -154,6 +154,12 @@ const processContent = (content) => {
   let result = content
   if (settings.chordsSimplified) result = simplifyChordsText(result)
 
+  // Схлопывание повтора корня — уточнение упрощения, а не отдельный шаг:
+  // без него на экране осталась бы прежняя плотность, просто с более
+  // простыми обозначениями. Та же причина порядка: должно идти до сдвига
+  // тональности/нотации ниже, пока аккорды в исходной нотации A–G
+  if (settings.chordsRepeatsCollapsed) result = collapseRepeatedRootsText(result)
+
   // 0.5. Сдвиг тональности и выбор нотации — после упрощения, по той же
   // причине: `transposeChord` тоже разбирает только A–G, но именно этот шаг
   // подставляет диезы/бемоли и немецкие `H`/`B`, поэтому обязан идти следом,
@@ -259,6 +265,7 @@ watch([
   // Упрощение меняет ширину надписей («D7/F#» вдвое шире «D7», «Bb7(sus4)»
   // шире «Bb7»), а от неё зависит, какие из них расходятся
   () => settings.chordsSimplified,
+  () => settings.chordsRepeatsCollapsed,
   () => settings.sharpForced,
   () => settings.germanNotationOn,
   () => props.transpose

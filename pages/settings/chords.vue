@@ -42,6 +42,27 @@
           на ближайший простой мажор, минор или септаккорд. Аккорды сняты с
           партитуры, а не под гитару, и то и другое там обычно избыточно.
         </p>
+
+        <!-- Заблокирован, пока выключено само упрощение — это его уточнение,
+             а не независимая настройка (см. collapseRepeats в сторе) -->
+        <label
+            class="toggle-switch sub-toggle nested-toggle collapse-repeats-toggle"
+            :class="{ disabled: !settings.simplifyChords }"
+        >
+          <input
+              type="checkbox"
+              :checked="settings.collapseRepeats"
+              :disabled="!settings.simplifyChords"
+              @change="handleCollapseRepeatsToggle"
+          >
+          <span class="slider"></span>
+          <span class="toggle-label">Схлопывать повтор корня</span>
+        </label>
+        <p class="setting-hint nested-hint">
+          Если несколько аккордов подряд стоят на одном корне (например,
+          C → C7 → C), показывается только первый — остальные лишь уточняли
+          аккорд, который и так не меняется.
+        </p>
       </div>
 
       <div class="setting-section">
@@ -89,6 +110,10 @@ const settings = useSettingsStore()
 
 const handleSimplifyChordsToggle = (e) => {
   settings.setSimplifyChords(e.target.checked)
+}
+
+const handleCollapseRepeatsToggle = (e) => {
+  settings.setCollapseRepeats(e.target.checked)
 }
 
 const handleForceSharpToggle = (e) => {
@@ -168,6 +193,16 @@ input:checked + .slider:before {
 .sub-toggle.disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Вложенный тоггл — уточнение родительского, а не равноправная настройка */
+.nested-toggle {
+  margin-top: 1rem;
+  margin-left: 1.5rem;
+}
+
+.nested-hint {
+  margin-left: 1.5rem;
 }
 
 .setting-hint {
